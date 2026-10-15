@@ -11,3 +11,6 @@ environments = [
     "sys_platform == 'darwin' and platform_machine == 'arm64'",
     "sys_platform == 'linux'",
 ]
+
+[tool.uv.sources]
+quantum-agent = { workspace = true }

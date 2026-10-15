@@ -1,0 +1,49 @@
+[project]
+name = "quantum-agent"
+version = "0.1.0"
+description = "Bounded, explainable statevector simulation for quantum-computing problems"
+license = "Apache-2.0"
+requires-python = ">=3.12"
+dependencies = ["numpy>=2"]
+
+[project.optional-dependencies]
+qiskit = ["qiskit>=2"]
+cirq = ["cirq>=1.6"]
+pennylane = ["pennylane>=0.42"]
+symbolic = ["sympy>=1.14"]
+scipy = ["scipy>=1.15"]
+
+[project.scripts]
+quantum-agent = "quantum_agent.entrypoints.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.12.2,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "hypothesis>=6",
+    "pyright>=1.1",
+    "pytest>=9",
+    "pytest-cov>=7",
+    "ruff>=0.16",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--strict-markers", "-ra"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF", "PT"]
+
+[tool.pyright]
+include = ["src"]
+venvPath = "../.."
+venv = ".venv"
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+reportMissingTypeStubs = false

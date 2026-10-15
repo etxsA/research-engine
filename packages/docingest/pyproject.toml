@@ -19,6 +19,7 @@ dependencies = [
     "pypdfium2>=5.13",
     "rich>=15.0.0",
     "typer>=0.19",
+    "quantum-agent",
 ]
 
 [project.scripts]
