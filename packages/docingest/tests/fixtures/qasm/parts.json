@@ -1,0 +1,69 @@
+{
+  "format": "circuit/1",
+  "kind": "quantikz",
+  "status": "parsed",
+  "label": "",
+  "wires": 1,
+  "wire_labels": ["1 = \\ket{q_0}"],
+  "parts": [
+    [
+      [
+        {
+          "kind": "gate",
+          "label": "H",
+          "targets": [1],
+          "controls": [],
+          "open_controls": [],
+          "classical": false,
+          "source": ""
+        }
+      ],
+      [
+        {
+          "kind": "gate",
+          "label": "Z",
+          "targets": [1],
+          "controls": [],
+          "open_controls": [],
+          "classical": false,
+          "source": ""
+        }
+      ],
+      [
+        {
+          "kind": "gate",
+          "label": "H",
+          "targets": [1],
+          "controls": [],
+          "open_controls": [],
+          "classical": false,
+          "source": ""
+        }
+      ]
+    ],
+    [
+      [
+        {
+          "kind": "sep",
+          "label": "=",
+          "targets": [],
+          "controls": [],
+          "open_controls": [],
+          "classical": false,
+          "source": ""
+        }
+      ],
+      [
+        {
+          "kind": "gate",
+          "label": "X",
+          "targets": [1],
+          "controls": [],
+          "open_controls": [],
+          "classical": false,
+          "source": ""
+        }
+      ]
+    ]
+  ]
+}

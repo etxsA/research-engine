@@ -11,6 +11,9 @@ __pycache__/
 .DS_Store
 .claude/
 
+# Local agent instructions, not part of the repository
+AGENTS.md
+
 # Local data, reproducible from scripts/fetch_samples.sh and the pipeline (any depth, so
 # copies left at the old top-level paths stay ignored too); version with DVC if needed.
 **/data/raw/

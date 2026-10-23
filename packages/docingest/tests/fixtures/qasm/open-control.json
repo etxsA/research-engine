@@ -1,0 +1,23 @@
+{
+  "format": "circuit/1",
+  "kind": "quantikz",
+  "status": "parsed",
+  "label": "",
+  "wires": 2,
+  "wire_labels": ["1", "2"],
+  "parts": [
+    [
+      [
+        {
+          "kind": "gate",
+          "label": "X",
+          "targets": [2],
+          "controls": [],
+          "open_controls": [1],
+          "classical": false,
+          "source": ""
+        }
+      ]
+    ]
+  ]
+}

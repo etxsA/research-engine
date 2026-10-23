@@ -1,6 +1,6 @@
 [project]
 name = "docingest"
-version = "0.4.1"
+version = "0.5.0"
 description = "Normalize any research document (PDF, scanned PDF, images, office) into Markdown + provenance manifest, with local Qwen-VL OCR on MLX"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
@@ -46,6 +46,7 @@ dev = [
     "hypothesis>=6.168",
     "import-linter>=2.15",
     "matplotlib>=3.10",
+    "openqasm3>=0.5,<1",
     "pyright>=1.1.414",
     "pytest>=9.1.1",
     "pytest-cov>=7",

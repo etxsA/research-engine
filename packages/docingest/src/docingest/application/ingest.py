@@ -56,7 +56,7 @@ from ..ports import (
 )
 from .ink import ink_ratio
 
-PIPELINE_VERSION = "0.4.1"
+PIPELINE_VERSION = "0.5.0"
 SIDECAR_SUFFIX = ".meta.json"  # optional SourceMetadata next to an input file
 
 Log = Callable[[str], None]

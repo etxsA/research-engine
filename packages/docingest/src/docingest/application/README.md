@@ -20,6 +20,7 @@ case.
 - [`crawl.py`: search, download, ingest](#crawlpy-search-download-ingest)
 - [`ask.py`: question answering over the corpus](#askpy-question-answering-over-the-corpus)
 - [`index.py`: keep the chunk index in step with the corpus](#indexpy-keep-the-chunk-index-in-step-with-the-corpus)
+- [`qasm.py`: export the stored circuits as OpenQASM 3](#qasmpy-export-the-stored-circuits-as-openqasm-3)
 - [`benchmark.py`: OCR benchmark runner, scoring and report](#benchmarkpy-ocr-benchmark-runner-scoring-and-report)
 - [`metrics.py`: OCR quality metrics](#metricspy-ocr-quality-metrics)
 - [`stats.py`: cluster bootstrap and paired sign-flip test](#statspy-cluster-bootstrap-and-paired-sign-flip-test)
@@ -35,6 +36,7 @@ case.
 | `crawl.py` | `CrawlService`, `CrawlReport` | Search a remote source, download each record, write a metadata sidecar, ingest it | `bootstrap.Container.crawl`, `docingest crawl` |
 | `ask.py` | `AskService`, `AskSession`, `AskOptions`, `AskResult`, `AskTimings`, `GivenPassage`, `Retrieval`, `EquationLookup`, `WholeBlocks`, `retrieve`, `cap_per_paper`, `with_whole_blocks`, `with_gate_lists`, `with_equation_lookup`, `with_block_notes`, `with_equation_headers`, `MAX_PER_NUMBER`, `MAX_ADDED`, `BLOCK_CHUNKS`, `UNPLACED_WARNING` | Answer a question over every stored document, from the chunk index when one is configured, or from passages the caller gives | `bootstrap.Container.ask`, `Container.ask_session`, `docingest ask` |
 | `index.py` | `IndexService`, `IndexStatus`, `BuildReport`, `content_key`, `document_chunks`, `BATCH_CHUNKS` | Chunk every stored document like `ask` does, embed the new and changed ones, drop the vanished ones, and report the state of the index | `bootstrap.Container.index_service`, `docingest index` |
+| `qasm.py` | `QasmExportService`, `QasmExportReport`, `QasmFile` | Read the fenced `latex` blocks of stored documents, emit one OpenQASM 3 program per circuit part, and write the `.qasm` files | `bootstrap.Container.qasm_export`, `docingest circuits export`, `ingest --qasm`, `crawl --qasm` |
 | `benchmark.py` | `BenchmarkRunner`, `CandidateRun`, `RunMismatchError`, `score_run`, `needs_scoring`, `load_scores`, `rank`, `compare`, `throughput`, `build_summary`, `render_report`, `write_report`, `read_manifest`, `read_telemetry`, `telemetry_path`, `telemetry_stamp`, `latest_by_sample`, `machine_info`, `library_versions` | Transcribe benchmark samples with each OCR candidate (resumable), record telemetry, score, and write `summary.json` and `report.md` | `docingest bench run`, `bench score`, `bench report` (in `entrypoints/bench_cli.py`); `scripts/bench_docs.py` reads `load_scores` and `compare` |
 | `metrics.py` | `score`, `normalize`, `plain_text`, `latex_to_text`, `word_f1`, `char3_f1`, `running_lines`, `strip_furniture`, `bootstrap_ci`, `FURNITURE_ZONE` | Format-neutral text comparison: CER, WER, word F1, character 3-gram F1 | the synthetic benchmark suite, `docingest eval-ocr` |
 | `stats.py` | `cluster_bootstrap_ci`, `paired_bootstrap`, `PairedResult`, `quantile`, `MIN_CLUSTERS`, `bootstrap_ci` (re-exported) | Confidence intervals that resample clusters, and a paired sign-flip test | both benchmark suites, `benchmark.py` |
@@ -1101,6 +1103,35 @@ characters, commits, and returns the full id; an unknown or ambiguous id is a `V
 uv run docingest index build
 uv run docingest index status
 ```
+
+## `qasm.py`: export the stored circuits as OpenQASM 3
+
+`QasmExportService(store, out)` is a read path over the corpus: it finds the fenced `latex`
+blocks of each stored `document.md`, asks `domain.circuits.gate_list` for their circuits, and
+projects every circuit with `domain.qasm.to_qasm`. It writes the programs and changes nothing
+else. The store, the manifest and the cache key are untouched; a `.qasm` file that is lost can
+be made again from the Markdown.
+
+| Name | Meaning |
+|---|---|
+| `export_corpus(selectors=(), *, values=None, out=None)` | Export the selected documents, or every document when no selector is given. A selector is a full `doc_id`, a source name, or a unique `doc_id` prefix of at least 8 characters. Returns a `QasmExportReport`; an unknown or ambiguous selector is a `ValueError`. |
+| `export_documents(documents, *, values=None, out=None)` | The same for documents a caller already holds, which is the post-ingest hook: it does not read the corpus and does not select. |
+| `values` | Binds a free gate parameter by canonical name (`theta` or `\theta`) to a LaTeX expression for every circuit of the call. |
+| `out` | Overrides the service's output directory for this call. The default is `<output_dir>/qasm`. |
+| `QasmExportReport` | `out`, `documents`, `circuits`, `files`, `refusals`, `warnings`, and the `ok` / `written` properties. `refusals` holds one line per circuit or part that could not be exported; `warnings` holds documents with no circuits and unreadable Markdown. |
+| `QasmFile` | `doc_id`, `source_name`, `block`, `circuit`, `part`, `sign`, `path`, `n_qubits`, `n_clbits`. |
+
+Each program is written to `<out>/<doc_id[:16]>-b<block:02d>-c<circuit:02d>-p<part:02d>.qasm`,
+where `block` is the 1-based fenced block of the document and `circuit` is the 1-based circuit
+inside that block. The application layer writes the file itself with the standard library
+(`Path.write_text`, UTF-8, LF); it does not use the store, because this output is derived and
+has no manifest. A refused part does not stop the others: the programs that could be made are
+written, and the report says why each refusal happened. A document with no fences, an empty
+corpus, or a Markdown file that cannot be read is a warning, not a refusal.
+
+The CLI decides the exit code: `docingest circuits export` exits 1 when there is a refusal
+(unless `--allow-partial`) or when nothing was exported. A refusal in the post-ingest hook is
+only a warning, because the documents are already stored.
 
 ## `benchmark.py`: OCR benchmark runner, scoring and report
 
