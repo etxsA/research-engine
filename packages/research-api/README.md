@@ -2,7 +2,7 @@
 
 The HTTP API of the research engine. A FastAPI service built in the same hexagonal style as [docingest](../docingest/README.md): the rules sit in a pure core, the libraries sit in adapters, and import-linter contracts keep it that way. It serves the web app with cited answers, the papers they cite and the circuit check, and will serve question sets and benchmark runs, using docingest and [quantum-sim](../quantum-sim/README.md) as libraries.
 
-It has the layers, the import contracts, the settings loader, a fake mode, the error format, the OpenAPI export, the circuit check endpoints and the sign-in part: accounts in SQLite, Argon2id password hashes, cookie sessions with a CSRF check, a login rate limit, two roles, the `users` command and the private data folder, and the ask path: questions answered one at a time by docingest, followed as server-sent events, with the cited papers readable at a page (see [Asking and reading papers](#asking-and-reading-papers)). Everything else (sets, benchmarks) arrives in later pull requests, each adding use cases, ports and adapters inside this structure.
+It has the layers, the import contracts, the settings loader, a fake mode, the error format, the OpenAPI export, the circuit check endpoints and the sign-in part: accounts in SQLite, Argon2id password hashes, cookie sessions with a CSRF check, a login rate limit, two roles, the `users` command and the private data folder, and the ask path: questions answered one at a time by docingest, followed as server-sent events, with the cited papers readable at a page (see [Asking and reading papers](#asking-and-reading-papers)). It also serves the built web app from its own origin ([The web app](#the-web-app)). Everything else (sets, benchmarks) arrives in later pull requests, each adding use cases, ports and adapters inside this structure.
 
 ## Run it
 
@@ -36,6 +36,7 @@ Start from [`config.example.toml`](config.example.toml). Keep your copy outside 
 | `data_dir` | none | Absolute path of the private data folder (sets, runs and scores will live here). Needed to run for real. |
 | `db_path` | none | Absolute path of the SQLite file. Needed to run for real. Keep it in its own folder, apart from `data_dir`, so each can be backed up on its own. |
 | `log_dir` | none | Absolute path of the log folder. Without it the log lines go to standard error. |
+| `web_dir` | none | Absolute path of the built web app (`apps/web/dist`, or a link to it). When set, the API serves it from its own origin, see [The web app](#the-web-app). |
 | `session_idle_hours` | `12` | A session ends after this many hours without a request (1 to 720). |
 | `session_max_days` | `7` | A session ends this many days after sign-in whatever it does (1 to 90). Not shorter than the idle time. |
 | `login_max_failures` | `5` | Failed sign-ins allowed per username in the window (1 to 100). One client address gets four times as many. |
@@ -45,9 +46,28 @@ Start from [`config.example.toml`](config.example.toml). Keep your copy outside 
 
 A key that is not in the table is an error. Later pull requests add their keys here (model servers, circuit limits, backups).
 
-To run under another process manager: `uvicorn research_api.entrypoints.http:create_app --factory`, with `RESEARCH_API_CONFIG` (or `RESEARCH_API_FAKE=1`) in the environment. The `serve` command turns uvicorn's access log off (a raw access log would hold paths and query strings) and its forwarded-address handling off (uvicorn would otherwise believe an `X-Forwarded-For` header sent from this machine, and so let any account on a shared server pick the address the rate limit sees). The factory sets up the service's log file and silences the access log itself, but only the command line of uvicorn can turn off the forwarded headers: pass `--no-proxy-headers`.
+To run under another process manager: `uvicorn research_api.entrypoints.http:create_app --factory`, with `RESEARCH_API_CONFIG` (or `RESEARCH_API_FAKE=1`) in the environment. `RESEARCH_API_WEB_DIR` in the environment sets `web_dir` for the factory, in fake mode too. The `serve` command turns uvicorn's access log off (a raw access log would hold paths and query strings) and its forwarded-address handling off (uvicorn would otherwise believe an `X-Forwarded-For` header sent from this machine, and so let any account on a shared server pick the address the rate limit sees). The factory sets up the service's log file and silences the access log itself, but only the command line of uvicorn can turn off the forwarded headers: pass `--no-proxy-headers`.
 
 The address rule does not depend on how the server is started. The app checks the local address of every connection (`scope["server"]`, set by uvicorn) and answers `403` with a problem document when it is not allowed: loopback only in fake mode; loopback or exactly the `bind_host` address in live mode (the rest of the Tailscale block, `100.64.0.0/10`, is also carrier-grade NAT space that other hosts use, so it is not accepted). So `uvicorn ... --factory --host 0.0.0.0` listens on every interface but serves nothing on the ones it must not. Prefer `--host` set to the address you mean anyway, so the port is not open on the others. A server without an IP address (a Unix socket) is refused too. The check is in `entrypoints/http/guard.py`.
+
+## The web app
+
+With `web_dir` set, the service also answers every path outside `/api` with the built web app, so the browser meets one origin: the page, the API and the cookies share it, and the API needs no CORS. Nothing is served when `web_dir` is not set (every path outside `/api/v1` is then a 404 problem).
+
+| Request | Answer |
+|---|---|
+| A path that names a file in the folder | That file, with its type, `ETag` and `Last-Modified` (`304` for a request that already holds it). Files under `/assets/` carry a content hash in their names and are cached for a year; everything else (`index.html`, `theme-init.js`, `version.json`) must be revalidated. |
+| Any other path without an extension (`/login`, `/sets/x`) | `index.html`: these are routes of the single-page app. |
+| A path with an extension and no such file (`/assets/app-old.js`) | `404` problem. A page from an older release asking for a script that no longer exists must fail, not receive HTML. |
+| Anything under `/api` that no route matched | `404` problem, never the home page. |
+| A wrong method on a route of the API (`DELETE /api/v1/health`) | `405` with `Allow`, the same answer as without a web app: the web app is the router's fallback and sees only paths no route matched. |
+| A method other than `GET` and `HEAD` outside `/api` | `405` problem with `Allow`. |
+| The folder or its `index.html` is missing | `503` problem: "The web app is not installed on this server." |
+| A path that leaves the folder (`..`, a backslash, a NUL, a symbolic link that points out) | `404` problem. |
+
+Every answer of the web app carries `Content-Security-Policy` (`default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`), `X-Content-Type-Options: nosniff` and `Referrer-Policy: same-origin`. Only styles may be inline (the UI libraries set style attributes); scripts and connections are limited to the origin itself.
+
+`web_dir` may be a symbolic link: it is resolved on every request, so pointing the link at a new build changes what is served with no restart. The bind, `Host` and `Origin` checks and the access log (which records the route as `-`, never the path) apply to these paths like to the API's. The code is `entrypoints/http/webapp.py`; the page is not part of the OpenAPI contract.
 
 ## What it serves now
 

@@ -26,6 +26,10 @@ docingest_config = "/path/to/docingest.toml"
 # 0600, rotated at 10 MiB, five kept.
 # log_dir = "/path/to/research-api/logs"
 
+# Optional. The built web app (apps/web/dist, or a link to it). With it the service serves the
+# page from its own origin, so the browser needs no second address and the API needs no CORS.
+# web_dir = "/path/to/research-api/web/current"
+
 # Sessions end after this many hours without a request, or this many days after sign-in.
 session_idle_hours = 12
 session_max_days = 7
