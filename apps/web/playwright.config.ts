@@ -35,7 +35,9 @@ export default defineConfig({
       command: `pnpm exec vite build && pnpm exec vite preview --host 127.0.0.1 --port ${webPort} --strictPort`,
       env: { RESEARCH_API_URL: `http://127.0.0.1:${apiPort}` },
       url: `http://127.0.0.1:${webPort}`,
-      reuseExistingServer: !process.env.CI,
+      // Never reused either: a preview left by another worktree would be tested in place of this
+      // build, and --strictPort already refuses a taken port, so this says so up front.
+      reuseExistingServer: false,
       timeout: 120_000,
     },
   ],

@@ -12,6 +12,8 @@ from datetime import timedelta
 from importlib.metadata import version
 from pathlib import Path
 
+from pydantic import ValidationError
+
 from ..adapters.circuits import CircuitsAdapter
 from ..adapters.clock import SystemClock
 from ..adapters.docingest_ask import (
@@ -57,6 +59,7 @@ FAKE_ENV = "RESEARCH_API_FAKE"
 FAKE_ASK_PAUSE_ENV = "RESEARCH_API_FAKE_ASK_PAUSE"
 DEFAULT_FAKE_ASK_PAUSE_S = 0.6
 MAX_FAKE_ASK_PAUSE_S = 10.0
+WEB_DIR_ENV = "RESEARCH_API_WEB_DIR"
 
 
 @dataclass(frozen=True)
@@ -242,12 +245,28 @@ def _fake_pause(text: str | None) -> float:
     return pause
 
 
+def _with_web_dir(settings: Settings, env: Mapping[str, str]) -> Settings:
+    """The settings, with ``web_dir`` taken from the environment when it is set there."""
+    folder = env.get(WEB_DIR_ENV)
+    if not folder:
+        return settings
+    try:
+        return Settings.model_validate({**settings.model_dump(), "web_dir": folder})
+    except ValidationError:
+        raise SettingsError(f"{WEB_DIR_ENV} must be an absolute path") from None
+
+
 def container_from_env(environ: Mapping[str, str] | None = None) -> Container:
-    """The container for ``uvicorn --factory``: fake mode, or the settings file named in the env."""
+    """The container for ``uvicorn --factory``: fake mode, or the settings file named in the env.
+
+    ``RESEARCH_API_WEB_DIR`` names the built web app and wins over the ``web_dir`` setting, so
+    fake mode can serve it too.
+    """
     env = os.environ if environ is None else environ
     if env.get(FAKE_ENV) == "1":
+        settings = _with_web_dir(Settings.defaults(), env)
         return build_container(
-            Settings.defaults(),
+            settings,
             fake=True,
             seed=default_seed_users(),
             fake_ask_pause_s=_fake_pause(env.get(FAKE_ASK_PAUSE_ENV)),
@@ -255,7 +274,7 @@ def container_from_env(environ: Mapping[str, str] | None = None) -> Container:
     path = env.get(CONFIG_ENV)
     if not path:
         raise SettingsError(f"set {CONFIG_ENV} to a settings file, or {FAKE_ENV}=1 for fake mode")
-    return build_container(load_private_settings(Path(path)))
+    return build_container(_with_web_dir(load_private_settings(Path(path)), env))
 
 
 @dataclass(frozen=True)

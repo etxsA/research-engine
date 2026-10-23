@@ -13,6 +13,7 @@ The guide links to the reference for each part instead of repeating it:
 | Checking a quantum circuit | [Check a circuit with quantum-sim](#check-a-circuit-with-quantum-sim) below and [packages/quantum-sim/README.md](../packages/quantum-sim/README.md) |
 | Checking or converting a question set, a run, a score or a review file | [Check a question set with qa-bench](#check-a-question-set-with-qa-bench) below and [packages/qa-bench/README.md](../packages/qa-bench/README.md) |
 | Scoring runs against a question set and comparing two runs | [Score runs with qa-bench](#score-runs-with-qa-bench) below and [packages/qa-bench/README.md](../packages/qa-bench/README.md#the-scorer) |
+| Running the web app and its API for a team on a shared server, without sudo | [Run the web app on a shared server](#run-the-web-app-on-a-shared-server) below, [deploy/research-api.sh](../deploy/research-api.sh) and [packages/research-api/README.md](../packages/research-api/README.md) |
 
 If the three model servers already run on the machine you use, do steps 1 and 2 and skip step 3, then start at step 4; [Sharing a machine](#sharing-a-machine) shows how to check them.
 
@@ -29,6 +30,7 @@ If the three model servers already run on the machine you use, do steps 1 and 2 
 - [Check a circuit with quantum-sim](#check-a-circuit-with-quantum-sim)
 - [Check a question set with qa-bench](#check-a-question-set-with-qa-bench)
 - [Score runs with qa-bench](#score-runs-with-qa-bench)
+- [Run the web app on a shared server](#run-the-web-app-on-a-shared-server)
 - [Measured times](#measured-times)
 - [Sharing a machine](#sharing-a-machine)
 - [Troubleshooting](#troubleshooting)
@@ -412,6 +414,208 @@ Limits:
 - The questions are always taken in the order of the set file, never the order of a run file, because the bootstrap resamples positions. A run written in another order gives the same numbers.
 - Number words (two, ocho) do not count for a number key unless you ask: they count wherever they stand, and a hand check found about half of them wrong. A lenient hit in a category `f` question counts only when the answer cites a gold paper.
 - Not scored: reviews, multiple choice, circuit tasks and the multi-paper metrics. A run made for another set, an answer to a question the set does not have, or a pair that names an unknown run is refused with exit status 1.
+
+## Run the web app on a shared server
+
+This section puts the web app and its API on a Linux server that several people share, so a team opens one address in the browser and signs in with a personal account. It needs no sudo and no GPU. One script, [`deploy/research-api.sh`](../deploy/research-api.sh), starts and stops the service, installs a build of the web app, takes backups and creates accounts. The API serves the built web app itself, from the same address, so there is one process and one port (8090 by default) and no second web server. How the API does that is in [The web app](../packages/research-api/README.md#the-web-app).
+
+Everything below uses placeholders: `<server>` for the machine, `<user>` for your account on it, `<tailscale-address>` for the server's Tailscale address and `/path/to/research-api` for the data folder. Replace them with your own values.
+
+### What you need
+
+- A Linux server with a clone of this repository and the workspace installed ([step 2](#2-install-the-workspace): `uv sync --locked --all-extras`, which creates `.venv` for the script). The server needs no Node.
+- [Tailscale](https://tailscale.com/) on the server and on every laptop that will open the app, all in the same tailnet, or an SSH account on the server for a tunnel (see [Open it from a laptop](#open-it-from-a-laptop)).
+- `bash`, `curl` and `python3` on the server, as any Linux server has. Not even `setsid` is required (the script falls back to `perl`, which is how it runs on macOS).
+- On your own machine, Node 22.22 or later and pnpm 12 to build the web app ([apps/web/README.md](../apps/web/README.md#run-it)), and `rsync` or `scp` to copy the build.
+- For the demo without GPUs you need nothing else: [fake mode](#fake-mode-a-demo-without-gpus).
+
+The data folder is outside the repository. The script uses `$RESEARCH_API_HOME`, else `~/research-api`. If the server keeps its big disk somewhere else, say so once in `deploy/env.local`, which git ignores. Because cron and a login shell both run the script from the clone, they then agree on the folder. The file is shell code that the script runs, so it must be yours and closed to others (`start` refuses an `env.local` that other accounts can read, and no command runs one they can change):
+
+```bash
+# deploy/env.local (not committed)
+RESEARCH_API_HOME=/path/to/research-api
+```
+
+```bash
+chmod 600 deploy/env.local
+```
+
+A variable set in the environment wins over `env.local`, so `RESEARCH_API_HOME=/path/to/scratch deploy/research-api.sh status` looks at the scratch folder, never at the real one.
+
+What the script keeps there:
+
+| Path | Holds | Mode |
+|---|---|---|
+| `config.toml` | the settings | 0600 |
+| `db/`, `data/`, `logs/` | the SQLite database, data files, `api.log` (made by the service) and `process.log` (what the process prints) | 0700 |
+| `run/` | pid file, start time, mode | 0700 |
+| `backups/` | database copies | 0700 |
+| `web/<id>/`, `web/current` | installed builds of the web app and the link to the one served | 0700 |
+| `incoming/` | where a build is copied before it is installed (public files only) | 0700 |
+
+The disk of a shared server is open to everyone, and so is the folder above it. So `start` refuses to run, and says which `chmod` to run, when the data folder, the settings file or anything private inside it can be read or changed by another account. The service itself makes the same check on its folders, database and settings. `incoming/` and `web/` hold only the public build and are not part of that check.
+
+### First start
+
+1. **Write the settings.** Copy the example, make it private and edit the lines marked CHANGE. If the data folder is not `~/research-api`, first put its path in `deploy/env.local` (`RESEARCH_API_HOME=/path/to/data`, then `chmod 600 deploy/env.local`) and use that path below:
+
+   ```bash
+   mkdir -m 700 -p /path/to/research-api
+   cp deploy/config.example.toml /path/to/research-api/config.toml
+   chmod 600 /path/to/research-api/config.toml
+   tailscale ip -4                       # the address for bind_host
+   ```
+
+   `bind_host` is the server's Tailscale address, `public_origin` is the one URL the team types (`http://<tailscale-address>:8090`), and `db_path`, `data_dir` and `log_dir` are inside the data folder. The service refuses to listen on `0.0.0.0`, a LAN address or a host name, and the page works only under `public_origin`, so give everyone that one URL. Check that the port is free (`ss -ltn | grep 8090` prints nothing); the script also refuses to start on a port that is taken. Every key is in the [research-api README](../packages/research-api/README.md#run-it).
+
+2. **Build the web app on your own machine and copy it.** The server never needs Node:
+
+   ```bash
+   cd apps/web
+   pnpm install --frozen-lockfile && pnpm build           # writes dist/
+   printf '{"commit": "%s"}\n' "$(git rev-parse --short HEAD)" > dist/version.json   # names the build
+   rsync -a --delete dist/ <user>@<server>:/path/to/research-api/incoming/
+   ```
+
+3. **Start the service and install the build** (on the server, in the clone):
+
+   ```bash
+   deploy/research-api.sh start
+   deploy/research-api.sh install-web
+   ```
+
+   `start` brings the database up to date (`research-api db upgrade`), starts the service in the background in its own process group, waits until `/api/v1/health` answers and prints the address. Until a build is installed, the address answers `503: The web app is not installed on this server`; `install-web` copies `incoming/` to `web/<id>/` (`<id>` is the commit in `version.json`, else `build-` and the UTC time; `--id NAME` sets it) with private permissions, then switches the `web/current` link in one step. The service serves the new build at once, with no restart and without ending anyone's session. It keeps the five newest builds, so going back is pointing `web/current` at an older folder (`ln -sfn <older id> web/current` in the data folder).
+
+4. **Create the admin account yourself, in your own terminal.** The person who runs the server is the only admin:
+
+   ```bash
+   deploy/research-api.sh users add <username> --name "Your Name" --role admin
+   ```
+
+   It prints a random one-time password of 20 characters on standard output and says so on standard error. Open the address in a browser, sign in with it, and the app makes you choose your own password (at least 12 characters, not a common one) before anything else works. You type that password in the browser; it is never printed or logged. Do not paste a password into a chat, a ticket or a commit. Then add each teammate the same way (`--role member`) and give each one their one-time password privately; they change it at their first sign-in:
+
+   ```bash
+   deploy/research-api.sh users add <username> --name "Their Name"
+   deploy/research-api.sh users list
+   deploy/research-api.sh users reset <username>          # a lost password: a new one-time password, sessions end
+   deploy/research-api.sh users disable <username>        # takes effect at their next request
+   ```
+
+   There is no sign-up page and no HTTP endpoint that makes accounts. The other `users` actions (`enable`, `role`) are in the [research-api README](../packages/research-api/README.md#accounts).
+
+5. **Check it:**
+
+   ```bash
+   deploy/research-api.sh status      # pid, mode, uptime, the installed build, and what /api/v1/health answers
+   deploy/research-api.sh logs -n 20  # api.log: one JSON line per request and per sign-in
+   ```
+
+   Sign-in attempts are rate limited (five wrong passwords per username in 15 minutes by default), and the limiter uses the address of the connection. The script starts the service with `--no-proxy-headers`, so an `X-Forwarded-For` header sent by any account on the server cannot choose that address, and with `--no-access-log`, because a raw access log would hold paths and query strings. A test starts the real service through the script and checks both.
+
+### Open it from a laptop
+
+**Through Tailscale (the normal way).** With Tailscale running on the laptop, open exactly the `public_origin`, for example `http://<tailscale-address>:8090/`. The browser says "not secure" because the page is plain HTTP; inside a tailnet the traffic is already encrypted end to end by WireGuard, which is why release 1 does without HTTPS. Anyone in the tailnet can reach the port and try to sign in, so ask whoever manages the tailnet for an access rule that opens port 8090 only to the team's devices. If the team prefers the server's MagicDNS name, put that name in `public_origin` and use it everywhere: the sign-in is refused under any other spelling of the address, the IP address included.
+
+**Through an SSH tunnel.** Without Tailscale on the laptop, forward the port and open `localhost`:
+
+```bash
+ssh -N -L 8090:127.0.0.1:8090 <user>@<server>
+# then open http://localhost:8090/
+```
+
+This suits fake mode (below), which listens on loopback and accepts any loopback address. A tunnel to the live service (`-L 8090:<tailscale-address>:8090`) works only if `public_origin` is `http://localhost:8090`, which also stops the Tailscale URL from signing in, so use it for one person or a trial, not for the team.
+
+### Fake mode: a demo without GPUs
+
+```bash
+deploy/research-api.sh start --fake
+```
+
+Fake mode needs no settings file, no database to keep and no model server. It starts from stand-ins, listens on 127.0.0.1 only (`--port N` picks another port) and makes four test accounts in a database that is deleted when the service stops: `ana` (admin), `beto`, `dani` and `temp` (the last one must change its password at first sign-in). Their made-up passwords are public, in [`packages/research-api/tests/fixtures/seed-users.json`](../packages/research-api/tests/fixtures/seed-users.json). So reach it through the SSH tunnel above, and keep anything private out of it: every account on a shared server can reach loopback. The sign-in and the circuit check run their real code in fake mode; anything that would need a model server or private data is a stand-in as those parts arrive. The page is served the same way as in live mode, so run `install-web` first. To go back to the real service, `stop` and `start` without `--fake`.
+
+### Day to day
+
+| Task | Command |
+|---|---|
+| Is it up? | `deploy/research-api.sh status` (exit 0 when it answers, 1 when it is not running, 3 when it runs but does not answer) |
+| Logs | `logs` (api.log), `logs -f` to follow, `logs --process` for what the process printed (start-up errors) |
+| Stop | `deploy/research-api.sh stop` |
+| Update the code | `git pull && uv sync --locked --all-extras && deploy/research-api.sh stop && deploy/research-api.sh start` |
+| Update the web app | build, write `dist/version.json`, `rsync` to `incoming/`, `install-web` (no restart) |
+
+`stop` sends SIGTERM to the service's own process group only, never to another process of yours or anyone's, waits up to 30 seconds so running requests finish and the database closes, and kills it only after that. If the pid file is stale or names another process (a recycled pid, or another copy of the service on another port), `stop` says "not running" and signals nothing. `start` and `stop` share one lock, so a `stop` that meets a `start` in progress waits for it and then stops what it started.
+
+**Restart after a reboot.** The script does not install anything. If you want the service to come back after the server restarts, add this line yourself with `crontab -e` (it is a standing rule on the server, so it is your decision). The `sleep` gives the network, Tailscale and the disks time to come up; `umask 077` keeps the log file private, which `start` requires:
+
+```cron
+@reboot umask 077; sleep 60; PATH=/usr/local/bin:/usr/bin:/bin /path/to/research-engine/deploy/research-api.sh start >> /path/to/research-api/logs/cron.log 2>&1
+```
+
+Remove the line with `crontab -e` when you no longer want it. If a manual `start` and this line meet, the second waits for the first and then reports "already running"; only one service starts.
+
+### Backups and restore
+
+```bash
+deploy/research-api.sh backup
+```
+
+makes `backups/research-api-<UTC time>.sqlite3` with SQLite's own backup call, which gives a consistent copy while the service runs, and checks it with `PRAGMA integrity_check`. If `data/` holds files it also writes `research-api-<UTC time>-data.tar.gz`. It keeps the newest 14 copies (`RESEARCH_API_BACKUP_KEEP`). A daily backup is one more crontab line, which you add yourself:
+
+```cron
+17 3 * * * umask 077; /path/to/research-engine/deploy/research-api.sh backup >> /path/to/research-api/logs/cron.log 2>&1
+```
+
+The backups are on the same disk as the data. Copy them somewhere else now and then; they hold password hashes and, later, your sets and answers, so treat them as private.
+
+To restore, stop the service, put the copy in place and start again. The commands use absolute paths, so it does not matter where you run them from (`deploy/research-api.sh` is in the clone, the rest is in the data folder):
+
+```bash
+/path/to/research-engine/deploy/research-api.sh stop
+cp /path/to/research-api/backups/research-api-<UTC time>.sqlite3 /path/to/research-api/db/research-api.sqlite3
+rm -f /path/to/research-api/db/research-api.sqlite3-wal /path/to/research-api/db/research-api.sqlite3-shm
+chmod 600 /path/to/research-api/db/research-api.sqlite3
+# Only if you saved data files: tar adds to data/ and does not remove, so files made after the backup would stay.
+# For exactly what the backup held, move data/ aside and extract into an empty one:
+mv /path/to/research-api/data /path/to/research-api/data.before-restore && mkdir -m 700 /path/to/research-api/data
+tar -xzf /path/to/research-api/backups/research-api-<UTC time>-data.tar.gz -C /path/to/research-api/data
+/path/to/research-engine/deploy/research-api.sh start
+```
+
+Delete `data.before-restore` once you have checked the result. `start` runs `db upgrade`, so a copy from an older release is brought up to date. Accounts and sessions return as they were at the time of the copy.
+
+Try a restore once on a scratch folder before you need it. The scratch folder has its own settings and its own port, and the real service keeps running. Run the block below in the clone of the repository, in one shell: the commands use the relative path `deploy/`. `RESEARCH_API_HOME` is set in that shell only; it wins over `env.local`, so every `deploy/research-api.sh` command in that shell works on the scratch folder. `env.local` should hold only `RESEARCH_API_HOME`: if it also set `RESEARCH_API_CONFIG`, exporting just `RESEARCH_API_HOME` would still point at the real settings file.
+
+```bash
+export RESEARCH_API_HOME=/path/to/scratch
+mkdir -m 700 "$RESEARCH_API_HOME" "$RESEARCH_API_HOME/db"
+cp deploy/config.example.toml "$RESEARCH_API_HOME/config.toml"
+chmod 600 "$RESEARCH_API_HOME/config.toml"
+# edit it: port = 8091, the same port in public_origin, and db_path, data_dir and log_dir inside /path/to/scratch
+cp /path/to/research-api/backups/research-api-<UTC time>.sqlite3 "$RESEARCH_API_HOME/db/research-api.sqlite3"
+chmod 600 "$RESEARCH_API_HOME/db/research-api.sqlite3"
+deploy/research-api.sh start        # the scratch copy, on port 8091
+deploy/research-api.sh install-web /path/to/research-api/incoming   # the scratch folder has no web app yet
+deploy/research-api.sh users list   # the accounts of the copy
+deploy/research-api.sh status       # the scratch service answers
+deploy/research-api.sh stop         # stops the scratch copy only
+unset RESEARCH_API_HOME
+rm -rf /path/to/scratch             # it holds a copy of the password hashes
+```
+
+To also sign in from a browser, open `http://<tailscale-address>:8091/` in a private window: the session cookie belongs to the host and not to the port, so signing in on `:8091` in your normal window would replace your real session. With the tailnet rule this guide recommends (port 8090 only), a laptop cannot reach `:8091`; in that case check the copy with `users list` and `status` on the server, as in the block above.
+
+### Troubleshooting
+
+| You see | Cause and fix |
+|---|---|
+| `... can be read by other accounts; run: chmod go-rwx '...'` | A private file or folder is open. Run the `chmod` it names (use `chmod -R` for a folder tree). |
+| `no settings file at ...` | Do step 1 of [First start](#first-start). |
+| `something already listens on ...:8090` | Another process holds the port: pick another with `port` in `config.toml` (and `public_origin`), or, in fake mode only, `start --fake --port N` for a trial. In live mode the sign-in compares the whole origin, port included, so `start --port N` alone would answer 403 at sign-in: change `port` and `public_origin` together. |
+| `the service exited; last lines of ...` | Read what follows it. A bind error means `bind_host` is not an address of this machine (is Tailscale up?); a settings error names the key. |
+| The page says `The web app is not installed on this server` | Run `install-web`. |
+| The sign-in answers 403 | The address in the browser is not `public_origin`, or the `Host` is not the server's. Open exactly the address in `public_origin`. |
+| `429` at sign-in | Too many wrong passwords for that name; wait for `Retry-After`. |
+| An old tab asks for a script and shows an error after an update | The tab runs the previous build. Reload it. |
 
 ## Measured times
 

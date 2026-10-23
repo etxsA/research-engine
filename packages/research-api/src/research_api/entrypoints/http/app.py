@@ -22,6 +22,7 @@ from .nostore import NoStore
 from .origin import OriginGuard, origin_allowed_by
 from .problems import install_problem_handlers, use_problem_media_in_openapi
 from .routes import router
+from .webapp import WebApp
 
 API_PREFIX = "/api/v1"
 
@@ -69,6 +70,11 @@ def build_app(container: Container) -> FastAPI:
     app.include_router(documents_router, prefix=API_PREFIX)
     install_problem_handlers(app)
     install_ask_handlers(app)
+    if container.settings.web_dir is not None:
+        # The router's fallback, not a mount: Starlette calls it only when no route matched, not
+        # even by path, so a wrong method on an API route still gets its 405 with `Allow`. It is
+        # also outside the schema.
+        app.router.default = WebApp(container.settings.web_dir)
 
     build_schema = app.openapi
 

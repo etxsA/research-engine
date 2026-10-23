@@ -148,6 +148,8 @@ class Settings(BaseModel):
     # The docingest settings file that names the corpus, the index and the model servers. Without
     # it everything but asking works. Absolute path; a change needs a restart.
     docingest_config: Path | None = None
+    # The built web app (apps/web/dist). When set, the API serves it from its own origin.
+    web_dir: Path | None = None
     session_idle_hours: StrictInt = Field(default=12, ge=1, le=720)
     session_max_days: StrictInt = Field(default=7, ge=1, le=90)
     login_max_failures: StrictInt = Field(default=5, ge=1, le=100)
@@ -167,7 +169,7 @@ class Settings(BaseModel):
     def _origin_is_an_origin(cls, value: str | None) -> str | None:
         return None if value is None else normalize_origin(value)
 
-    @field_validator("data_dir", "db_path", "log_dir", "docingest_config")
+    @field_validator("data_dir", "db_path", "log_dir", "docingest_config", "web_dir")
     @classmethod
     def _path_is_absolute(cls, value: Path | None) -> Path | None:
         if value is None:

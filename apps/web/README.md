@@ -21,7 +21,7 @@ uv sync --locked && uv run research-api serve --fake       # http://127.0.0.1:80
 pnpm dev                                                   # http://localhost:5173
 ```
 
-The dev server forwards `/api` to the API (`RESEARCH_API_URL` changes the target), so the browser only talks to its own origin and the API needs no CORS. In production the API will serve the built files from the same origin.
+The dev server forwards `/api` to the API (`RESEARCH_API_URL` changes the target), so the browser only talks to its own origin and the API needs no CORS. In production the API serves the built files from the same origin ([The web app](../../packages/research-api/README.md#the-web-app) in its README; [Run the web app on a shared server](../../docs/run-guide.md#run-the-web-app-on-a-shared-server) for the install steps).
 
 The API does not serve sign-in yet, so in development `/login` finds no `/api/v1/auth/*` endpoints. Until the sign-in pull request lands, the screens behind the session cannot be reached by hand; the tests use a mock (see [Sign-in](#sign-in-and-the-mock)).
 

@@ -1,0 +1,42 @@
+# Settings of the research API on a shared server, for deploy/research-api.sh. Copy this file to
+# config.toml inside the data folder (default: ~/research-api, or the folder named by
+# RESEARCH_API_HOME), make it private and edit the lines marked CHANGE:
+#
+#   mkdir -m 700 -p ~/research-api
+#   cp deploy/config.example.toml ~/research-api/config.toml
+#   chmod 600 ~/research-api/config.toml
+#
+# The start script refuses to run when this file can be read by other accounts. It holds no
+# secret, but whoever can edit it can move public_origin, and with it the Origin check. Every key
+# is described in packages/research-api/README.md. Placeholders only: nothing here names a real
+# machine, user or network.
+
+# CHANGE: the server's own Tailscale address (`tailscale ip -4` on the server). The service
+# answers on this address and on loopback, and refuses 0.0.0.0, a LAN address and a host name.
+bind_host = "100.64.0.10"
+port = 8090
+
+# CHANGE: the one address everyone types in the browser, written exactly as they type it. The
+# page and the sign-in work only under this origin, so give the team one URL: the Tailscale
+# address above, or the server's MagicDNS name. HTTP is fine inside a tailnet (WireGuard
+# encrypts it); use https:// only when something in front of the service really terminates TLS.
+public_origin = "http://100.64.0.10:8090"
+
+# CHANGE: absolute paths inside the data folder. The script keeps its own files (run, backups,
+# web) in the same folder. Database and data stay in separate folders so each can be backed up
+# alone. All three folders are made private (mode 0700).
+db_path = "/path/to/research-api/db/research-api.sqlite3"
+data_dir = "/path/to/research-api/data"
+log_dir = "/path/to/research-api/logs"
+
+# The built web app is found through the `web/current` link in the data folder, which
+# `deploy/research-api.sh install-web` maintains; no setting is needed. (web_dir exists only to
+# serve a folder from somewhere else.)
+
+# Sessions end after this many hours without a request, or this many days after sign-in.
+session_idle_hours = 12
+session_max_days = 7
+
+# Failed sign-ins allowed per username in the window; one address gets four times as many.
+login_max_failures = 5
+login_window_minutes = 15
