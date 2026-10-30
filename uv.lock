@@ -766,7 +766,7 @@ wheels = [
 
 [[package]]
 name = "docingest"
-version = "0.4.1"
+version = "0.5.0"
 source = { editable = "packages/docingest" }
 dependencies = [
     { name = "huggingface-hub" },
@@ -797,6 +797,7 @@ dev = [
     { name = "hypothesis" },
     { name = "import-linter" },
     { name = "matplotlib" },
+    { name = "openqasm3" },
     { name = "pyright" },
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -827,6 +828,7 @@ dev = [
     { name = "hypothesis", specifier = ">=6.168" },
     { name = "import-linter", specifier = ">=2.15" },
     { name = "matplotlib", specifier = ">=3.10" },
+    { name = "openqasm3", specifier = ">=0.5,<1" },
     { name = "pyright", specifier = ">=1.1.414" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-cov", specifier = ">=7" },
@@ -2619,6 +2621,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/3d/f9/88d94a75de065ea32619465d2f77b29a0469500e99012523b91cc4141cd1/openpyxl-3.1.5.tar.gz", hash = "sha256:cf0e3cf56142039133628b5acffe8ef0c12bc902d2aadd3e0fe5878dc08d1050", size = 186464, upload-time = "2024-06-28T14:03:44.161Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c0/da/977ded879c29cbd04de313843e76868e6e13408a94ed6b987245dc7c8506/openpyxl-3.1.5-py2.py3-none-any.whl", hash = "sha256:5282c12b107bffeef825f4617dc029afaf41d0ea60823bbb665ef3079dc79de2", size = 250910, upload-time = "2024-06-28T14:03:41.161Z" },
+]
+
+[[package]]
+name = "openqasm3"
+version = "0.5.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/c7/f1/c63ef1778a387a3377f2a9ca6be497303745ee634e5b9f3cfd0776f40d76/openqasm3-0.5.0.tar.gz", hash = "sha256:bf8bf4ed098393447e552eaea18b0a34a2429d228477683d6b579348bc17bfc8", size = 517167, upload-time = "2023-06-19T23:31:46.567Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/51/91/574addbe722736081d1b9c78212f8cac5e9d93c8bc79059c84871034c527/openqasm3-0.5.0-py3-none-any.whl", hash = "sha256:40991ac057b9e3c208d1b34242b0aad8a3b9840df0335a652b1e4e4248937b1c", size = 524019, upload-time = "2023-06-19T23:31:44.897Z" },
 ]
 
 [[package]]

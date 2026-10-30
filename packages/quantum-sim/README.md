@@ -135,6 +135,8 @@ quantum-sim reads what docingest's `gate_list(source).circuits[i].to_dict()` ret
 
 The test cannot call docingest: the lane that tests quantum-sim installs this package alone, and a test that imported both would pass on a workspace checkout and fail in CI. So the sources and the documents docingest makes from them are saved in `tests/fixtures/bridge/` (`NAME.tex` and `NAME.json`; [`tools/make_bridge_fixtures.py`](tools/make_bridge_fixtures.py) writes the second from the first, run where docingest is installed), and docingest has a test (`tests/unit/test_quantum_sim_fixtures.py`) that remakes each document from its source and compares. A change in docingest's output fails there until the fixtures are regenerated; a change in how quantum-sim reads them fails the bridge tests here. Add a circuit by adding its `.tex` file and running the script; a source that docingest must read as `partial` is named `partial_*.tex`.
 
+docingest can also write the same circuit as a program for a quantum SDK: `docingest circuits export` projects the stored circuit blocks onto OpenQASM 3, one program per part, with the drawn sign and provenance in comments ([ADR 0006](../docingest/docs/adr/0006-openqasm-3-export.md)). quantum-sim does not read QASM; the two paths share the reading of the drawing, not a format.
+
 The command `quantum-sim conventions` prints the conventions, the gate table and the limits as JSON.
 
 ## Conventions

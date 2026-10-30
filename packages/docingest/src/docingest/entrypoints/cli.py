@@ -24,11 +24,13 @@ from ..domain.text import split_pages
 from ..ports import StoredDocument
 from .ask_lines import serve_lines
 from .bench_cli import bench_app
+from .circuits_cli import circuits_app
 from .index_cli import index_app
 
 app = typer.Typer(add_completion=False, help="Normalize any research document to Markdown.")
 app.add_typer(bench_app, name="bench")
 app.add_typer(index_app, name="index")
+app.add_typer(circuits_app, name="circuits")
 console = Console()
 
 # exists=True: a mistyped --config is an error, never a silent switch to the defaults.
@@ -129,6 +131,26 @@ def _index_new(container: Container, stored: list[StoredDocument]) -> None:
     )
 
 
+def _qasm_new(container: Container, stored: list[StoredDocument]) -> None:
+    """Write the circuits of what an ingest stored. Best effort: the papers are stored."""
+    if not stored:
+        return
+    try:
+        report = container.qasm_export.export_documents(stored)
+    except (OSError, ValueError) as e:
+        console.print(f"[yellow]warning[/]: the circuits were not exported: {escape(str(e))}")
+        return
+    for warning in report.warnings:
+        console.print(f"[yellow]warning[/]: {escape(warning)}")
+    for refusal in report.refusals:
+        console.print(f"[yellow]refused[/]: {escape(refusal)}")
+    if report.files:
+        console.print(
+            f"qasm: wrote {report.written} program(s) from {report.circuits} circuit(s) "
+            f"to {escape(str(report.out))}"
+        )
+
+
 @app.command()
 def ingest(
     paths: Annotated[list[Path], typer.Argument(help="Files or directories")],
@@ -138,6 +160,12 @@ def ingest(
     max_pages: Annotated[int | None, typer.Option(min=1, help="Only first N pages")] = None,
     *,
     index: IndexOpt = False,
+    qasm: Annotated[
+        bool,
+        typer.Option(
+            "--qasm", help="Afterwards write the circuits of the stored documents as QASM"
+        ),
+    ] = False,
 ) -> None:
     """Detect type, route each page (text layer / OCR / converter); write Markdown + manifest."""
     container = _container(config)
@@ -168,6 +196,8 @@ def ingest(
         _summary(stored)
     if index:
         _index_new(container, stored)
+    if qasm:
+        _qasm_new(container, stored)
     if failures:
         _failures(failures)
     if failures or stopped:
@@ -183,6 +213,12 @@ def crawl(
     max_pages: Annotated[int | None, typer.Option(min=1, help="Only first N pages")] = None,
     *,
     index: IndexOpt = False,
+    qasm: Annotated[
+        bool,
+        typer.Option(
+            "--qasm", help="Afterwards write the circuits of the stored documents as QASM"
+        ),
+    ] = False,
 ) -> None:
     """Search arXiv, download LaTeX sources (PDF fallback) with metadata, then ingest them."""
     container = _container(config)
@@ -190,6 +226,8 @@ def crawl(
         if no_ingest:
             raise typer.BadParameter("--index has nothing to add with --no-ingest")
         _index_ready(container)
+    if qasm and no_ingest:
+        raise typer.BadParameter("--qasm has nothing to export with --no-ingest")
     report = container.crawl.run(
         query, limit, ingest=not no_ingest, options=IngestOptions(max_pages=max_pages)
     )
@@ -197,6 +235,8 @@ def crawl(
         _summary(report.ingested)
     if index:
         _index_new(container, report.ingested)
+    if qasm:
+        _qasm_new(container, report.ingested)
     console.print(f"fetched {len(report.fetched)}, ingested {len(report.ingested)}")
     if report.stopped:
         console.print(f"[yellow]crawl stopped early[/]: {escape(report.stopped)}")

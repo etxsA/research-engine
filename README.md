@@ -6,7 +6,7 @@ A local research engine for scientific papers. It turns papers into clean Markdo
 
 | Path | What it is | Status |
 |---|---|---|
-| [`packages/docingest/`](packages/docingest/README.md) | Document normalization: PDF, scanned PDF, LaTeX source, Office files and images become Markdown plus a provenance manifest. Also crawls arXiv and answers questions with PaperQA2. Command: `docingest`. | Available (0.4.1) |
+| [`packages/docingest/`](packages/docingest/README.md) | Document normalization: PDF, scanned PDF, LaTeX source, Office files and images become Markdown plus a provenance manifest. Also crawls arXiv, answers questions with PaperQA2, and exports a paper's circuits as OpenQASM 3. Command: `docingest`. | Available (0.5.0) |
 | [`packages/docingest-index/`](packages/docingest-index/README.md) | Embedding and reranker clients (OpenAI-compatible `/v1/embeddings`, vLLM `/rerank`) and a persistent chunk index (dense vectors plus BM25), plugged into docingest as adapters. Command: `docingest index build`. | Available (0.1.0); `docingest ask` retrieves from it when configured |
 | [`packages/quantum-sim/`](packages/quantum-sim/README.md) | A small NumPy simulator of quantum circuits (statevector, unitary, equality up to global phase) with Nielsen and Chuang conventions, for checking the circuits a model writes or docingest reads. numpy only; independent of docingest. Command: `quantum-sim`. | 0.1.0: engine, label resolver and angle parser, `circuit/1` reader and writer, `run` and `check` commands |
 | [`packages/research-api/`](packages/research-api/README.md) | The HTTP API of the research engine: a hexagonal FastAPI service that will serve asks with cited sources, question sets, benchmarks and the circuit check to a web app. Command: `research-api`. | 0.1.0: skeleton (layers, import contracts, settings, fake mode, `/health` and `/status`, OpenAPI export); the circuit check endpoints (`/circuits/parse`, `run`, `check`, `conventions`); sign-in (accounts in SQLite, Argon2id, cookie sessions with CSRF, rate limit, roles, the `users` command); asks (the GPU lane, `POST /asks` with server-sent events, cited papers read at a page, a fake engine for demos); question sets (catalog, drafts, items under `If-Match`, validation, import and export, reviews, freezing); benchmark jobs (runs of the arms `bare`, `harness` and `oracle` on a frozen set, one at a time in the lane the asks use, with progress, a log, cancel, resume and recovery, and scorings with the qa-bench scorer; the `oracle` arm hands docingest the gold passages and needs a `md_text` on each) |
@@ -25,6 +25,7 @@ flowchart LR
     CORPUS --> IDX[("Chunk index: vectors + BM25 (docingest index build)")]
     IDX -->|"search, rerank"| ASK["docingest ask (PaperQA2)"]
     CORPUS -->|"no index configured"| ASK
+    CORPUS -->|"docingest circuits export"| QASM["OpenQASM 3 programs"]
     ASK --> LLM["Local LLM server (OpenAI-compatible)"]
     LLM --> ANS["Answer with cited pages"]
 ```
@@ -73,6 +74,7 @@ uv run docingest ask "What limits T1 in transmons?" -c config/examples/lab-serve
 | Run the web app and its API for a team on a shared server | [run guide](docs/run-guide.md#run-the-web-app-on-a-shared-server) and [deploy/research-api.sh](deploy/research-api.sh) |
 | Run or extend the web app | [apps/web/README.md](apps/web/README.md) |
 | Score runs against a question set and compare two runs | [run guide](docs/run-guide.md#score-runs-with-qa-bench), [packages/qa-bench/README.md](packages/qa-bench/README.md#the-scorer) |
+| Export a paper's circuits as OpenQASM 3 | [run guide](docs/run-guide.md#export-a-papers-circuits-as-openqasm-3), [packages/docingest/README.md](packages/docingest/README.md#cli-overview) and [ADR 0006](packages/docingest/docs/adr/0006-openqasm-3-export.md) |
 | Change the code and open a pull request | [packages/docingest/CONTRIBUTING.md](packages/docingest/CONTRIBUTING.md) |
 | Find any other document of docingest | [packages/docingest/docs/README.md](packages/docingest/docs/README.md) |
 

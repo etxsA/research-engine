@@ -131,6 +131,8 @@ flowchart LR
 | `test_timing.py` | `tests/timing.py` on a fake clock: linear work passes after three rounds, quadratic work fails all three attempts, a burst of load in one attempt or one round is not held against the code, the floor and the ceiling, the collector switched off and back, `timeout_notes` |
 | `test_text.py` | `domain.text`: garbled-text detection, the math-symbol and equals-sign counts (the edges of every symbol block, `ϕ`, `ˆ`, `™`), de-hyphenation, page splitting |
 | `test_structure.py` | `domain.structure`, `furniture` and `headings` on synthetic lines: running headers and page numbers, paragraphs, hyphenation, headings, footnotes |
+| `test_qasm.py` | `domain.qasm.to_qasm`: exact programs for each gate, control, open control, measurement, barrier, parameter and sign; the header, origin and part suffix; `values` bindings; and every refusal (an unparsed circuit, an unknown kind, an out-of-range wire, an unbound symbol, `U`, `R_k`, `iSWAP`, a controlled measurement) |
+| `test_qasm_export.py` | `QasmExportService`: selection by id prefix, source name and ambiguity; file naming and content; `--set`; refusals that do not stop the other circuits; warnings for no circuits and an unreadable Markdown; the output override; and the `export_documents` path the post-ingest hook uses |
 | `test_quantum_sim_fixtures.py` | The `circuit/1` documents saved in `packages/quantum-sim/tests/fixtures/bridge/` are what `gate_list` returns for the LaTeX sources next to them (the other half of quantum-sim's bridge tests; docingest never imports `quantum_sim`), and an unknown command or a text token put in any of those sources is never read as `parsed` |
 | `test_wire_names.py` | docingest's copy of quantum-sim's wire-name grammar (`_WIRE_NAME`) gives the same verdict as quantum-sim on every sample of `packages/quantum-sim/tests/fixtures/wire_names.json`; a word in `\text` or `\mathrm` is never a name |
 
@@ -141,6 +143,7 @@ flowchart LR
 | `test_ocr_contract.py` | `FakeOcr`, `OpenAICompatibleOcr` against a local stub `/v1/chat/completions` server, `MlxVlmOcr` with a pinned Qwen3-VL-2B 4-bit model (`model` marker) |
 | `test_retrieval_contract.py` | `FakeEmbedder`, `FakeIndex` and `FakeReranker` (from `fakes.py`): the `Embedder`, `ChunkIndex` and `Reranker` contracts. The [`docingest-index`](../../docingest-index/README.md) package imports this module and runs it against its real adapters (see [Plugin tests](#plugin-tests-reusing-the-contracts)) |
 | `test_store_contract.py` | `InMemoryStore` (from `fakes.py`) and `FilesystemStore` |
+| `test_qasm_contracts.py` | The golden `circuit/1` fixtures and their exact `.qasm` programs: each parses with `openqasm3`, the text is UTF-8/LF and deterministic, every `GateOp.kind` is handled or refused, the emitter imports only the standard library, and a seeded property test parses the programs of generated circuits |
 
 ### integration/
 
@@ -154,6 +157,7 @@ flowchart LR
 | `test_filesystem_store.py` | `FilesystemStore` file permissions, no leftover temp files, a corrupt cached manifest treated as a cache miss |
 | `test_index_cli.py` | `docingest index build`, `status` and `remove` with fake plugins |
 | `test_index_on_ingest.py` | `ingest --index` and `crawl --index`: off by default, only the papers of the run, checked before any work, a failing update keeps the papers |
+| `test_qasm_cli.py` | `docingest circuits export` end to end: ingest a Markdown circuit, select it, set `--out` and `--set`, read the `.qasm` on disk, the exit codes for a refusal, `--allow-partial`, no circuit and an unknown document, and `ingest --qasm` / `crawl --qasm` as best-effort hooks |
 | `test_magic_detector.py` | `MagicBytesDetector` on real files |
 | `test_openai_ocr.py` | `OpenAICompatibleOcr` against a scripted local OpenAI-compatible server: request shape, retries, the retry ladder (stricter retries, more room for a dense page, a server that refuses it), authentication |
 | `test_ask_equation_lookup_paperqa.py` | The whole ask path with a mocked LLM and the real `PaperQAAnswerer`: the answer prompt holds the header and the chunk of each paper's Eq. (2) with `skip_summary` and no request holds them without it, the sentence about equation numbers is in the copy rule once, the prompt keeps its size, the retry with fewer sources drops the lowest-ranked chunks and keeps the best paper's, a failing lookup still answers |
@@ -180,6 +184,7 @@ flowchart LR
 | `bench/olmocr_subset/` | `subset.json` (dataset `repo_id`, `revision`, `categories`, `per_category`, `seed`, and SHA-256 checksums of the JSONL files and of the selected PDFs) and one `.jsonl` test file per category; the PDFs themselves are not included | `test_bench_datasets.py` |
 | `bench/scorer_stdout.txt` | Recorded output of the official olmOCR-bench scorer | `test_bench_datasets.py` (`parse_scorer_stdout`) |
 | `latex/paper/` | A multi-file paper with the traps seen in arXiv sources: a latin-1 include, a file that includes itself, a local `.sty` whose layout macro makes pandoc loop, a natbib `.bbl`, a commented-out include, verbatim code | `test_pandoc_latex.py` |
+| `qasm/` | Four `circuit/1` documents (`bell`, `open-control`, `measure`, `parts`) and the exact OpenQASM 3 program the emitter must write for each; `parts` has two files, one per side of a drawn equality | `test_qasm_contracts.py` |
 | `latex/revtex/` | An invented paper with a REVTeX-style `.bbl`: `@` helper macros, `\href` with a line break, `\href@noop`, `\Eprint`, and citation keys with an empty entry and a `$` | `test_pandoc_latex.py` |
 | `latex/malformed.tex` | Unclosed group and `itemize`, for the fallback path | `test_pandoc_latex.py` |
 

@@ -8,7 +8,7 @@ docingest is a document normalization layer for a research agent. It takes a res
 - arXiv papers are fetched as LaTeX source, so math, tables and section structure arrive intact instead of being recovered from a rendered PDF.
 - Everything is pinned and content-addressed: `uv.lock`, model commits, input checksums, and output directories named after the input's sha256.
 
-Package: `docingest` 0.4.1, Python 3.12, managed with [uv](https://docs.astral.sh/uv/). Source in [`src/docingest/`](src/docingest/README.md).
+Package: `docingest` 0.5.0, Python 3.12, managed with [uv](https://docs.astral.sh/uv/). Source in [`src/docingest/`](src/docingest/README.md).
 
 ## Contents
 
@@ -66,6 +66,7 @@ The codebase uses a hexagonal (ports and adapters) architecture, so the OCR mode
 - **Robust LaTeX conversion.** Safe archive extraction, arXiv-style main-file detection, a Python flattener for includes, pandoc in `--sandbox` mode with a timeout and heap cap, and a pylatexenc plain-text fallback that applies to the sections pandoc cannot read, not to the whole paper ([LaTeX](#latex-conversion)).
 - **Circuits, equation numbers and references from LaTeX.** A quantum circuit (`quantikz`, `\Qcircuit`, `yquant`) is kept as a fenced `latex` code block with the author's exact source. The number of a display equation is written as `\tag{n}`, and `\eqref{x}` becomes `(n)`. A reference entry without a citation key (`\bibitem{}`) stays in its list instead of being counted as lost ([circuits](src/docingest/adapters/converters/README.md#quantum-circuits), [equation numbers](src/docingest/adapters/converters/README.md#equation-numbers)).
 - **The gate list as data, with circuit readers that deny by default.** `gate_list(source)` in `domain/circuits.py` returns the plain-text gate list of a circuit code block and, in `GateList.circuits`, the same reading as data: one `CircuitSteps` per circuit, whose `to_dict()` is the `circuit/1` format that [quantum-sim](../quantum-sim/README.md) reads without importing docingest. The readers refuse by default: every token of a circuit's source must be understood by a rule or listed as having no effect, and a token no rule consumed (an unknown command, text that is not a basis ket, an option or wrapper that could hide gates) becomes an `unparsed` item and makes the circuit `partial`, so a simulator refuses it instead of running a guess ([gate lists as data](src/docingest/domain/README.md#the-steps-as-data), [reader rules](src/docingest/domain/README.md#circuitspy)).
+- **OpenQASM 3 export.** `docingest circuits export` reads the fenced circuit blocks of the stored documents and projects each `CircuitSteps` onto OpenQASM 3: one deterministic program per side of a drawn equality, with provenance, the wire convention and the drawn sign, under `<output_dir>/qasm/`. A free parameter is bound with `--set` or the circuit is refused; a refused part does not stop the others. `ingest --qasm` and `crawl --qasm` run the same export, best effort, after storing ([ADR 0006](docs/adr/0006-openqasm-3-export.md)).
 - **Math pages to OCR (opt-in).** `[routing] math_to_ocr = true` sends a text-layer page full of formulas to the vision model, which keeps their structure better than the layer does. Off by default, at about 31 seconds per routed page ([math pages](#per-page-pdf-routing)).
 - **Content-addressed cache.** Outputs are keyed by the input's sha256 and by the fingerprints of the adapters that produce that kind of input. Partial and forced-OCR runs are stored as variants and never replace a complete result ([caching](#caching-and-invalidation)).
 - **PaperQA2 integration.** A corpus mode (`docingest ask`) with page-aware chunks, an index mode that retrieves from a persistent chunk index and reranks before PaperQA2 answers, and a native `parse_pdf` hook for PaperQA2's own `Docs.aadd` ([PaperQA2](#paperqa2-integration)).
@@ -371,6 +372,7 @@ flowchart TD
     SAVE -->|"partial run or ocr_all"| VAR[("data/normalized/_variants/ID16-CONFIG-pN")]
     CAN --> IDX[("data/normalized/index.json catalog")]
     CAN --> ASK["docingest ask reads the corpus"]
+    CAN --> QASM["docingest circuits export writes data/normalized/qasm"]
     VAR -->|"only when no canonical result exists"| ASK
     DEG -->|"only when no canonical result exists"| ASK
 ```
@@ -389,6 +391,7 @@ data/
   samples/                                 small demo inputs (only some are tracked)
   normalized/                              output_dir (git-ignored)
     index.json                             catalog of canonical documents with citations
+    qasm/                                  OpenQASM 3 programs, one .qasm per circuit part (derived)
     <sha256[:16]>/                         canonical result: complete run, default options
       document.md
       manifest.json
@@ -399,6 +402,8 @@ data/
     olmocr-bench/<subset>/                 pinned olmOCR-Bench subset
     runs/<run-id>/                         one benchmark run
 ```
+
+`qasm/` is derived: it has no `manifest.json`, so `DocumentStore.corpus()` never mistakes a program for a document, and deleting the folder costs only a new `docingest circuits export`.
 
 When `docingest ingest` walks a directory it skips hidden files (names starting with `.`), such as the crawler's `.part` downloads and `.fallback` markers. The sidecars `*.meta.json` and `*.truth.json` are never treated as documents, even when named on the command line.
 
@@ -564,14 +569,15 @@ documents, warnings = container.adapter("store").corpus()   # the whole normaliz
 
 ## CLI overview
 
-`uv run docingest --help` lists the commands, and `uv run docingest <command> --help` shows every option. Every command that reads the pipeline configuration (`ingest`, `crawl`, `ask`, `index`, `adapters`, `model-path`, `eval-ocr`) takes `--config/-c`. Without it, the repository's `config/pipeline.toml` is used (located from the package, not from the working directory; built-in defaults apply if that file is missing); a `--config` path that does not exist is an error. Full reference: [src/docingest/entrypoints/README.md](src/docingest/entrypoints/README.md).
+`uv run docingest --help` lists the commands, and `uv run docingest <command> --help` shows every option. Every command that reads the pipeline configuration (`ingest`, `crawl`, `ask`, `index`, `circuits`, `adapters`, `model-path`, `eval-ocr`) takes `--config/-c`. Without it, the repository's `config/pipeline.toml` is used (located from the package, not from the working directory; built-in defaults apply if that file is missing); a `--config` path that does not exist is an error. Full reference: [src/docingest/entrypoints/README.md](src/docingest/entrypoints/README.md).
 
 | Command | What it does | Main options |
 |---|---|---|
-| `docingest ingest PATHS...` | Normalize files and directories into Markdown plus manifest. Exits with status 1 if any input failed, after processing the others. With `--index`, the papers stored by this run are then added to the chunk index. | `--force`, `--ocr-all`, `--max-pages N`, `--index` |
-| `docingest crawl QUERY` | Search arXiv, download sources (PDF fallback) with metadata, then ingest them. Exits with status 1 on any failure. | `--limit` (default 5), `--no-ingest`, `--max-pages N`, `--index` |
+| `docingest ingest PATHS...` | Normalize files and directories into Markdown plus manifest. Exits with status 1 if any input failed, after processing the others. With `--index`, the papers stored by this run are then added to the chunk index; with `--qasm`, their circuits are exported. | `--force`, `--ocr-all`, `--max-pages N`, `--index`, `--qasm` |
+| `docingest crawl QUERY` | Search arXiv, download sources (PDF fallback) with metadata, then ingest them. Exits with status 1 on any failure. | `--limit` (default 5), `--no-ingest`, `--max-pages N`, `--index`, `--qasm` |
 | `docingest ask QUESTION` | Answer a question with PaperQA2 over the normalized corpus. With `[adapters] index` set, the evidence is retrieved from the chunk index and reranked first ([index mode](#paperqa2-integration)). Needs the `qa` extra. With `--stdin`, one process answers JSON-line questions and keeps the index open between them ([`ask --stdin`](src/docingest/entrypoints/README.md#docingest-ask)). | `--config`, `--no-index`, `--bm25 english\|always\|never`, `--stdin` |
 | `docingest index build\|status\|remove DOC_ID` | The persistent chunk index of the [docingest-index](../docingest-index/README.md) package: embed the new and changed documents, show the state of the index, forget one document. Needs `[adapters] embedder` and `index` set to real adapters. | `--config`, `build --no-prune` |
+| `docingest circuits export` | Write one OpenQASM 3 program per circuit part of the stored documents to `<output_dir>/qasm/`. Refuses what it cannot export instead of guessing; changes nothing in the store. | `--doc ID`, `--out DIR`, `--set NAME=VALUE`, `--allow-partial` |
 | `docingest adapters` | List every port, its selected adapter and the available ones, including installed plugins. | `--config` |
 | `docingest model-path [ROLE]` | Print the local snapshot path of the pinned `llm` (default), `embedding` or `ocr` model, downloading it if it is not cached. Used by `scripts/serve_llm.sh`. | `--config` |
 | `docingest make-scan SRC OUT` | Rasterize and degrade born-digital pages into an image-only PDF, with the cleaned text layer as ground truth in a `.truth.json` file next to `OUT` (same name, suffix replaced). Does not read the pipeline configuration. | `--pages` (0-based, comma separated, default `0`), `--dpi` (default 150) |
@@ -911,10 +917,11 @@ pytest runs with `--strict-markers`; the markers are `model`, `network` and `slo
 - **v0.1:** first prototype: PDF text layer plus Qwen3-VL OCR, with PaperQA2 integration.
 - **v0.2:** 26 defects found by adversarial review and fixed (pdfium hyphen markers, cache variants, token windows, pinning, and more).
 - **v0.3:** hexagonal architecture, LaTeX ingestion and the arXiv crawler, the OpenAI-compatible OCR adapter, the benchmark harness, and quality gates.
-- **v0.4:** text-layer pages come out as Markdown with running headers and page numbers removed, paragraphs joined and headings marked. 0.4.1 also collapses the dot leaders of contents lines on text-layer, OCR and image pages (and asks the `markdown` OCR profile for equation numbers, no added headings and no text read from pictures). The current version is 0.4.1.
-- **After 0.4.1 (not released: `pyproject.toml` still says 0.4.1):**
+- **v0.4:** text-layer pages come out as Markdown with running headers and page numbers removed, paragraphs joined and headings marked. 0.4.1 also collapses the dot leaders of contents lines on text-layer, OCR and image pages (and asks the `markdown` OCR profile for equation numbers, no added headings and no text read from pictures).
+- **v0.5:** `docingest circuits export` writes OpenQASM 3 from the circuits of stored documents, one program per part, with `--set` for free parameters and `--allow-partial`; `ingest --qasm` and `crawl --qasm` run the same export after storing; circuits are also available as `circuit/1` data for quantum-sim ([ADR 0006](docs/adr/0006-openqasm-3-export.md)). The pipeline version is 0.5.0, so every cached result is computed again once. The current version is 0.5.0.
   - LaTeX: source rewrites for the constructs that stop pandoc 3.9 (the `@`-named helper macros of REVTeX and natbib bibliographies, `\href` reference entries, odd citation keys, a few layout forms); conversion section by section, so that only the sections pandoc cannot read go to plain text, with recovery of a reference list that pandoc dropped; quantum circuits as exact `latex` code blocks; equation numbers as `\tag{n}` with `\eqref` and `\ref` resolved; a keyless reference entry stays in the reference list; and the converter revision in the cache key went from 2 to 7, so cached LaTeX papers are converted again once.
   - Circuits as data: `GateList.circuits` holds each circuit as `CircuitSteps` (`GateOp` items), and `CircuitSteps.to_dict()` gives the `circuit/1` format for quantum-sim (128-wire limit per gate, never stored). The circuit readers deny by default: a consumption check marks every command, option, argument, cell, row and text run of a circuit's source as understood or allowed to have no effect, and anything left, as well as text outside the circuit environments, makes the circuit `partial` with an `unparsed` item that names it. A `\cw` classical wire, a late `\lstick` that is not a ket (one that holds a ket stays a `text` item and the circuit stays `parsed`; quantum-sim refuses it as a ket after a gate), a `\wire` mark with dots, a doubly declared `yquant` name and options that carry content are unparsed instead of being read as a quantum wire, a legend or a plain gate.
+  - OpenQASM 3 export: `domain/qasm.py` projects one `CircuitSteps` onto OpenQASM 3 without I/O; `application/qasm.py` writes one deterministic file per part of every stored circuit under `<output_dir>/qasm/`, named by document, block, circuit and part. The export refuses what it cannot spell exactly (an unparsed circuit, an unbound parameter, `U`, `R_k`, `iSWAP`, a classically controlled item) instead of guessing; `openqasm3` parses every golden program in the contract tests. The store, manifest and cache key are unchanged ([ADR 0006](docs/adr/0006-openqasm-3-export.md)).
   - Routing: the math-page rule, `[routing] math_to_ocr`, off by default.
   - `ask`: BM25 on the LaTeX of a question in any language; `[qa] skip_summary` with a copy rule in the answer prompt; gate lists after circuit blocks (also returned as data, `GateList.circuits`, in the `circuit/1` format of `CircuitSteps.to_dict()`); the Eq. (n) lookup; a retry with fewer sources when the answer prompt is too long for the model; `[qa] whole_blocks`, off by default.
   - `ask` over many questions: `AskSession` (`Container.ask_session`) keeps the index, its float32 copy and the corpus listing open between questions and reloads them when `CommittedState.generation` changes; `docingest ask --stdin` answers JSON-line questions with it; `whole_blocks`, `use_index` and `bm25` can be chosen per question; the result holds the answer, the contexts the answerer read, the sources, the warnings, the timings and the index generation. `AskSession.answer_from_passages` answers from passages the caller gives, with no retrieval, and `Container.answer_model` names the answer model (name and revision, no address or key).

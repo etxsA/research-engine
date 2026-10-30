@@ -21,6 +21,7 @@ from .application.ask import AskService, AskSession, EquationLookup, Retrieval, 
 from .application.crawl import CrawlService
 from .application.index import IndexService
 from .application.ingest import IngestService, Log
+from .application.qasm import QasmExportService
 from .config import AppConfig, index_config
 from .domain.errors import InvalidConfigError, NotConfiguredError
 from .domain.models import AnswerModel, ModelRef, SourceKind
@@ -286,6 +287,14 @@ class Container:
             chunk_chars=self.cfg.qa.chunk_chars,  # the chunks of the index are the ones ask uses
             overlap=self.cfg.qa.overlap,
             log=self.log,
+        )
+
+    @cached_property
+    def qasm_export(self) -> QasmExportService:
+        """Write the circuits of stored documents, derived from ``document.md``."""
+        return QasmExportService(
+            store=self.adapter("store"),
+            out=Path(self.cfg.output_dir) / "qasm",
         )
 
     @cached_property
