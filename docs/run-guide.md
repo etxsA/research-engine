@@ -415,7 +415,7 @@ Limits:
 
 - The questions are always taken in the order of the set file, never the order of a run file, because the bootstrap resamples positions. A run written in another order gives the same numbers.
 - Number words (two, ocho) do not count for a number key unless you ask: they count wherever they stand, and a hand check found about half of them wrong. A lenient hit (an expression key matched by symbol recall only) in a category `f` question does not count, so for `f` the lenient columns equal the exact ones, and the key record says `unchecked`. The digits of a citation key (`(<id> pages 3-4)`) are not read as numbers, and a text key's alternative that is only a Greek letter name is ignored. [The scorer](../packages/qa-bench/README.md#the-scorer) lists the rules.
-- Not scored: reviews, multiple choice, circuit tasks and the multi-paper metrics. A run made for another set, an answer to a question the set does not have, or a pair that names an unknown run is refused with exit status 1.
+- Not scored: reviews, multiple choice and circuit tasks. The multi-paper metrics (`paper_recall10`, `paper_recall50`, `all_gold_present`, `keys_per_paper_mean`, `keys_per_paper_min`) are written for questions with gold papers and runs that are not `bare` (an empty list of contexts scores 0.0, so an answer that failed with an error and kept no contexts lowers the recall means; read the number of errors next to them); [the scorer](../packages/qa-bench/README.md#the-scorer) says what each one counts. A run made for another set, an answer to a question the set does not have, or a pair that names an unknown run is refused with exit status 1.
 
 ## Run the web app on a shared server
 

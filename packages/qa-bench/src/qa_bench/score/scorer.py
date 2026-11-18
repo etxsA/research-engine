@@ -24,6 +24,7 @@ from qa_bench.score import bootstrap
 from qa_bench.score.answers import cost_scores, qasper_scores, retrieval_scores
 from qa_bench.score.groups import Group, auto_fields, field_warnings, make_groups
 from qa_bench.score.keys import MATHNORM_CODE_MD5, key_scores
+from qa_bench.score.papers import keys_per_paper, paper_scores
 
 MAX_SHOWN = 5
 LABEL_CHARS = 80
@@ -92,8 +93,15 @@ def score_answers(
     answers: Sequence[Mapping[str, Any]],
     *,
     number_words: bool = False,
+    arm: str | None = None,
 ) -> list[tuple[str, int, Metrics, list[dict[str, Any]] | None]]:
-    """``(id, repeat, metrics, keys)`` for each answer of one run, in the order of the run."""
+    """``(id, repeat, metrics, keys)`` for each answer of one run, in the order of the run.
+
+    ``arm`` is the name of the run's arm; the multi-paper metrics need it to tell a bare run, which
+    retrieves nothing, from an arm that retrieved an empty list. If it is left out (None) the run is
+    taken as an arm that retrieves, so a bare run scored without it gets 0.0 instead of None;
+    ``score`` always passes it.
+    """
     out: list[tuple[str, int, Metrics, list[dict[str, Any]] | None]] = []
     for answer in answers:
         question = questions[answer["id"]]
@@ -102,6 +110,8 @@ def score_answers(
         if question.get("key_facts"):
             metrics, keys = key_scores(dict(question), dict(answer), number_words=number_words)
             metrics.update(retrieval_scores(dict(answer)))
+            metrics.update(keys_per_paper(question, keys))
+        metrics.update(paper_scores(question, answer, arm=arm))
         if (question.get("ext") or {}).get("refs"):
             metrics.update(qasper_scores(dict(question), dict(answer)))
         metrics.update(cost_scores(dict(answer)))
@@ -289,7 +299,13 @@ def _notes(engine: bootstrap.Engine, options: Options, warnings: Sequence[str]) 
         f"Bootstrap engine '{engine.name}': {engine.description}. "
         "Groups: 'field=v1|v2' means any of the listed values. Metric names: refused = 'cannot "
         "answer' in the long answer (QASPER); cannot_answer = the cannot-answer pattern for "
-        "key-fact sets; psg10, psg50, rr1, rr1_strict come from ext.retrieval of the run lines; a "
+        "key-fact sets; psg10, psg50, rr1, rr1_strict come from ext.retrieval of the run lines; "
+        "paper_recall10 and paper_recall50 are the share of the gold papers with a chunk that is "
+        "not a reference list among the first 10 contexts and the first 50 candidates, and "
+        "all_gold_present is 1.0 when every gold paper is among all the contexts, else 0.0 "
+        "(null for a bare run, 0.0 for an arm that retrieved no context), "
+        "contexts_used is the number of contexts, and keys_per_paper_mean and keys_per_paper_min "
+        "give the mean and the weakest share of exact key hits per gold paper; a "
         "metric whose inputs the run lacks is null on the item and left out of groups."
     )
     return " ".join([text, *warnings])
@@ -319,7 +335,12 @@ def score(
     values: dict[str, dict[str, dict[str, float | None]]] = {}
     for run in runs:
         run_id = run.file.header["run_id"]
-        scored = score_answers(questions, run.file.records, number_words=options.number_words)
+        scored = score_answers(
+            questions,
+            run.file.records,
+            number_words=options.number_words,
+            arm=run.file.header["arm"]["name"],
+        )
         values[run_id] = per_question(scored)
         for qid, repeat, metrics, keys in scored:
             record: dict[str, Any] = {

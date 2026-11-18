@@ -132,10 +132,22 @@ write("main-vs-branch.qa-score.jsonl", scored.file)
 | `math_spans`, `unsupported_math` | both of the above | math spans in the answer, and how many are in neither the chunks nor the prompt |
 | `cannot_answer`, `answer_chars` | key facts | the answer matches the cannot-answer pattern; its length |
 | `psg10`, `psg50`, `rr1`, `rr1_strict` | `ext.retrieval` holds ranks | the gold passage ranks within 10 or 50 after hybrid retrieval, first or first strictly after reranking |
+| `paper_recall10`, `paper_recall50`, `all_gold_present` | the question has gold papers and the run is not `bare` (`paper_recall50` also needs `candidates`) | the share of the gold papers with a chunk among the first 10 contexts and among the first 50 candidates, and 1.0 when every gold paper has a chunk among all the contexts the run gave, else 0.0 (see below) |
+| `contexts_used` | always | the number of contexts of the answer |
+| `keys_per_paper_mean`, `keys_per_paper_min` | the question has key facts and some key names a gold paper (`key_facts[].paper`) | for each gold paper with at least one key, the share of its keys found exactly in the answer (every key type); the mean over those papers and the weakest one |
 | `answer_f1`, `answer_good`, `refused` | the set item has `ext.refs` and the run has `ext.short` | token F1 of the short answer against the best reference, F1 at least 0.5, and the answer says it cannot answer |
 | `wall_s`, `prompt_tokens`, `completion_tokens`, `llm_requests`, `answer_prompt_tokens`, `error` | always (a number is null when the run lacks it) | cost of the answer and whether it failed |
 
 A metric whose inputs a run lacks is `null` on the item and is left out of the groups.
+
+**Multi-paper metrics.** A paper is told by the first 16 hex characters of its doc id. A context or candidate counts as evidence unless it has `is_reference: true`; a context without `is_reference` counts as not a reference.
+
+- `paper_recall10` uses the first 10 contexts, in the order of the run, and `paper_recall50` the first 50 `candidates`, in the order given; `paper_recall50` is `null` when the answer has no `candidates`, and an empty list of `candidates` counts as none.
+- `all_gold_present` depends on the number of contexts the run gave, not on 10: it is 1.0 when every gold paper has a chunk among all of them. It equals `paper_recall10 == 1` only with 10 contexts or fewer; with more (for example an arm that gives 15 or 20) it does not.
+- `contexts_used` is the number of contexts of the answer.
+- All three retrieval metrics are `null` for a question without gold papers and for a `bare` run, which retrieves nothing. An arm that retrieves and gave an empty list of contexts scores 0.0 (a retrieval failure), as does an answer whose contexts hold no gold paper. An answer line with an `error` (a timeout, say) usually has no contexts, so on an arm that retrieves it also scores 0.0 and lowers the recall means; read the number of errors (`error`) next to them. The `oracle` arm scores 1.0 when its contexts carry the gold doc ids, there are at most 10 gold passages and the line is not an error line.
+- A `null` is left out of the group mean, which reports its own `n`; a paired comparison uses only the questions that have a value in both runs, and its `n` counts them.
+- `keys_per_paper_mean` and `keys_per_paper_min` count the exact hits of every key type (expression, text and number) among the keys whose paper is a gold paper of the question; keys with no paper, or of a paper that is not gold, are ignored, and both are `null` when no key is left. There is no lenient variant, and they follow `--number-words` like `key_share` (there is no `_words` variant).
 
 **Key matching** uses the matcher in `qa_bench/score/mathnorm.py`, version 2 of the benchmark's matcher, vendored. Its code is unchanged (a test pins the md5 of everything after its docstring); the scorer calls its functions and decides these rules itself, in `score/keys.py`:
 
@@ -158,7 +170,7 @@ numpy gives no stream guarantee between versions; `npcompat` follows numpy 2.x, 
 
 **Refused.** A run whose set name or md5 is not the set file's, an answer to a question the set does not have, an oracle run with an answer whose contexts are not the gold passages (an error line is not checked), two runs with one `run_id`, a pair that names an unknown run or a run with itself, a pair given twice, a group that cannot be written. A run with questions unanswered, or searched on a corpus the set does not name, is a warning (printed by the command and kept in the header notes).
 
-**Not done.** Folding `reviews/1` grades into the metrics, a bootstrap cluster by paper or mirror pair (only `id`), the multi-paper metrics, multiple choice, the circuit grader, and the model call that extracts a short answer for QASPER (the extracted answer is read from `ext.short`).
+**Not done.** Folding `reviews/1` grades into the metrics, a bootstrap cluster by paper or mirror pair (only `id`), multiple choice, the circuit grader, and the model call that extracts a short answer for QASPER (the extracted answer is read from `ext.short`).
 
 ## The commands
 
@@ -183,7 +195,7 @@ Exit status: 0 when the work was done, 1 when a file or a row was refused or a f
 |---|---|
 | `src/qa_bench/formats/` | `schemas/` (the four JSON Schemas), `schema.py` (check one line), `jsonl.py` (strict read, deterministic write, md5, gzip), `files.py` (`FormatFile`, `load`, `read`, `build`, `write`, the rules inside a file), `crosscheck.py` (the rules between files), `problems.py` |
 | `src/qa_bench/reviews.py` | `apply_reviews`, `apply_to_set`, `latest_decisions` |
-| `src/qa_bench/score/` | `scorer.py` (`score`, `Options`, `ScoreError`), `keys.py` (key-fact metrics), `answers.py` (retrieval, cost, QASPER), `groups.py`, `bootstrap.py` (the two engines), `npcompat.py` (numpy's generator and percentile in pure Python), `mathnorm.py` (the vendored matcher) |
+| `src/qa_bench/score/` | `scorer.py` (`score`, `Options`, `ScoreError`), `keys.py` (key-fact metrics), `answers.py` (retrieval, cost, QASPER), `papers.py` (gold papers among the contexts and candidates, keys per paper), `groups.py`, `bootstrap.py` (the two engines), `npcompat.py` (numpy's generator and percentile in pure Python), `mathnorm.py` (the vendored matcher) |
 | `src/qa_bench/convert/` | one module per source shape, `captures.py`, and `shapes.py` (the table and the whole-file functions) |
 | `src/qa_bench/cli.py` | the `qa-bench` command |
 | `tests/` | one module per area; `fixtures/` holds synthetic files only |
