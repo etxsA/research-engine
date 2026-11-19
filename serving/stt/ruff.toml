@@ -1,0 +1,10 @@
+# Same rules as the packages (see packages/research-api/pyproject.toml).
+line-length = 100
+target-version = "py312"
+
+[lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF", "PT", "PL", "C4"]
+ignore = ["PLR0913", "PLR2004"]
+
+[lint.per-file-ignores]
+"tests/**" = ["PLR0913", "PT018", "E501", "E402", "E731"]

@@ -1,0 +1,11 @@
+# Wrapper environment of the stt role. Every package is pinned; install with:
+#   uv venv --python 3.12 <env> && uv pip install --python <env>/bin/python -r serving/stt/requirements.txt
+onnx-asr[cpu,hub]==0.12.0
+onnxruntime==1.32.0
+huggingface-hub==2.4.0
+numpy==2.5.5
+fastapi==0.165.0
+starlette==1.10.0
+uvicorn==0.54.0
+python-multipart==0.0.34
+anyio==4.16.0
