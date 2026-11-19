@@ -85,6 +85,7 @@ def decode_wav(data: bytes) -> np.ndarray:
             pcm = w.readframes(frames)
     except (wave.Error, EOFError) as exc:
         raise HTTPException(422, "audio is not a readable WAV file") from exc
+    pcm = pcm[: len(pcm) // 2 * 2]  # a truncated upload can end in half a sample
     return np.frombuffer(pcm, dtype="<i2").astype(np.float32) / 32768.0
 
 
@@ -146,7 +147,9 @@ def create_app(engine: Engine, api_key: str) -> FastAPI:
             raise HTTPException(422, "language must be es or en")
 
         samples = decode_wav(data)
-        text = await anyio.to_thread.run_sync(engine.transcribe, samples, limiter=one_at_a_time)
+        text = ""
+        if len(samples):
+            text = await anyio.to_thread.run_sync(engine.transcribe, samples, limiter=one_at_a_time)
         # The model detects the language itself; the hint is echoed, not forced.
         return {
             "text": text,

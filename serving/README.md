@@ -29,7 +29,8 @@ For the whole path from a clone to an answer, including a shared GPU machine and
 
 The `stt` role is not vLLM. `stt/stt_server.py` is a small FastAPI wrapper (Apache-2.0, like the rest of the repo)
 around [onnx-asr](https://github.com/istupakov/onnx-asr) (MIT), which runs a Parakeet-TDT model with onnxruntime on
-the CPU, behind the Silero VAD (MIT, ONNX, bundled in onnx-asr), so silence gives an empty text instead of invented
+the CPU, behind the Silero VAD (MIT, ONNX, downloaded from `istupakov/silero-vad-onnx` at the revision pinned in
+`models.tsv`, line `stt-vad`; it is not bundled in onnx-asr), so silence gives an empty text instead of invented
 words. No GPU is used; the default is 8 CPU threads (`STT_THREADS`).
 
 | Model name | Repository (pinned in `models.tsv`) | License |
@@ -37,9 +38,26 @@ words. No GPU is used; the default is 8 CPU threads (`STT_THREADS`).
 | `parakeet-tdt-0.6b-v3` (default) | `istupakov/parakeet-tdt-0.6b-v3-onnx`, ONNX conversion of `nvidia/parakeet-tdt-0.6b-v3` | CC-BY-4.0 |
 | `fluid-speech-pro` | `FluidVoice-Labs/fluid-speech-pro-onnx`, fine-tune of Parakeet TDT 0.6B v3 | CC-BY-4.0 |
 
-`fluid-speech-pro` is a weeks-old repository. Its pinned revision was read from the Hub on 2026-11-19 and its
-provenance is not yet checked; keep `parakeet-tdt-0.6b-v3` as the default until it is, and measure both on the same
-recorded questions before switching (`serve.sh stt start 8004 fluid-speech-pro`).
+`fluid-speech-pro` was checked on 2026-11-19 and passed as: metadata consistent (license, NOTICE, base chain
+Parakeet v3 via `moondream/parakeet-ultra`), weights not independently verified, publisher FluidVoice-Labs
+unverified, ONNX repository created 2026-11-13. It scored slightly better than Parakeet on the sample below, but
+not significantly, so `parakeet-tdt-0.6b-v3` (NVIDIA) stays the default; switch with
+`serve.sh stt start 8004 fluid-speech-pro`. The default is `DEF_MODEL` in `serve.sh`.
+
+Measured on the lab server CPU (shared machine, 8 threads, one clip at a time, through the HTTP route):
+
+| Measure | parakeet-tdt-0.6b-v3 | fluid-speech-pro |
+|---|---|---|
+| Real-time factor (8 threads) | about 0.09 (about 11x real time) | about 0.09 |
+| Latency per clip, median / p95 | about 0.8 s / about 2 s | about 0.8 s / about 2 s |
+| RAM (RSS) idle after load | 2.3 GB | 2.3 GB |
+| RAM peak after 100 requests | 3.05 GB | 3.5 GB |
+| Load until `/health` | 5 s warm, 35 s on the first start (2.5 GB download included) | 35 s on the first start |
+| FLEURS 50 clips WER, Spanish | 4.56% | 3.65% |
+| FLEURS 50 clips WER, English | 14.37% | 12.31% |
+
+The WER is not number-normalized (FLEURS spells numbers out), which inflates the English figures; 50 clips per
+language is too few to call a 1 to 2 point gap significant. Latency at 4 threads was not measured.
 
 **Install** (any Linux machine with Python 3.12 and `uv`; nothing here needs `sudo`):
 
@@ -56,7 +74,7 @@ The key file holds one line and must be mode 0600 (the server refuses to start o
 **Start and test:**
 
 ```bash
-export HF_HOME=/big/disk/huggingface        # the first start downloads about 2.5 GB
+export SERVING_CACHE_DIR=/big/disk/cache    # the first start downloads about 2.5 GB (HF_HOME also works)
 serving/serve.sh stt start                  # or: start <PORT> <model name from models.tsv>
 serving/serve.sh stt status
 serving/serve.sh stt print-cmd
@@ -73,7 +91,7 @@ curl -s http://127.0.0.1:8004/v1/audio/transcriptions \
 (`es` or `en`; the model detects the language itself, so the hint is only echoed) and `model` (`local-stt`), or the
 raw WAV as the body with `Content-Type: audio/wav` and the same fields as query parameters. Answers: 401 without
 the Bearer key (checked before the body is read), 411 without `Content-Length`, 413 above 2 MiB or 60 s, 422 for
-anything that is not that WAV or for an unknown `language` or `model`. `GET /health` needs no key and answers once
+anything that is not that WAV (a WAV cut mid-sample is read up to its last whole sample) or for an unknown `language` or `model`. `GET /health` needs no key and answers once
 the models are loaded. Audio is kept in memory only and never written to disk or to the log; clips are processed one
 at a time. The server listens on 127.0.0.1, so it is not reachable from other machines.
 

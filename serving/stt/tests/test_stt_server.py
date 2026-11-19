@@ -119,6 +119,17 @@ def test_rejects_unsupported_audio(client, data):
     assert post(client, data).status_code == 422
 
 
+def test_truncated_wav_is_not_a_server_error(client, engine):
+    r = post(client, wav()[:-1])
+    assert r.status_code == 200 and engine.calls == [15_999]
+    assert post(client, wav()[:45]).status_code == 200
+
+
+def test_empty_clip_skips_the_engine(client, engine):
+    r = post(client, wav(0.0))
+    assert r.status_code == 200 and r.json()["text"] == "" and engine.calls == []
+
+
 def test_rejects_unsupported_content_type(client):
     r = client.post(
         "/v1/audio/transcriptions", headers={**AUTH, "Content-Type": "application/json"}, json={}
