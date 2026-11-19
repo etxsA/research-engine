@@ -10,10 +10,12 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
-from helpers import MovableClock, live_settings, prepare_live
+from helpers import MovableClock, live_settings, make_wav, prepare_live
 
+from research_api.adapters.models import OpenAiTranscriber
 from research_api.bootstrap import Settings, build_container
 from research_api.bootstrap.seed import SeedUser
 from research_api.entrypoints.http import build_app
@@ -207,6 +209,60 @@ def test_no_password_token_or_cookie_reaches_the_log(
     ]:
         assert secret not in text, secret
     assert "set-cookie" not in text.lower()
+
+
+def test_neither_the_speech_key_nor_the_transcript_reaches_the_log(
+    tmp_path: Path, seed: list[SeedUser]
+) -> None:
+    key_file = tmp_path / "stt.key"
+    key_file.write_text("stt-key-never-in-a-log-0001")
+    key_file.chmod(0o600)
+    home = tmp_path / "home"
+    settings = prepare_live(
+        live_settings(
+            home,
+            log_dir=home / "logs",
+            speech={"stt_endpoint": "http://127.0.0.1:8004/v1", "stt_api_key_file": key_file},
+        )
+    )
+    container = build_container(settings, cheap_hashing=True)
+    for account in seed:
+        container.auth.users.create(
+            account.username,
+            account.display_name,
+            account.role,
+            password=account.password,
+            must_change_password=account.must_change_password,
+        )
+    assert settings.log_dir and container.speech
+    configure_logging(settings.log_dir)
+    transcript = "the-private-words-of-a-member"
+    container.speech._transcriber = OpenAiTranscriber(
+        "http://127.0.0.1:8004/v1",
+        "local-stt",
+        "stt-key-never-in-a-log-0001",
+        timeout_s=5,
+        transport=httpx.MockTransport(
+            lambda _: httpx.Response(200, json={"text": transcript, "language": "es"})
+        ),
+    )
+    client = TestClient(
+        build_app(container),
+        base_url="http://127.0.0.1:8090",
+        headers={"Origin": "http://127.0.0.1:8090"},
+        raise_server_exceptions=False,
+    )
+    client.post("/api/v1/auth/login", json=ANA)
+    reply = client.post(
+        "/api/v1/speech/transcriptions",
+        content=make_wav(1),
+        headers={"Content-Type": "audio/wav", CSRF_HEADER: client.cookies[CSRF_COOKIE]},
+    )
+    assert reply.status_code == 200 and reply.json()["text"] == transcript
+    text = (settings.log_dir / LOG_NAME).read_text(encoding="utf-8")
+    assert text.count("\n") > 0
+    assert "stt-key-never-in-a-log" not in text
+    assert transcript not in text
 
 
 def test_the_audit_trail_names_who_did_what(logged: tuple[TestClient, Path, list[str]]) -> None:
