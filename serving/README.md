@@ -1,13 +1,15 @@
 # Model servers
 
-The research engine runs three local [vLLM](https://docs.vllm.ai/) servers with OpenAI-compatible APIs. `serve.sh`
-starts, stops and inspects them; `models.tsv` pins every model to a repository and revision.
+The research engine runs three local [vLLM](https://docs.vllm.ai/) servers with OpenAI-compatible APIs and one CPU
+speech-to-text server. `serve.sh` starts, stops and inspects them; `models.tsv` pins every model to a repository and
+revision.
 
 | Role | Served name | Default model | Default GPU and port | Used for |
 |---|---|---|---|---|
 | `llm` | `qwen-local` | Qwen3.8-27B (AWQ 4-bit) | GPU 2, port 8001 | answers, evidence summaries, OCR |
 | `embed` | `qwen-embed` | Qwen3-Embedding-4B | GPU 1, port 8002 | vectors for chunks and questions (`/v1/embeddings`) |
 | `rerank` | `qwen-rerank` | Qwen3-Reranker-8B | GPU 1, port 8003 | re-scoring retrieved chunks (`/rerank`) |
+| `stt` | `local-stt` | Parakeet-TDT-0.6B-v3 (ONNX) | CPU, port 8004 | speech to text (`/v1/audio/transcriptions`), see [Speech to text](#speech-to-text-stt) |
 
 ```bash
 serving/serve.sh llm start            # or: start <GPU> <PORT> <model name from models.tsv>
@@ -22,6 +24,71 @@ Clients always use the served names, so switching a model (for example `embed st
 needs no client change. The embedder and the reranker fit together on one 48 GB GPU at 0.45 of its memory each.
 
 For the whole path from a clone to an answer, including a shared GPU machine and troubleshooting, see the [run guide](../docs/run-guide.md).
+
+## Speech to text (stt)
+
+The `stt` role is not vLLM. `stt/stt_server.py` is a small FastAPI wrapper (Apache-2.0, like the rest of the repo)
+around [onnx-asr](https://github.com/istupakov/onnx-asr) (MIT), which runs a Parakeet-TDT model with onnxruntime on
+the CPU, behind the Silero VAD (MIT, ONNX, bundled in onnx-asr), so silence gives an empty text instead of invented
+words. No GPU is used; the default is 8 CPU threads (`STT_THREADS`).
+
+| Model name | Repository (pinned in `models.tsv`) | License |
+|---|---|---|
+| `parakeet-tdt-0.6b-v3` (default) | `istupakov/parakeet-tdt-0.6b-v3-onnx`, ONNX conversion of `nvidia/parakeet-tdt-0.6b-v3` | CC-BY-4.0 |
+| `fluid-speech-pro` | `FluidVoice-Labs/fluid-speech-pro-onnx`, fine-tune of Parakeet TDT 0.6B v3 | CC-BY-4.0 |
+
+`fluid-speech-pro` is a weeks-old repository. Its pinned revision was read from the Hub on 2026-11-19 and its
+provenance is not yet checked; keep `parakeet-tdt-0.6b-v3` as the default until it is, and measure both on the same
+recorded questions before switching (`serve.sh stt start 8004 fluid-speech-pro`).
+
+**Install** (any Linux machine with Python 3.12 and `uv`; nothing here needs `sudo`):
+
+```bash
+uv venv --python 3.12 /path/to/stt-env
+uv pip install --python /path/to/stt-env/bin/python -r serving/stt/requirements.txt
+umask 077 && mkdir -p ~/.local/state/research-engine && python3 -c "import secrets; print(secrets.token_urlsafe(32))" > ~/.local/state/research-engine/stt.key
+echo 'STT_PYTHON=/path/to/stt-env/bin/python' >> serving/env.local
+```
+
+The key file holds one line and must be mode 0600 (the server refuses to start otherwise). Its default place is
+`$SERVING_STATE_DIR/stt.key`; set `STT_API_KEY_FILE` for another one. The research API client will send the same key.
+
+**Start and test:**
+
+```bash
+export HF_HOME=/big/disk/huggingface        # the first start downloads about 2.5 GB
+serving/serve.sh stt start                  # or: start <PORT> <model name from models.tsv>
+serving/serve.sh stt status
+serving/serve.sh stt print-cmd
+serving/serve.sh stt stop
+
+curl -s http://127.0.0.1:8004/health
+curl -s http://127.0.0.1:8004/v1/audio/transcriptions \
+  -H "Authorization: Bearer $(cat ~/.local/state/research-engine/stt.key)" \
+  -F file=@question.wav -F language=es -F model=local-stt
+# {"text": "...", "language": "es", "duration": 3.2}
+```
+
+`POST /v1/audio/transcriptions` takes a multipart `file` (WAV, 16 kHz, mono, 16-bit PCM) with optional `language`
+(`es` or `en`; the model detects the language itself, so the hint is only echoed) and `model` (`local-stt`), or the
+raw WAV as the body with `Content-Type: audio/wav` and the same fields as query parameters. Answers: 401 without
+the Bearer key (checked before the body is read), 411 without `Content-Length`, 413 above 2 MiB or 60 s, 422 for
+anything that is not that WAV or for an unknown `language` or `model`. `GET /health` needs no key and answers once
+the models are loaded. Audio is kept in memory only and never written to disk or to the log; clips are processed one
+at a time. The server listens on 127.0.0.1, so it is not reachable from other machines.
+
+The wrapper tests need no model (a stub recognizer stands in for it, and the VAD path is stubbed):
+
+```bash
+uv venv --python 3.12 /tmp/stt-test && uv pip install --python /tmp/stt-test/bin/python -r serving/stt/requirements-dev.txt
+/tmp/stt-test/bin/python -m pytest serving/stt
+```
+
+**Attribution (CC-BY-4.0).** The speech recognition model is NVIDIA Parakeet-TDT-0.6B-v3
+(https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3, CC-BY-4.0), converted to ONNX by istupakov
+(https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx, CC-BY-4.0); changes: the ONNX conversion. If
+`fluid-speech-pro` is used: "Fluid Speech Pro by FluidVoice. Built on NVIDIA Parakeet TDT 0.6B v3 and Moondream
+Parakeet Ultra." (the repository's NOTICE, CC-BY-4.0). Keep this text in the user-facing About page as well.
 
 ## Requirements
 

@@ -49,7 +49,7 @@ jobs:
       - run: uv run --frozen pytest -q --cov
 
   shell:
-    # The shared-server script passes shellcheck. The version is pinned so that a new runner
+    # The shared-server and model-server scripts pass shellcheck. The version is pinned so that a new runner
     # image cannot add checks and turn the job red; raise it on purpose. scripts/check.sh runs
     # the same command and skips it where shellcheck is missing.
     runs-on: ubuntu-latest
@@ -58,6 +58,22 @@ jobs:
       - uses: astral-sh/setup-uv@v10.2.0
       - run: uvx --from shellcheck-py==0.11.0.1 shellcheck --version
       - run: uvx --from shellcheck-py==0.11.0.1 shellcheck deploy/research-api.sh
+      - run: uvx --from shellcheck-py==0.11.0.1 shellcheck serving/serve.sh
+
+  stt:
+    # The speech-to-text wrapper of serving/stt: lint, format and its tests. No model is downloaded:
+    # the tests run a stub recognizer. The wrapper has its own pinned requirements, outside the uv workspace.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: serving/stt
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.2.0
+      - run: uv venv --python 3.12 .venv && uv pip install -r requirements-dev.txt ruff==0.17.6
+      - run: .venv/bin/ruff check .
+      - run: .venv/bin/ruff format --check .
+      - run: .venv/bin/python -m pytest -q
 
   web:
     # The web app: lint, format, types, unit tests, build, bundle budget, dependency audit.

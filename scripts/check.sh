@@ -8,7 +8,7 @@ uv run --frozen python scripts/check_links.py   # relative links in every Markdo
 bash -n serving/serve.sh   # the model-server script parses
 bash -n deploy/research-api.sh   # the shared-server script parses
 if command -v shellcheck > /dev/null 2>&1; then
-  shellcheck deploy/research-api.sh   # and passes shellcheck, where it is installed
+  shellcheck deploy/research-api.sh serving/serve.sh   # and passes shellcheck, where it is installed
 else
   echo "== shellcheck skipped: not on PATH"
 fi
