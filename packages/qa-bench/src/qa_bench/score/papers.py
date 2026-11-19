@@ -17,8 +17,9 @@ retrieval failure), and so does an answer whose contexts hold no gold paper. An 
 ``error`` (a timeout, say) usually has no contexts, so on an arm that retrieves it also scores 0.0
 and lowers the recall means; read the number of errors next to them. The ``oracle`` arm scores 1.0
 when its contexts carry the gold doc ids, there are at most 10 gold passages and the line is not an
-error line. ``paper_recall50`` is None when the answer has no ``candidates``, and an empty list of
-``candidates`` counts as none.
+error line. ``paper_recall50`` is None when the answer has no ``candidates`` key; an empty list of
+``candidates`` on an arm that retrieves scores 0.0, like an empty list of contexts. The first stage
+found nothing then.
 
 ``keys_per_paper_mean`` and ``keys_per_paper_min`` take, for each gold paper that has at least one
 key assigned to it (``key_facts[].paper``), the share of those keys the answer holds exactly
@@ -79,13 +80,13 @@ def paper_scores(
     gold = gold_papers(question)
     if not gold or arm == BARE_ARM:
         return out
-    candidates = item.get("candidates") or []
+    candidates = item.get("candidates")
     top = evidence_papers(contexts[:RECALL_CONTEXTS])
     every = evidence_papers(contexts)
-    pool = evidence_papers(candidates[:RECALL_CANDIDATES])
+    pool = evidence_papers((candidates or [])[:RECALL_CANDIDATES])
     out["paper_recall10"] = sum(g in top for g in gold) / len(gold)
     out["all_gold_present"] = float(all(g in every for g in gold))
-    if candidates:
+    if candidates is not None:
         out["paper_recall50"] = sum(g in pool for g in gold) / len(gold)
     return out
 

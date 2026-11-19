@@ -160,10 +160,11 @@ def test_paper_recall50_is_none_without_candidates_and_skips_reference_candidate
     assert scores(multi(DOC_A, DOC_B), [ctx(DOC_A)], candidates)["paper_recall50"] == 0.5
 
 
-def test_an_empty_list_of_candidates_counts_as_no_candidates():
+def test_an_empty_list_of_candidates_scores_zero_on_an_arm_that_retrieves():
     got = scores(multi(DOC_A, DOC_B), [ctx(DOC_A)], [])
-    assert got["paper_recall50"] is None
+    assert got["paper_recall50"] == 0.0
     assert got["paper_recall10"] == 0.5
+    assert scores(multi(DOC_A, DOC_B), [], [], arm="bare")["paper_recall50"] is None
 
 
 def test_an_error_line_without_contexts_scores_zero_on_an_arm_that_retrieves():
@@ -197,8 +198,8 @@ def cand(doc_id):
     return {"doc_id": doc_id, "start": 0, "score": 0.5}
 
 
-def row(i, exact, paper=None):
-    out = {"i": i, "exact": exact, "lenient": exact}
+def row(i, exact, paper=None, lenient=None):
+    out = {"i": i, "exact": exact, "lenient": exact if lenient is None else lenient}
     if paper:
         out["paper"] = paper
     return out
@@ -220,7 +221,12 @@ def test_keys_without_a_paper_or_of_a_paper_that_is_not_gold_are_ignored():
 
 
 def test_a_gold_paper_without_keys_is_left_out_of_the_mean_and_the_minimum():
-    got = keys_per_paper(multi(DOC_A, DOC_B), [row(0, False, DOC_A)])
+    got = keys_per_paper(multi(DOC_A, DOC_B), [row(0, True, DOC_A)])
+    assert got == {"keys_per_paper_mean": 1.0, "keys_per_paper_min": 1.0}
+
+
+def test_keys_per_paper_read_the_exact_hits_not_the_lenient_ones():
+    got = keys_per_paper(multi(DOC_A, DOC_B), [row(0, False, DOC_A, lenient=True)])
     assert got == {"keys_per_paper_mean": 0.0, "keys_per_paper_min": 0.0}
 
 
@@ -337,7 +343,7 @@ def test_keys_per_paper_follow_the_number_words_option():
         assert (metrics["keys_per_paper_mean"], metrics["keys_per_paper_min"]) == expected
 
 
-def test_a_bare_run_has_no_multi_paper_metrics_and_stays_out_of_the_groups():
+def test_a_bare_run_has_no_retrieval_metrics_but_keeps_keys_per_paper():
     qset = multi_set()
     bare = make_run("b1", qset, [answer("S-1", "alpha"), answer("M-1", "alpha")], arm="bare")
     result = scored(qset, [bare])
@@ -346,6 +352,10 @@ def test_a_bare_run_has_no_multi_paper_metrics_and_stays_out_of_the_groups():
         assert item["metrics"]["paper_recall10"] is None
         assert item["metrics"]["paper_recall50"] is None
         assert item["metrics"]["contexts_used"] == 0
+    both = records_of(result, "item", id="M-1")[0]["metrics"]
+    assert both["keys_per_paper_mean"] == 0.5  # A: alpha found, B: beta and gamma not
+    assert both["keys_per_paper_min"] == 0.0
+    assert records_of(result, "item", id="S-1")[0]["metrics"]["keys_per_paper_mean"] is None
     assert not records_of(result, "group", metric="all_gold_present")
     assert not records_of(result, "group", metric="paper_recall10")
     assert records_of(result, "group", group="all", metric="key_share")  # the keys still score
