@@ -38,7 +38,7 @@ words. No GPU is used; the default is 8 CPU threads (`STT_THREADS`).
 | `parakeet-tdt-0.6b-v3` (default) | `istupakov/parakeet-tdt-0.6b-v3-onnx`, ONNX conversion of `nvidia/parakeet-tdt-0.6b-v3` | CC-BY-4.0 |
 | `fluid-speech-pro` | `FluidVoice-Labs/fluid-speech-pro-onnx`, fine-tune of Parakeet TDT 0.6B v3 | CC-BY-4.0 |
 
-`fluid-speech-pro` was checked on 2026-11-19 and passed as: metadata consistent (license, NOTICE, base chain
+`fluid-speech-pro` was checked on 2026-11-19, which found: metadata consistent (license, NOTICE, base chain
 Parakeet v3 via `moondream/parakeet-ultra`), weights not independently verified, publisher FluidVoice-Labs
 unverified, ONNX repository created 2026-11-13. It scored slightly better than Parakeet on the sample below, but
 not significantly, so `parakeet-tdt-0.6b-v3` (NVIDIA) stays the default; switch with
