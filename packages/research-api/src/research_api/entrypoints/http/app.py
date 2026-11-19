@@ -24,6 +24,7 @@ from .origin import OriginGuard, origin_allowed_by
 from .problems import install_problem_handlers, use_problem_media_in_openapi
 from .routes import router
 from .sets import router as sets_router
+from .speech import router as speech_router
 from .webapp import WebApp
 
 API_PREFIX = "/api/v1"
@@ -39,6 +40,8 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     finally:
         await container.bench.jobs.stop()
         await container.asks.stop()
+        if container.speech is not None:
+            await container.speech.stop()
         container.close()
 
 
@@ -61,7 +64,8 @@ def build_app(container: Container) -> FastAPI:
     app.add_middleware(
         NoStore,
         prefixes=tuple(
-            f"{API_PREFIX}/{name}" for name in ("asks", "documents", "runs", "scores", "jobs")
+            f"{API_PREFIX}/{name}"
+            for name in ("asks", "documents", "runs", "scores", "jobs", "speech")
         ),
     )
     app.add_middleware(OriginGuard, allowed=origin_allowed_by(container.settings, fake=fake))
@@ -79,6 +83,7 @@ def build_app(container: Container) -> FastAPI:
     app.include_router(documents_router, prefix=API_PREFIX)
     app.include_router(sets_router, prefix=API_PREFIX)
     app.include_router(jobs_router, prefix=API_PREFIX)
+    app.include_router(speech_router, prefix=API_PREFIX)
     install_problem_handlers(app)
     install_ask_handlers(app)
     if container.settings.web_dir is not None:

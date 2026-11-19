@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 
 from .ask import FakeAskEngine, FakeDocumentReader
 from .bench import FakeArms, FakeModelServer
+from .speech import FakeTranscriber
 
 FAKE_EPOCH = datetime(2026, 1, 1, tzinfo=UTC)
 
@@ -15,6 +16,7 @@ __all__ = [
     "FakeAskEngine",
     "FakeDocumentReader",
     "FakeModelServer",
+    "FakeTranscriber",
     "FixedClock",
 ]
 

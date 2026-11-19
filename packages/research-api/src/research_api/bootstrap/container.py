@@ -23,10 +23,17 @@ from ..adapters.docingest_ask import (
     OfflineDocumentReader,
     open_docingest,
 )
-from ..adapters.fake import FakeArms, FakeAskEngine, FakeDocumentReader, FakeModelServer, FixedClock
+from ..adapters.fake import (
+    FakeArms,
+    FakeAskEngine,
+    FakeDocumentReader,
+    FakeModelServer,
+    FakeTranscriber,
+    FixedClock,
+)
 from ..adapters.files import BenchFileStore, SetFileStore
 from ..adapters.hashing import ArgonPasswordHasher
-from ..adapters.models import OpenAiModels
+from ..adapters.models import OpenAiModels, OpenAiTranscriber
 from ..adapters.persistence import Database
 from ..application.arms import LiveArms
 from ..application.ask import AskDesk
@@ -52,8 +59,10 @@ from ..application.jobs import RECHECK_S, JobDesk
 from ..application.lanes import Lane
 from ..application.results import RunsDesk, ScoresDesk
 from ..application.sets import SetServices, build_set_services
+from ..application.speech import SpeechDesk
 from ..application.status import ReportStatus
 from ..domain.auth import LoginPolicy, SessionPolicy
+from ..domain.speech import SpeechLimits
 from ..domain.status import Mode
 from ..ports.ask import AskEngine
 from ..ports.auth import PasswordHasher
@@ -61,10 +70,11 @@ from ..ports.clock import Clock
 from ..ports.documents import DocumentReader
 from ..ports.jobs import Arms
 from ..ports.models import ModelEntry, ModelServer
+from ..ports.speech import Transcriber
 from .demo_sets import seed_demo_sets
 from .seed import SeedUser, default_seed_users
 from .settings import Settings, SettingsError, is_loopback
-from .storage import load_private_settings, open_current_database, storage_paths
+from .storage import load_private_settings, open_current_database, read_secret, storage_paths
 
 CONFIG_ENV = "RESEARCH_API_CONFIG"
 FAKE_ENV = "RESEARCH_API_FAKE"
@@ -104,6 +114,8 @@ class Container:
     documents: DocumentServices
     sets: SetServices
     bench: BenchServices
+    speech: SpeechDesk | None
+    """None when the settings have no ``[speech]`` table: the routes answer 503."""
     close: Callable[[], None]
     """Release the database. Idempotent; the HTTP app calls it when it shuts down."""
 
@@ -259,6 +271,26 @@ def _model_server(settings: Settings) -> ModelServer:
     )
 
 
+def _speech_desk(
+    settings: Settings, *, fake: bool, transcriber: Transcriber | None
+) -> SpeechDesk | None:
+    section = settings.speech
+    if transcriber is None:
+        if fake:
+            transcriber = FakeTranscriber()
+        elif section is None:
+            return None
+        else:
+            transcriber = OpenAiTranscriber(
+                section.stt_endpoint,
+                section.stt_model,
+                read_secret(section.stt_api_key_file, what="the speech server key file"),
+                timeout_s=float(section.timeout_s),
+            )
+    limits = section.limits() if section is not None else SpeechLimits()
+    return SpeechDesk(transcriber=transcriber, limits=limits)
+
+
 def build_container(
     settings: Settings,
     *,
@@ -273,6 +305,7 @@ def build_container(
     bench_arms: Arms | None = None,
     model_server: ModelServer | None = None,
     bench_recheck_s: float | None = None,
+    transcriber: Transcriber | None = None,
 ) -> Container:
     """Wire the service.
 
@@ -285,7 +318,8 @@ def build_container(
     an ask (so a screen shows them), and ``ask_engine`` and ``document_reader`` replace the
     stand-ins (tests). ``fake_bench_pause_s`` is the time a fake benchmark answer takes;
     ``bench_arms``, ``model_server`` and ``bench_recheck_s`` (how often a run waiting for a model
-    server looks again) replace the stand-ins and the default for tests.
+    server looks again) replace the stand-ins and the default for tests. ``transcriber`` replaces
+    the speech server (fake mode has a stand-in; live mode has none without ``[speech]``).
     """
     if fake and not is_loopback(settings.bind_host):
         raise SettingsError("fake mode serves test data and may only bind a loopback address")
@@ -373,6 +407,7 @@ def build_container(
             documents=DocumentServices(reader=reader),
             sets=sets,
             bench=bench,
+            speech=_speech_desk(settings, fake=fake, transcriber=transcriber),
             close=cleanup,
         )
         # A process that exits without a clean shutdown still removes the fake database's folder.

@@ -26,6 +26,13 @@ from ..domain.circuits import (
     DEFAULT_TIMEOUT_S,
     CircuitCaps,
 )
+from ..domain.speech import (
+    DEFAULT_MAX_AUDIO_BYTES,
+    DEFAULT_MAX_AUDIO_S,
+    DEFAULT_PER_MEMBER_OPEN,
+    SpeechLimits,
+)
+from ..domain.speech import DEFAULT_TIMEOUT_S as DEFAULT_SPEECH_TIMEOUT_S
 
 # Tailscale hands out addresses from the CGNAT block (IPv4) and a unique-local block (IPv6).
 _TAILSCALE_NETWORKS = (
@@ -127,6 +134,20 @@ def normalize_origin(value: str) -> str:
     return _origin_text(scheme, host, port)
 
 
+def _plain_endpoint(value: str, *, what: str) -> str:
+    parts = urlsplit(value)
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        raise ValueError("must look like http://127.0.0.1:8001/v1")
+    if parts.username or parts.password or parts.query or parts.fragment:
+        raise ValueError("must have no credentials, query or fragment: a key never goes here")
+    if parts.scheme == "http" and not _private_host(parts.hostname):
+        raise ValueError(
+            f"plain http is for a loopback or Tailscale address ({what} would cross the network "
+            "in the clear); use https for another host"
+        )
+    return value.rstrip("/")
+
+
 class CircuitCapsSettings(BaseModel):
     """The ``[circuit_caps]`` table. The upper bounds are quantum-sim's own limits (32 Mi
     characters of input, 10,000 operations) and a timeout of ten minutes."""
@@ -155,17 +176,47 @@ class ModelSetting(BaseModel):
     @field_validator("endpoint")
     @classmethod
     def _endpoint_is_plain(cls, value: str) -> str:
-        parts = urlsplit(value)
-        if parts.scheme not in ("http", "https") or not parts.hostname:
-            raise ValueError("must look like http://127.0.0.1:8001/v1")
-        if parts.username or parts.password or parts.query or parts.fragment:
-            raise ValueError("must have no credentials, query or fragment: a key never goes here")
-        if parts.scheme == "http" and not _private_host(parts.hostname):
-            raise ValueError(
-                "plain http is for a loopback or Tailscale address (a question and its answer "
-                "would cross the network in the clear); use https for another host"
-            )
-        return value.rstrip("/")
+        return _plain_endpoint(value, what="a question and its answer")
+
+
+class SpeechSettings(BaseModel):
+    """The ``[speech]`` table: the speech-to-text server, and what one clip may be. Without the
+    table speech is unavailable. The key is read from ``stt_api_key_file``, never from here."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    stt_endpoint: str = Field(description="The address up to and including /v1.")
+    stt_model: str = Field(
+        default="local-stt", min_length=1, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9._:/-]*$"
+    )
+    stt_api_key_file: Path
+    max_audio_bytes: StrictInt = Field(
+        default=DEFAULT_MAX_AUDIO_BYTES, ge=1024, le=16 * 1024 * 1024
+    )
+    max_audio_s: StrictInt | StrictFloat = Field(default=DEFAULT_MAX_AUDIO_S, gt=0, le=300)
+    timeout_s: StrictInt | StrictFloat = Field(default=DEFAULT_SPEECH_TIMEOUT_S, gt=0, le=600)
+    per_member_open: StrictInt = Field(default=DEFAULT_PER_MEMBER_OPEN, ge=1, le=10)
+
+    @field_validator("stt_endpoint")
+    @classmethod
+    def _endpoint_is_plain(cls, value: str) -> str:
+        return _plain_endpoint(value, what="a person's voice")
+
+    @field_validator("stt_api_key_file")
+    @classmethod
+    def _key_file_is_absolute(cls, value: Path) -> Path:
+        value = value.expanduser()
+        if not value.is_absolute():
+            raise ValueError("must be an absolute path")
+        return value
+
+    def limits(self) -> SpeechLimits:
+        return SpeechLimits(
+            max_audio_bytes=self.max_audio_bytes,
+            max_audio_s=float(self.max_audio_s),
+            timeout_s=float(self.timeout_s),
+            per_member_open=self.per_member_open,
+        )
 
 
 class Settings(BaseModel):
@@ -188,6 +239,8 @@ class Settings(BaseModel):
     # The models that benchmark runs may ask (the closed-book arm calls them directly). The
     # harness arm uses the model of the docingest file; its entry here only names it in the run.
     models: tuple[ModelSetting, ...] = ()
+    # The speech-to-text server. Without it speech is unavailable (a 503, and `/status` says so).
+    speech: SpeechSettings | None = None
     # The built web app (apps/web/dist). When set, the API serves it from its own origin.
     web_dir: Path | None = None
     session_idle_hours: StrictInt = Field(default=12, ge=1, le=720)

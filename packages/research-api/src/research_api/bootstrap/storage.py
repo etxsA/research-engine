@@ -75,3 +75,17 @@ def open_current_database(settings: Settings) -> Database:
         database.close()
         raise SettingsError(f"the database is not up to date; {UPGRADE_HINT}")
     return database
+
+
+def read_secret(path: Path, *, what: str) -> str:
+    """A key kept in its own file: private to this account, one non-empty line of text."""
+    try:
+        ensure_private_file(path)
+        value = path.read_text(encoding="utf-8").strip()
+    except PrivacyError as e:
+        raise SettingsError(str(e)) from e
+    except (OSError, UnicodeDecodeError) as e:
+        raise SettingsError(f"cannot read {what}: {path}") from e
+    if not value or any(ch.isspace() for ch in value):
+        raise SettingsError(f"{what} {path} must hold one key and nothing else")
+    return value

@@ -59,3 +59,18 @@ timeout_s = 30             # seconds to wait for one request (answer 422 after i
 # endpoint = "http://127.0.0.1:8001/v1"
 # label = "Qwen (local)"
 # revision = "fill in the weights revision"
+
+# Optional. Speech to text for the question box: the person speaks, the text lands in the box for
+# them to edit. Without this table speech is unavailable (a 503, and /status says so). Nothing is
+# stored: no audio and no text, in the database, in a file or in the log. The speech server speaks
+# the OpenAI audio API (POST <stt_endpoint>/audio/transcriptions) and is reached over plain http
+# only on a loopback or Tailscale address; any other host needs https. The key is not written
+# here: put it alone in a file readable by this account only (chmod 600) and name the file.
+# [speech]
+# stt_endpoint = "http://127.0.0.1:8004/v1"   # the address up to /v1
+# stt_model = "local-stt"                     # the name the server serves it as
+# stt_api_key_file = "/path/to/research-api/secrets/stt.key"
+# max_audio_bytes = 2097152                   # 2 MiB per clip (answer 413 above it)
+# max_audio_s = 60                            # seconds per clip (answer 422 above it)
+# timeout_s = 30                              # seconds to wait for one clip (answer 503 after it)
+# per_member_open = 2                         # open transcriptions per member (answer 429 above it)

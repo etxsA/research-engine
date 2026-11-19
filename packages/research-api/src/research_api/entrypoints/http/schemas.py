@@ -40,6 +40,7 @@ from ...domain.documents import (
     DocumentSummary,
     PageKind,
 )
+from ...domain.speech import Transcript
 from ...domain.status import Mode, ServerStatus
 from ...ports.ask import EngineState
 from ...ports.circuits import GateListReading
@@ -93,6 +94,15 @@ class BenchStatusOut(BaseModel):
         )
 
 
+class SpeechStatus(BaseModel):
+    """Speech recognition. Nothing here names a person or a clip."""
+
+    stt: EngineState = Field(
+        description="`ready` when the settings have a `[speech]` table, `unavailable` when they "
+        "do not (transcriptions are then refused with 503). The server itself is not probed."
+    )
+
+
 class Status(BaseModel):
     mode: Mode = Field(description="`live`, or `fake` when the service runs on test data.")
     api_version: str
@@ -101,9 +111,12 @@ class Status(BaseModel):
     ready: bool
     ask: AskStatus
     bench: BenchStatusOut
+    speech: SpeechStatus
 
     @classmethod
-    def from_domain(cls, status: ServerStatus, desk: DeskStatus, bench: BenchStatus) -> Status:
+    def from_domain(
+        cls, status: ServerStatus, desk: DeskStatus, bench: BenchStatus, *, speech_ready: bool
+    ) -> Status:
         return cls(
             mode=status.mode,
             api_version=status.version,
@@ -112,6 +125,21 @@ class Status(BaseModel):
             ready=status.ready,
             ask=AskStatus.from_domain(desk),
             bench=BenchStatusOut.from_domain(bench),
+            speech=SpeechStatus(stt="ready" if speech_ready else "unavailable"),
+        )
+
+
+class TranscriptionOut(BaseModel):
+    text: str = Field(description="What was said. It is not kept: the caller edits it.")
+    language: Language | None = Field(
+        description="The language heard, or null when the speech server does not say."
+    )
+    duration_s: float = Field(description="Length of the clip in seconds.")
+
+    @classmethod
+    def from_domain(cls, transcript: Transcript) -> TranscriptionOut:
+        return cls(
+            text=transcript.text, language=transcript.language, duration_s=transcript.duration_s
         )
 
 

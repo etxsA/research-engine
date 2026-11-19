@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import io
 import time
+import wave
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -56,6 +58,19 @@ BELL = {
         ]
     ],
 }
+
+
+def make_wav(
+    seconds: float = 1.0, *, rate: int = 16_000, channels: int = 1, width: int = 2
+) -> bytes:
+    """A silent PCM WAV of ``seconds`` (a clip the speech route accepts, with the defaults)."""
+    out = io.BytesIO()
+    with wave.open(out, "wb") as clip:
+        clip.setnchannels(channels)
+        clip.setsampwidth(width)
+        clip.setframerate(rate)
+        clip.writeframes(b"\x01" * (int(seconds * rate) * channels * width))
+    return out.getvalue()
 
 
 class MovableClock:

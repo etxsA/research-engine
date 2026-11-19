@@ -58,3 +58,17 @@ login_window_minutes = 15
 # endpoint = "http://127.0.0.1:8001/v1"
 # label = "Qwen (local)"
 # revision = "fill in the weights revision"
+
+# OPTIONAL: speech to text for the question box (the person speaks, the text lands in the box to
+# edit; nothing is stored). Without this table speech is unavailable: a 503, and /status says so.
+# The speech server speaks the OpenAI audio API at <stt_endpoint>/audio/transcriptions and sits on
+# a loopback or Tailscale address (plain http) or behind https. The key is not written here: put
+# it alone in a file only the service account can read (chmod 600) and name the file.
+# [speech]
+# stt_endpoint = "http://127.0.0.1:8004/v1"
+# stt_model = "local-stt"
+# stt_api_key_file = "/path/to/research-api/secrets/stt.key"
+# max_audio_bytes = 2097152
+# max_audio_s = 60
+# timeout_s = 30
+# per_member_open = 2
