@@ -3515,6 +3515,26 @@
         "title": "SetVersionOut",
         "type": "object"
       },
+      "SpeechStatus": {
+        "description": "Speech recognition. Nothing here names a person or a clip.",
+        "properties": {
+          "stt": {
+            "description": "`ready` when the settings have a `[speech]` table, `unavailable` when they do not (transcriptions are then refused with 503). The server itself is not probed.",
+            "enum": [
+              "warming_up",
+              "ready",
+              "unavailable"
+            ],
+            "title": "Stt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "stt"
+        ],
+        "title": "SpeechStatus",
+        "type": "object"
+      },
       "Status": {
         "properties": {
           "api_version": {
@@ -3540,6 +3560,9 @@
             "title": "Ready",
             "type": "boolean"
           },
+          "speech": {
+            "$ref": "#/components/schemas/SpeechStatus"
+          },
           "started_at": {
             "format": "date-time",
             "title": "Started At",
@@ -3557,7 +3580,8 @@
           "uptime_s",
           "ready",
           "ask",
-          "bench"
+          "bench",
+          "speech"
         ],
         "title": "Status",
         "type": "object"
@@ -3583,6 +3607,43 @@
           "wall_s"
         ],
         "title": "TimingsOut",
+        "type": "object"
+      },
+      "TranscriptionOut": {
+        "properties": {
+          "duration_s": {
+            "description": "Length of the clip in seconds.",
+            "title": "Duration S",
+            "type": "number"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "enum": [
+                  "es",
+                  "en"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The language heard, or null when the speech server does not say.",
+            "title": "Language"
+          },
+          "text": {
+            "description": "What was said. It is not kept: the caller edits it.",
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "language",
+          "duration_s"
+        ],
+        "title": "TranscriptionOut",
         "type": "object"
       },
       "ValidateRequest": {
@@ -8384,6 +8445,118 @@
         "summary": "Accept, edit or reject an item",
         "tags": [
           "sets"
+        ]
+      }
+    },
+    "/api/v1/speech/transcriptions": {
+      "post": {
+        "description": "The body is the clip itself: `Content-Type: audio/wav`, 16 kHz, mono, 16-bit PCM, at most 2 MiB and 60 seconds with the default settings. `lang` is a hint; without it the speech server decides. Neither the audio nor the text is stored or logged. At most two transcriptions per member (429) and a few in all (503) are open at once; see `Retry-After`.",
+        "operationId": "transcribeSpeech",
+        "parameters": [
+          {
+            "description": "Language hint: `es` or `en`.",
+            "in": "query",
+            "name": "lang",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "es",
+                    "en"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Language hint: `es` or `en`.",
+              "title": "Lang"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "audio/wav": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The clip is over the byte cap."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not `audio/wav`, not 16 kHz mono 16-bit PCM, empty, too long, or a `lang` other than `es` or `en`."
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Too many open transcriptions of this member."
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Speech is not set up, the speech server is down or slow, or the desk is busy; see `Retry-After`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem."
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "summary": "Turn a spoken clip into text",
+        "tags": [
+          "speech"
         ]
       }
     },

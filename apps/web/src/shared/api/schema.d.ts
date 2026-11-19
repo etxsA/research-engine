@@ -814,6 +814,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/speech/transcriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Turn a spoken clip into text
+         * @description The body is the clip itself: `Content-Type: audio/wav`, 16 kHz, mono, 16-bit PCM, at most 2 MiB and 60 seconds with the default settings. `lang` is a hint; without it the speech server decides. Neither the audio nor the text is stored or logged. At most two transcriptions per member (429) and a few in all (503) are open at once; see `Retry-After`.
+         */
+        post: operations["transcribeSpeech"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/status": {
         parameters: {
             query?: never;
@@ -2241,6 +2261,18 @@ export interface components {
             /** Version */
             version: string;
         };
+        /**
+         * SpeechStatus
+         * @description Speech recognition. Nothing here names a person or a clip.
+         */
+        SpeechStatus: {
+            /**
+             * Stt
+             * @description `ready` when the settings have a `[speech]` table, `unavailable` when they do not (transcriptions are then refused with 503). The server itself is not probed.
+             * @enum {string}
+             */
+            stt: "warming_up" | "ready" | "unavailable";
+        };
         /** Status */
         Status: {
             /** Api Version */
@@ -2255,6 +2287,7 @@ export interface components {
             mode: "live" | "fake";
             /** Ready */
             ready: boolean;
+            speech: components["schemas"]["SpeechStatus"];
             /**
              * Started At
              * Format: date-time
@@ -2271,6 +2304,24 @@ export interface components {
             retrieve_s: number;
             /** Wall S */
             wall_s: number;
+        };
+        /** TranscriptionOut */
+        TranscriptionOut: {
+            /**
+             * Duration S
+             * @description Length of the clip in seconds.
+             */
+            duration_s: number;
+            /**
+             * Language
+             * @description The language heard, or null when the speech server does not say.
+             */
+            language: ("es" | "en") | null;
+            /**
+             * Text
+             * @description What was said. It is not kept: the caller edits it.
+             */
+            text: string;
         };
         /**
          * ValidateRequest
@@ -5388,6 +5439,78 @@ export interface operations {
             };
             /** @description `If-Match` is missing (or is `*`). */
             428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description A problem. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    transcribeSpeech: {
+        parameters: {
+            query?: {
+                /** @description Language hint: `es` or `en`. */
+                lang?: ("es" | "en") | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "audio/wav": string;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TranscriptionOut"];
+                };
+            };
+            /** @description The clip is over the byte cap. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not `audio/wav`, not 16 kHz mono 16-bit PCM, empty, too long, or a `lang` other than `es` or `en`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too many open transcriptions of this member. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Speech is not set up, the speech server is down or slow, or the desk is busy; see `Retry-After`. */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -310,6 +310,7 @@ describe("the layout", () => {
             busy: false,
           },
           bench: { running_job: null, queued_runs: 0, scoring: false, queued_scores: 0 },
+          speech: { stt: "ready" },
         }),
       ),
     );

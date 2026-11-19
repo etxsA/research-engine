@@ -17,6 +17,9 @@
       "queued_runs": 0,
       "scoring": false,
       "queued_scores": 0
+    },
+    "speech": {
+      "stt": "ready"
     }
   },
   "models": [
