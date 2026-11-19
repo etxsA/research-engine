@@ -1183,5 +1183,28 @@
         "detail": "Revisa la conexión e intenta de nuevo."
       }
     }
+  },
+  "voice": {
+    "start": "Hablar",
+    "stop": "Detener",
+    "transcribingShort": "Transcribiendo",
+    "recording": "Grabando. Pulsa de nuevo el botón para detener; se detiene solo a los 60 segundos.",
+    "transcribing": "Transcribiendo tu voz.",
+    "done": "El texto se agregó al cuadro de la pregunta. Revísalo antes de enviarlo.",
+    "unavailable": "La entrada por voz no está configurada en este servidor.",
+    "problem": {
+      "insecure": "El micrófono necesita una página segura (https o localhost). Abre la aplicación así, o escribe la pregunta.",
+      "unsupported": "Este navegador no puede grabar con el micrófono. Escribe la pregunta.",
+      "denied": "Se bloqueó el acceso al micrófono. Permítelo para este sitio en los ajustes del navegador e inténtalo de nuevo.",
+      "missing": "No se encontró ningún micrófono. Conecta uno e inténtalo de nuevo.",
+      "busy": "No se puede abrir el micrófono. Puede que otro programa lo esté usando.",
+      "other": "No se pudo iniciar el micrófono. Inténtalo de nuevo o escribe la pregunta.",
+      "tooShort": "Fue demasiado corto. Pulsa el botón, habla y púlsalo otra vez.",
+      "empty": "No se oyeron palabras. Inténtalo de nuevo más cerca del micrófono.",
+      "rejected": "El servidor no aceptó esa grabación. Prueba con una más corta.",
+      "overloaded": "Hay demasiadas transcripciones en curso. Espera unos segundos e inténtalo de nuevo.",
+      "serverDown": "El servidor de voz está ocupado o no responde. Inténtalo en un momento o escribe la pregunta.",
+      "failed": "No se pudo convertir la grabación en texto. Inténtalo de nuevo o escribe la pregunta."
+    }
   }
 }

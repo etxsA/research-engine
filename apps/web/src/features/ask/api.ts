@@ -105,3 +105,22 @@ export function useAskFlow(eventSource?: EventSourceFactory): AskFlow {
     [createAsk, cancelAsk, queryClient, eventSource],
   );
 }
+
+const TRANSCRIPTIONS = "/api/v1/speech/transcriptions";
+
+/** Turns a recorded clip into text. The API stores neither the clip nor the text. */
+export function useTranscribe() {
+  return useMutation({
+    mutationFn: async ({ wav, lang }: { wav: Uint8Array; lang: "es" | "en" }) => {
+      const { data } = await fetchClient.POST(TRANSCRIPTIONS, {
+        params: { query: { lang } },
+        // The contract types the body as a string; the bytes go out as they are.
+        body: wav as unknown as string,
+        bodySerializer: (body: unknown) => body,
+        headers: { "Content-Type": "audio/wav" },
+      });
+      if (!data) throw new Error("The API answered without a body.");
+      return data.text;
+    },
+  });
+}

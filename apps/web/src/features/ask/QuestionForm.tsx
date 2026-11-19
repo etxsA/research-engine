@@ -4,6 +4,7 @@ import { Button } from "@/shared/ui/button";
 import { Label } from "@/shared/ui/label";
 import { Textarea } from "@/shared/ui/textarea";
 import { isBlank } from "./flow";
+import { MicButton } from "./MicButton";
 import { SettingsPopover } from "./SettingsPopover";
 import { useAskStore } from "./store";
 
@@ -16,11 +17,19 @@ interface QuestionFormProps {
   busy: boolean;
   /** The engine reports a problem that may be fixed already: a second button sends regardless. */
   askAnyway: boolean;
+  /** `/status` says speech to text is not set up: the mic button is off. */
+  speechUnavailable?: boolean;
   onSubmit: (question: string) => void;
 }
 
 /** The question box. Ctrl+Enter (or Cmd+Enter) sends; a blank question cannot be sent. */
-export function QuestionForm({ blocked, busy, askAnyway, onSubmit }: QuestionFormProps) {
+export function QuestionForm({
+  blocked,
+  busy,
+  askAnyway,
+  speechUnavailable = false,
+  onSubmit,
+}: QuestionFormProps) {
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "ask" });
   const question = useAskStore((state) => state.question);
   const setQuestion = useAskStore((state) => state.setQuestion);
@@ -38,6 +47,13 @@ export function QuestionForm({ blocked, busy, askAnyway, onSubmit }: QuestionFor
   };
   const send = () => {
     if (canSend) submit();
+  };
+  // The transcript goes after what is already there, for the person to edit; it is never sent.
+  const addTranscript = (text: string) => {
+    const current = useAskStore.getState().question;
+    const joined = current.trim() === "" ? text : `${current.trimEnd()} ${text}`;
+    setQuestion(joined.slice(0, MAX_QUESTION_CHARS));
+    document.getElementById("ask-question")?.focus();
   };
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
@@ -87,6 +103,7 @@ export function QuestionForm({ blocked, busy, askAnyway, onSubmit }: QuestionFor
           </Button>
         ) : null}
         <SettingsPopover disabled={busy} />
+        <MicButton unavailable={speechUnavailable} onText={addTranscript} />
         <p id={`${id}-why`} className="text-xs text-muted-foreground">
           {busy
             ? t("form.busy")

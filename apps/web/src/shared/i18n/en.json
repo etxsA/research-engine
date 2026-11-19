@@ -1183,5 +1183,28 @@
         "detail": "Check the connection and try again."
       }
     }
+  },
+  "voice": {
+    "start": "Speak",
+    "stop": "Stop",
+    "transcribingShort": "Transcribing",
+    "recording": "Recording. Press the button again to stop; it stops by itself after 60 seconds.",
+    "transcribing": "Transcribing your voice.",
+    "done": "The text was added to the question box. Check it before you send it.",
+    "unavailable": "Voice input is not set up on this server.",
+    "problem": {
+      "insecure": "The microphone needs a secure page (https, or localhost). Open the app that way, or type the question.",
+      "unsupported": "This browser cannot record from the microphone. Type the question instead.",
+      "denied": "Microphone access was blocked. Allow it for this site in the browser settings and try again.",
+      "missing": "No microphone was found. Connect one and try again.",
+      "busy": "The microphone cannot be opened. Another program may be using it.",
+      "other": "The microphone could not be started. Try again or type the question.",
+      "tooShort": "That was too short. Press the button, speak, then press it again.",
+      "empty": "No words were heard. Try again closer to the microphone.",
+      "rejected": "The server did not accept that recording. Try a shorter one.",
+      "overloaded": "Too many transcriptions are running. Wait a few seconds and try again.",
+      "serverDown": "The speech server is busy or not reachable. Try again in a moment or type the question.",
+      "failed": "The recording could not be turned into text. Try again or type the question."
+    }
   }
 }
