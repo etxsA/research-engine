@@ -22,6 +22,7 @@ This page is the catalog. For every adapter it lists the port it implements, its
 - [sources: the polite HTTP helper](#sources-the-polite-http-helper)
 - [qa: PaperQAAnswerer](#qa-paperqaanswerer)
 - [retrieval: the none adapters](#retrieval-the-none-adapters)
+- [qasm: QuantumSimExporter](#qasm-quantumsimexporter)
 - [models: Hugging Face snapshot resolution](#models-hugging-face-snapshot-resolution)
 - [datasets: benchmark suites](#datasets-benchmark-suites)
 - [Domain errors raised by adapters](#domain-errors-raised-by-adapters)
@@ -65,6 +66,7 @@ These are the entries of `bootstrap.REGISTRY`. The first column is the key in th
 | [converters/latex_source.py](converters/latex_source.py) | `unpack`, `find_main`, `flatten`, `prepare_for_pandoc`, `split_sections` | Safe unpacking of LaTeX sources and archives, main-file detection, include inlining, the source rewrites pandoc needs (no pandoc, no pylatexenc) | `PandocLatexConverter` |
 | [sources/http.py](sources/http.py) | `PoliteClient`, `UrllibTransport`, `RateLimiter`, `RawResponse`, `HttpStatusError`, `RetriesExhaustedError`, `LocalWriteError` | Rate-limited, serialized, retrying HTTP GET (stdlib only) | `ArxivCrawler` |
 | [models/huggingface.py](models/huggingface.py) | `resolve(repo_id, revision)` | Pinned Hugging Face snapshot to a local path, offline first | `MlxVlmOcr`, `qa/paperqa.py`, `docingest model-path` |
+| [qasm.py](qasm.py) | `QuantumSimExporter` | `CircuitExporter` (no `[adapters]` key, no registry name): writes a circuit as OpenQASM 3 with `quantum_sim.qasm.to_qasm`, after the simulator's reader has read it | `Container.qasm_export` (imports it lazily), the QASM export tests |
 
 ## How adapters are selected and wired
 
@@ -120,8 +122,9 @@ The contracts in `pyproject.toml` (checked by `lint-imports`, part of `./scripts
 | Contract | Consequence for adapters |
 |---|---|
 | Hexagonal layers | Adapters may import `config`, `application`, `ports` and `domain`, never `bootstrap` or `entrypoints`. |
-| Adapters are independent of each other | `detection`, `pdf`, `ocr`, `images`, `converters`, `store`, `sources`, `qa`, `retrieval` and `datasets` must not import one another. `models` is not in that list, so the shared Hugging Face resolver can be used by any of them. |
+| Adapters are independent of each other | `detection`, `pdf`, `ocr`, `images`, `converters`, `store`, `sources`, `qa`, `retrieval`, `datasets` and `qasm` must not import one another. `models` is not in that list, so the shared Hugging Face resolver can be used by any of them. |
 | Only the composition root and entrypoints wire concrete adapters | `docingest.adapters` may be imported only by `docingest.bootstrap`, `docingest.entrypoints` and other adapter modules. |
+| Only the QASM adapter imports quantum_sim | `qasm.py` is the one module of docingest that may import `quantum_sim`; no other adapter may. |
 
 ## Ports to adapters map
 
@@ -134,6 +137,7 @@ flowchart LR
         askSvc["AskService"]
         crawlSvc["CrawlService"]
         benchSvc["BenchmarkRunner"]
+        qasmSvc["QasmExportService"]
     end
     subgraph ports["Ports (typing.Protocol)"]
         pDet["TypeDetector"]
@@ -148,6 +152,7 @@ flowchart LR
         pIdx["ChunkIndex"]
         pRrk["Reranker"]
         pSuite["BenchmarkSuite"]
+        pExp["CircuitExporter"]
     end
     subgraph adapters["Adapters"]
         aMagic["MagicBytesDetector (magic)"]
@@ -164,6 +169,7 @@ flowchart LR
         aNone["NoEmbedder, NoIndex, NoReranker (none)"]
         aSyn["SyntheticSuite (synthetic)"]
         aOlm["OlmOcrBenchSuite (olmocr-bench)"]
+        aQasm["QuantumSimExporter (built by Container.qasm_export)"]
     end
     ingestSvc --> pDet
     ingestSvc --> pPdf
@@ -177,6 +183,8 @@ flowchart LR
     crawlSvc --> ingestSvc
     benchSvc --> pSuite
     benchSvc --> pOcr
+    qasmSvc --> pStore
+    qasmSvc --> pExp
     pDet --> aMagic
     pPdf --> aPdfium
     pImg --> aPillow
@@ -193,6 +201,7 @@ flowchart LR
     pRrk --> aNone
     pSuite --> aSyn
     pSuite --> aOlm
+    pExp --> aQasm
 ```
 
 Inside the adapters layer a few modules share helpers. This diagram shows those dependencies, which are the only imports between adapter modules.
@@ -210,7 +219,7 @@ flowchart LR
 
 ## Fingerprints and the cache key
 
-Ports whose output ends up in a stored document declare a `fingerprint: str` (`PdfReader`, `OcrEngine`, `ImageSource`, `DocumentConverter`), and so does `BenchmarkSuite`. `Embedder` and `ChunkIndex` declare one too, but it identifies a chunk index, not a stored document, and is in no cache key. `IngestService.config_hash()` in [`../application/ingest.py`](../application/ingest.py) hashes the fingerprints that can change a document of a given kind, so replacing an adapter or changing one of its settings produces a new `config_hash` and the stored result is no longer a cache hit.
+Ports whose output ends up in a stored document declare a `fingerprint: str` (`PdfReader`, `OcrEngine`, `ImageSource`, `DocumentConverter`), and so does `BenchmarkSuite`. `Embedder` and `ChunkIndex` declare one too, but it identifies a chunk index, not a stored document, and is in no cache key. `CircuitExporter` declares none: the export is derived output, never stored with a document. `IngestService.config_hash()` in [`../application/ingest.py`](../application/ingest.py) hashes the fingerprints that can change a document of a given kind, so replacing an adapter or changing one of its settings produces a new `config_hash` and the stored result is no longer a cache hit.
 
 | Document kind | Parts hashed into `config_hash` |
 |---|---|
@@ -692,6 +701,22 @@ The reverse direction, PaperQA2 calling docingest to parse PDFs, is a driving ad
 | Used by | nothing yet: no use case calls these ports |
 
 They stand for "no chunk index configured" and keep `docingest` working without a package that provides real ones. Every method raises `NotConfiguredError` with the message `[adapters] <port> is "none": select an adapter to use it`, so a missing setting cannot silently return empty results. Real adapters come from plugin packages through the entry-point groups `docingest.embedder`, `docingest.index` and `docingest.reranker`, and read their settings from their own top-level tables (`[embedder]`, `[index]`, `[reranker]`), which `AppConfig` keeps untouched in `model_extra` (see [config/README.md](../../../config/README.md#plugin-sections)).
+
+## qasm: QuantumSimExporter
+
+| | |
+|---|---|
+| Module | [qasm.py](qasm.py) |
+| Port | `CircuitExporter.export(circuit, *, values, origin, tool) -> QasmExport` and `check_values(values)` |
+| Registry | none: it has no `[adapters]` key. `Container.qasm_export` builds it directly, with a lazy import |
+| Config keys | none (constructed without arguments); the output folder is `<output_dir>/qasm`, set by `Container.qasm_export` |
+| Fingerprint | none: the export is derived output and is in no cache key |
+| Dependencies | `quantum-sim` (a core dependency of docingest, workspace source): `quantum_sim.qasm` and `quantum_sim.angles`, both standard library only |
+| Used by | `QasmExportService`, through `docingest circuits export`, `ingest --qasm` and `crawl --qasm` |
+
+This is the only module of docingest that imports `quantum_sim` ([ADR 0006](../../../docs/adr/0006-openqasm-3-export.md)); the import-linter contract "Only the QASM adapter imports quantum_sim" checks it. `export` turns the `CircuitSteps` into its `circuit/1` dict (`circuit.to_dict()`), calls `quantum_sim.qasm.to_qasm`, and copies the result into the port's `QasmExport` and `QasmProgram`, so nothing above this layer sees a quantum-sim type. The simulator's reader decides first whether the data is a circuit; a refused circuit comes back as `status="refused"` with the reader's reasons and no programs. The emitter also refuses an angle the simulator cannot evaluate at the bound values, with the simulator's reason. `check_values` calls `validate_bindings`, so a bad `--set` (a name that is not one symbol, such as `thetta` or `pi`, or a bad value) raises `ValueError` once, before any circuit is exported. `unmatched` carries the binding keys that name no symbol of the circuit, and, for a refused circuit, `unbound` the binding keys of the symbols the caller gave no value (computed with `quantum_sim.angles.symbol_name`, and spelled as `--set` takes them: `theta_{12}` for the reader's `theta_12`), so the binding-name rule (`\theta_{1}` is `theta_1`) exists only in quantum-sim. `unbound` is kept only when a missing value is what refuses the circuit: the adapter calls `to_qasm` a second time with the caller's values plus a placeholder for each such symbol, and reports them only if that export is ok. Each symbol gets its own placeholder, 0.37 plus a tenth of the square root of a prime (`_placeholder`, in sorted symbol order): none is an integer or a simple fraction of pi, and no two cancel, so `\frac{1}{\theta - \phi}` with neither bound keeps the hint. A circuit singular at the placeholders (`\sqrt{\theta - 1}`: they are below 1) loses the hint, never gains a false one; otherwise `unbound` is empty, and the service gives no "has no value" hint. Text values are read by `quantum_sim.angles.parse_value` inside `to_qasm`, the rule `quantum-sim run` uses too.
+
+It is in the adapter-independence contract (`docingest.adapters.qasm`), imports only `domain`, `ports` and `quantum_sim`, and is imported by `bootstrap` only, inside `Container.qasm_export`, unless `overrides["exporter"]` replaces it.
 
 ## models: Hugging Face snapshot resolution
 

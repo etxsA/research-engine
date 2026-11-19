@@ -68,7 +68,7 @@ DOCINGEST_NETWORK_TESTS=1 ./scripts/check.sh
 |---|---|---|
 | 1 | `uv run --frozen ruff check src tests` | Lint rules selected in `[tool.ruff.lint]` of `pyproject.toml` |
 | 2 | `uv run --frozen ruff format --check src tests` | Formatting (line length 100); does not rewrite files |
-| 3 | `uv run --frozen lint-imports` | The five import-linter contracts in `pyproject.toml`: hexagonal layer order, adapters independent of each other, a domain free of I/O and framework libraries, application and ports free of concrete libraries, and only `bootstrap` and `entrypoints` importing concrete adapters |
+| 3 | `uv run --frozen lint-imports` | The eight import-linter contracts in `pyproject.toml`, listed in the [contract table of CONTRIBUTING.md](../CONTRIBUTING.md#3-hexagonal-rules-and-the-import-linter-contracts): hexagonal layer order, adapters independent of each other, a pure domain, application and ports free of concrete libraries, no import of a plugin package, adapters imported only by `bootstrap` and `entrypoints`, no import of `research_api` or `qa_bench`, and `quantum_sim` imported only by the QASM adapter |
 | 4 | `uv run --frozen pyright` | Static types for `src/` (`typeCheckingMode = "standard"`) |
 | 5 | `uv run --frozen pytest --cov --cov-report=term-missing:skip-covered -q` | The test suite with branch coverage of `docingest`; fails under 85% (`fail_under` in `[tool.coverage.report]`) |
 

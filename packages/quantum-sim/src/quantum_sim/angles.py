@@ -14,7 +14,14 @@ Implicit multiplication is a factor that follows another one with no operator (`
 ``\\right`` before a parenthesis and the spacing commands (``\\,`` ``\\;`` ``\\!`` ``\\ ``
 ``~``) are ignored. A symbol is a Greek command (``\\theta``) or one ASCII letter, with an optional
 subscript (``\\alpha_1``, ``\\alpha_{12}``); it becomes a free parameter. ``e``, ``E``, ``i`` and
-``j`` are refused as symbols because they may mean a constant.
+``j`` are refused as symbols because they may mean a constant. ``symbol_name`` applies the same
+rule to a binding key (``values``, ``--set``): a key is one symbol, with an optional backslash
+and outer braces, or it is not a name at all (white space around it is ignored, a line break
+inside it is not); ``binding_name`` gives the error message the export and the simulator share
+for such a key. ``parse_value`` is the one rule for a binding value given as text: the angle
+grammar, except that ``pi`` standing alone may drop its backslash (``pi/4`` is ``\\pi/4``), as
+a caller types it on a command line; the export and the simulator (``run``, ``check``, both
+``--set`` options) all read values with it.
 
 What is refused, with a reason, rather than guessed: anything left over after the expression;
 ``1/2\\pi`` (a division followed by an implicit product could be read two ways); two numbers
@@ -43,10 +50,10 @@ from __future__ import annotations
 
 import math
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
-from quantum_sim.domain import AngleError
+from quantum_sim.domain import AngleError, short_text
 
 MAX_CHARS = 500  # enough for any float written out in full (5e-324 is 326 characters)
 MAX_DEPTH = 40  # nesting of parentheses, braces, fractions and signs
@@ -63,11 +70,17 @@ _IGNORED = (r"\,", r"\!", r"\;", r"\:", r"\ ", r"\quad", r"\qquad", "~")
 _OPERATOR_COMMANDS = {"cdot": "*", "times": "*", "div": "/"}
 _FRACTIONS = frozenset({"frac", "dfrac", "tfrac"})
 _UNICODE = {"−": "-", "×": "*", "·": "*", "÷": "/", "π": r"\pi"}
+_UNICODE_CHAR = re.compile("[" + "".join(_UNICODE) + "]")
 _NUMBER = re.compile(r"[0-9]+(?:\.[0-9]*)?|\.[0-9]+")
 _COMMAND = re.compile(r"\\([A-Za-z]+)")
-_SUBSCRIPT = re.compile(r"_(?:([A-Za-z0-9])|\{([A-Za-z0-9]{1,8})\})")
+# The subscript of a symbol: one letter or digit, or up to 8 in braces. Binding names use it too.
+_SUBSCRIPT_TEXT = r"_(?:([A-Za-z0-9])|\{([A-Za-z0-9]{1,8})\})"
+_SUBSCRIPT = re.compile(_SUBSCRIPT_TEXT)
 _CONSTANT_LETTERS = frozenset("eEij")
 _LETTERS = re.compile(r"[A-Za-z]+")
+_BINDING_KEY = re.compile(rf"(\\?)([A-Za-z]+)(?:{_SUBSCRIPT_TEXT})?")
+# ``pi`` that is not part of a command or a longer word: a binding value may spell ``\pi`` so.
+_BARE_PI = re.compile(r"(?<![\\A-Za-z])pi(?![A-Za-z])")
 
 _POINT_AFTER_FACTOR = (
     "a number starting with '.' right after a factor: \\pi.5 is shown as pi.5, not as pi times "
@@ -135,6 +148,47 @@ def format_number(number: float) -> str:
     else:  # repr uses an exponent only below 1e-4 and from 1e16: the point is past the digits
         body = digits + "0" * (point - len(digits)) + ".0"
     return sign + body
+
+
+def symbol_name(key: str) -> str | None:
+    """The name of the free parameter that ``key`` spells, or ``None`` when ``key`` is not one
+    symbol of the grammar. This is the one rule for binding names (``values`` and ``--set``).
+
+    ``key`` is a symbol as an angle writes it, with an optional backslash before a Greek word,
+    an optional subscript, and any number of brace pairs around it; the name is the one the
+    parser gives the symbol: ``\\theta``, ``{\\theta}`` and ``theta`` are ``theta``, and
+    ``\\theta_{1}`` is ``theta_1``. ``pi``, ``e``, ``E``, ``i`` and ``j`` are not names (they
+    may mean a constant), nor is a word that is neither Greek nor one ASCII letter (``thetta``)
+    or anything with more in it (``the{ta}``, ``\\\\theta``, ``$\\theta$``, ``x y``), nor a key
+    of more than ``MAX_CHARS`` characters.
+    """
+    if len(key) > MAX_CHARS:  # no symbol is this long; the brace loop stays cheap
+        return None
+    text = key.strip()
+    while len(text) >= 2 and text[0] == "{" and text[-1] == "}":
+        text = text[1:-1].strip()
+    match = _BINDING_KEY.fullmatch(text)
+    if match is None:
+        return None
+    backslash, word, letter, braced = match.groups()
+    if word not in GREEK and (backslash or len(word) > 1 or word in _CONSTANT_LETTERS):
+        return None
+    subscript = letter or braced
+    return f"{word}_{subscript}" if subscript else word
+
+
+def binding_name(key: str) -> str:
+    """:func:`symbol_name`, or an ``AngleError`` whose message the export and the simulator
+    both give for a key that is not one symbol."""
+    name = symbol_name(key)
+    if name is not None:
+        return name
+    if not key.strip():
+        raise AngleError("a parameter binding has an empty name")
+    raise AngleError(
+        f"{short_text(key)!r} is not a parameter name: write one symbol, such as theta, "
+        "\\theta or \\theta_{1}"
+    )
 
 
 # --- Evaluation --------------------------------------------------------------------------------
@@ -210,9 +264,38 @@ class _Token:
     text: str = ""
 
 
-def _tokenize(text: str) -> list[_Token]:
-    for char, replacement in _UNICODE.items():
-        text = text.replace(char, replacement)
+@dataclass(frozen=True)
+class _Text:
+    """The text the tokenizer reads (``read``) and, for each of its characters, the position in
+    the caller's text (``given``), so an error names a position in the caller's text after a
+    rewrite (white space and ``$`` stripped, ``pi`` or ``π`` spelled ``\\pi``)."""
+
+    read: str
+    given: str
+    origin: tuple[int, ...]
+
+    def at(self, i: int) -> int:
+        return self.origin[i] if i < len(self.origin) else len(self.given)
+
+    def rewrite(self, pattern: re.Pattern[str], spell: Callable[[str], str]) -> _Text:
+        """Replace each match of ``pattern`` by ``spell(match)``; the new characters take the
+        position of the first character they replace."""
+        parts: list[str] = []
+        origin: list[int] = []
+        last = 0
+        for match in pattern.finditer(self.read):
+            new = spell(match.group())
+            parts += [self.read[last : match.start()], new]
+            origin += [*self.origin[last : match.start()], *[self.origin[match.start()]] * len(new)]
+            last = match.end()
+        parts.append(self.read[last:])
+        origin += self.origin[last:]
+        return _Text("".join(parts), self.given, tuple(origin))
+
+
+def _tokenize(source: _Text) -> list[_Token]:
+    source = source.rewrite(_UNICODE_CHAR, _UNICODE.__getitem__)
+    text = source.read
     tokens: list[_Token] = []
     i = 0
     while i < len(text):
@@ -220,13 +303,15 @@ def _tokenize(text: str) -> list[_Token]:
             i += 1
             continue
         ignored = next((s for s in _IGNORED if text.startswith(s, i)), None)
-        i = i + len(ignored) if ignored is not None else _scan(text, i, tokens)
+        i = i + len(ignored) if ignored is not None else _scan(source, i, tokens)
     tokens.append(_Token("end"))
     return tokens
 
 
-def _scan(text: str, i: int, tokens: list[_Token]) -> int:
-    """Read the token at ``i``; return the position after it."""
+def _scan(source: _Text, i: int, tokens: list[_Token]) -> int:
+    """Read the token at ``i``; return the position after it. Positions in errors are the
+    caller's (``source.at``)."""
+    text = source.read
     char = text[i]
     if char in "+-*/":
         tokens.append(_Token("op", char))
@@ -237,15 +322,15 @@ def _scan(text: str, i: int, tokens: list[_Token]) -> int:
     if char in "0123456789.":
         match = _NUMBER.match(text, i)
         if match is None:
-            raise AngleError(f"a stray '.' at position {i}")
+            raise AngleError(f"a stray '.' at position {source.at(i)}")
         if char == "." and tokens and tokens[-1].kind in ("pi", "sym", ")", "}"):
-            raise AngleError(f"{_POINT_AFTER_FACTOR} (position {i})")
+            raise AngleError(f"{_POINT_AFTER_FACTOR} (position {source.at(i)})")
         if len(match.group()) > MAX_NUMBER_CHARS:
             raise AngleError(f"a number of more than {MAX_NUMBER_CHARS} characters")
         tokens.append(_Token("num", match.group()))
         return match.end()
     if char == "\\":
-        return _command(text, i, tokens)
+        return _command(source, i, tokens)
     if char.isascii() and char.isalpha():
         run = _LETTERS.match(text, i)
         if run is not None and len(run.group()) > 1:
@@ -256,13 +341,15 @@ def _scan(text: str, i: int, tokens: list[_Token]) -> int:
         if char in _CONSTANT_LETTERS:
             raise AngleError(f"the letter {char!r} may be a constant, not a free parameter")
         return _symbol(text, i + 1, char, tokens)
-    raise AngleError(f"unsupported character {char!r} at position {i}")
+    raise AngleError(f"unsupported character {char!r} at position {source.at(i)}")
 
 
-def _command(text: str, i: int, tokens: list[_Token]) -> int:
+def _command(source: _Text, i: int, tokens: list[_Token]) -> int:
+    text = source.read
     match = _COMMAND.match(text, i)
     if match is None:
-        raise AngleError(f"unsupported command at position {i}: {text[i : i + 6]!r}")
+        at = source.at(i)
+        raise AngleError(f"unsupported command at position {at}: {source.given[at : at + 6]!r}")
     name, end = match.group(1), match.end()
     if name == "pi":
         tokens.append(_Token("pi"))
@@ -637,14 +724,44 @@ def parse_angle(text: str) -> Angle:
         raise AngleError(f"an angle is text, got {type(text).__name__}")
     if len(text) > MAX_CHARS:
         raise AngleError(f"an angle of more than {MAX_CHARS} characters")
+    return _parse(text)
+
+
+def _parse(text: str, *, bare_pi: bool = False) -> Angle:
+    """Parse the caller's ``text``; ``bare_pi`` reads a ``pi`` that stands alone as ``\\pi``.
+    A position in an error is a position in ``text``, before any rewrite."""
     stripped = text.strip().strip("$").strip()
     if not stripped:
         raise AngleError("an empty angle")
-    parser = _Parser(_tokenize(stripped))
+    lead = len(text) - len(text.lstrip().lstrip("$").lstrip())
+    source = _Text(stripped, text, tuple(range(lead, lead + len(stripped))))
+    if bare_pi:
+        source = source.rewrite(_BARE_PI, lambda _: "\\pi")
+    parser = _Parser(_tokenize(source))
     tree = parser.expression()
     if parser.token.kind != "end":
         raise AngleError(f"leftover text: found {parser._describe()} after the expression")
-    angle = Angle(stripped, tuple(sorted(parser.symbols)), tree)
+    angle = Angle(source.read, tuple(sorted(parser.symbols)), tree)
     if not angle.symbols:
         _evaluate(tree, {})  # a numeric angle must evaluate now: no division by zero, finite
     return angle
+
+
+def parse_value(text: str) -> Angle:
+    """Parse a binding value given as text: :func:`parse_angle` after ``pi`` that stands alone
+    becomes ``\\pi``. This is the one rule for values (``values`` and ``--set``).
+
+    ``pi`` is the constant only when no letter or backslash touches it: ``pi/4``, ``2pi`` and
+    ``\\frac{pi}{3}`` are read as ``\\pi/4``, ``2\\pi`` and ``\\frac{\\pi}{3}``, while ``pie``,
+    ``spin`` and ``\\pip`` are left as they are, and refused by the grammar. A value with a free
+    symbol parses; the caller refuses it. A position in an error is a position in ``text`` as
+    given (``pi pi ?`` names the ``?`` at position 6).
+
+    >>> parse_value("pi/4") == parse_angle(r"\\pi/4")
+    True
+    """
+    if not isinstance(text, str):
+        raise AngleError(f"an angle is text, got {type(text).__name__}")
+    if len(text) > MAX_CHARS:  # the limit is on the text as given, not on the rewritten text
+        raise AngleError(f"an angle of more than {MAX_CHARS} characters")
+    return _parse(text, bare_pi=True)

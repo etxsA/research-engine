@@ -777,6 +777,7 @@ dependencies = [
     { name = "pylatexenc" },
     { name = "pypandoc-binary" },
     { name = "pypdfium2" },
+    { name = "quantum-sim" },
     { name = "rich" },
     { name = "typer" },
 ]
@@ -817,6 +818,7 @@ requires-dist = [
     { name = "pylatexenc", specifier = ">=2.11" },
     { name = "pypandoc-binary", specifier = ">=1.17" },
     { name = "pypdfium2", specifier = ">=5.13" },
+    { name = "quantum-sim", editable = "packages/quantum-sim" },
     { name = "rich", specifier = ">=15.0.0" },
     { name = "typer", specifier = ">=0.19" },
 ]
@@ -2622,6 +2624,20 @@ wheels = [
 ]
 
 [[package]]
+name = "openqasm3"
+version = "0.5.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/c7/f1/c63ef1778a387a3377f2a9ca6be497303745ee634e5b9f3cfd0776f40d76/openqasm3-0.5.0.tar.gz", hash = "sha256:bf8bf4ed098393447e552eaea18b0a34a2429d228477683d6b579348bc17bfc8", size = 517167, upload-time = "2023-06-19T23:31:46.567Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/51/91/574addbe722736081d1b9c78212f8cac5e9d93c8bc79059c84871034c527/openqasm3-0.5.0-py3-none-any.whl", hash = "sha256:40991ac057b9e3c208d1b34242b0aad8a3b9840df0335a652b1e4e4248937b1c", size = 524019, upload-time = "2023-06-19T23:31:44.897Z" },
+]
+
+[package.optional-dependencies]
+parser = [
+    { name = "antlr4-python3-runtime" },
+]
+
+[[package]]
 name = "opentelemetry-api"
 version = "1.45.1"
 source = { registry = "https://pypi.org/simple" }
@@ -3378,6 +3394,7 @@ dependencies = [
 dev = [
     { name = "hypothesis" },
     { name = "import-linter" },
+    { name = "openqasm3", extra = ["parser"] },
     { name = "pyright" },
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -3391,6 +3408,7 @@ requires-dist = [{ name = "numpy", specifier = ">=2" }]
 dev = [
     { name = "hypothesis", specifier = ">=6.168" },
     { name = "import-linter", specifier = ">=2.15" },
+    { name = "openqasm3", extras = ["parser"], specifier = ">=0.5,<1" },
     { name = "pyright", specifier = ">=1.1.414" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-cov", specifier = ">=7" },

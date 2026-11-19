@@ -150,6 +150,14 @@ def test_run_with_values_for_symbols(tmp_path, capsys):
     assert output(capsys)["values"] == {"theta": 1.0}
 
 
+@pytest.mark.parametrize("assignment", ["theta=pi/4", "theta=\\pi/4", " theta = pi/4 "])
+def test_set_takes_pi_without_the_backslash_as_docingest_does(tmp_path, capsys, assignment):
+    path = write(tmp_path, "ry.json", RY)
+    assert main(["run", path, "--set", assignment]) == 0
+    result = output(capsys)
+    assert result["status"] == "ok" and result["values"] == {"theta": pytest.approx(0.78539816)}
+
+
 def test_a_name_given_twice_to_set_is_refused(tmp_path, capsys):
     path = write(tmp_path, "ry.json", RY)
     assert main(["run", path, "--set", "theta=0", "--set", " theta = \\pi"]) == 1
@@ -245,10 +253,17 @@ def test_bad_assignments_are_a_refusal(tmp_path, capsys):
         ("theta=", "empty angle"),
         ("theta=x", "free symbols"),
         ("beta=1", "no parameter named 'beta'"),
+        ("pi=1", "'pi' is not a parameter name"),
         ("theta=1/0", "division by zero"),
     ):
         assert main(["run", path, "--set", text]) == 1, text
         assert reason in output(capsys)["refused"][0], text
+
+
+def test_a_bad_set_value_names_the_position_in_the_value_as_typed(tmp_path, capsys):
+    path = write(tmp_path, "ry.json", RY)
+    assert main(["run", path, "--set", "theta=   pi ?"]) == 1
+    assert "'?' at position 6" in output(capsys)["refused"][0]
 
 
 def test_usage_errors_exit_2(capsys):

@@ -106,11 +106,11 @@ Paths are relative to the package folder, `packages/docingest`. The repository r
 |---|---|
 | `src/docingest/domain/` | `models.py` (`DocumentManifest`, `PageRecord`, `SourceKind`, `PageMethod`, ...), `routing.py` (`RoutingPolicy`, `decide`), `text.py` (text-layer clean-up, Markdown page markers), `chunking.py` (page-aware chunks), `errors.py` |
 | `src/docingest/ports/` | one `typing.Protocol` per port, plus the frozen dataclasses that cross it |
-| `src/docingest/application/` | use cases: `IngestService`, `CrawlService`, `AskService`, `BenchmarkRunner`; `metrics.py` and `stats.py` |
+| `src/docingest/application/` | use cases: `IngestService`, `CrawlService`, `AskService`, `BenchmarkRunner`, `QasmExportService` (`qasm.py`); `metrics.py` and `stats.py` |
 | `src/docingest/config.py` | `AppConfig` and its sections, loaded from `config/pipeline.toml` |
-| `src/docingest/adapters/<area>/` | implementations, one subpackage per area: `detection`, `pdf`, `ocr`, `images`, `converters`, `store`, `sources`, `qa`, `retrieval`, `datasets`, plus `models` (the shared Hugging Face resolver) |
+| `src/docingest/adapters/<area>/` | implementations, one subpackage per area: `detection`, `pdf`, `ocr`, `images`, `converters`, `store`, `sources`, `qa`, `retrieval`, `datasets`, plus `models` (the shared Hugging Face resolver) and the module `qasm.py` (`QuantumSimExporter`, the only module that imports `quantum_sim`) |
 | `src/docingest/bootstrap.py` | the composition root: `REGISTRY`, entry-point plugins, `Container` |
-| `src/docingest/entrypoints/` | `cli.py` (typer), `bench_cli.py` (`docingest bench ...`), `ask_lines.py` (`docingest ask --stdin`), `paperqa_hook.py` |
+| `src/docingest/entrypoints/` | `cli.py` (typer), `bench_cli.py` (`docingest bench ...`), `circuits_cli.py` (`docingest circuits export`), `ask_lines.py` (`docingest ask --stdin`), `paperqa_hook.py` |
 | `config/` | `pipeline.toml`, `benchmark.toml`, `examples/` |
 | `scripts/` | `check.sh` (the quality gates) and the data, server and benchmark helpers |
 | `tests/` | `unit/`, `contract/`, `integration/`, `fixtures/`, `fakes.py`, `builders.py`, `conftest.py` |
@@ -157,7 +157,7 @@ flowchart LR
     P --> D["docingest.domain"]
 ```
 
-These rules are enforced by seven import-linter contracts in `pyproject.toml` (`[tool.importlinter]`). `uv run lint-imports` checks them, and it is a gate in `scripts/check.sh` and in the Linux CI lane. Two global options apply to all contracts:
+These rules are enforced by eight import-linter contracts in `pyproject.toml` (`[tool.importlinter]`). `uv run lint-imports` checks them, and it is a gate in `scripts/check.sh` and in the Linux CI lane. Two global options apply to all contracts:
 
 - `include_external_packages = true` puts third-party packages in the import graph, so that contracts can name them.
 - `exclude_type_checking_imports = true` ignores imports under `if TYPE_CHECKING:`. For example, `adapters/ocr/openai_compat.py` imports `OcrConfig` only for type checking.
@@ -165,12 +165,13 @@ These rules are enforced by seven import-linter contracts in `pyproject.toml` (`
 | # | Contract name in `pyproject.toml` | Type | What it forbids | Why |
 |---|---|---|---|---|
 | 1 | Hexagonal layers: outer layers may import inner ones, never the reverse | `layers` | An inner layer importing an outer one. The order from outer to inner is `entrypoints`, `bootstrap`, `adapters`, `config`, `application`, `ports`, `domain`. For example, `application` may not import `config`, and `adapters` may not import `bootstrap`. | The core stays independent of the technology and of the way it is wired. Use cases can be tested with fakes and no configuration. |
-| 2 | Adapters are independent of each other (shared HF resolver excepted) | `independence` | Any import, in either direction, even indirect, between `adapters.detection`, `pdf`, `ocr`, `images`, `converters`, `store`, `sources`, `qa`, `retrieval` and `datasets`. `adapters.models` is not in the list, so every adapter may use the Hugging Face resolver. | Replacing one adapter cannot break another, and one adapter's optional dependency never loads with another adapter. |
-| 3 | Domain is pure: no I/O or framework libraries | `forbidden` | `docingest.domain` importing, directly or through a chain, any of `pypdfium2`, `PIL`, `numpy`, `mlx`, `mlx_vlm`, `paperqa`, `docling`, `pypandoc`, `huggingface_hub`, `httpx`, `urllib`, `typer`, `rich`, `jiwer`. | The domain holds the canonical representation and the pure policies. It may use the standard library and pydantic only. |
-| 4 | Application depends on ports, not on concrete libraries | `forbidden` | `docingest.application` or `docingest.ports` importing any of `pypdfium2`, `mlx`, `mlx_vlm`, `paperqa`, `docling`, `pypandoc`, `huggingface_hub`, `httpx`, `typer`, `rich`. | Use cases talk to ports only. `PIL` (the image type that crosses the ports, an exception accepted in ADR 0001), `numpy` (`application/stats.py`) and `jiwer` (`application/metrics.py`) are deliberately not in this list. |
+| 2 | Adapters are independent of each other (shared HF resolver excepted) | `independence` | Any import, in either direction, even indirect, between `adapters.detection`, `pdf`, `ocr`, `images`, `converters`, `store`, `sources`, `qa`, `retrieval`, `datasets` and `qasm`. `adapters.models` is not in the list, so every adapter may use the Hugging Face resolver. | Replacing one adapter cannot break another, and one adapter's optional dependency never loads with another adapter. |
+| 3 | Domain is pure: no I/O or framework libraries | `forbidden` | `docingest.domain` importing, directly or through a chain, any of `pypdfium2`, `PIL`, `numpy`, `mlx`, `mlx_vlm`, `paperqa`, `docling`, `pypandoc`, `huggingface_hub`, `httpx`, `urllib`, `typer`, `rich`, `jiwer`, `quantum_sim`. | The domain holds the canonical representation and the pure policies. It may use the standard library and pydantic. The QASM exporter is behind the `CircuitExporter` port, so the domain does not import quantum-sim (ADR 0006). |
+| 4 | Application depends on ports, not on concrete libraries | `forbidden` | `docingest.application` or `docingest.ports` importing any of `pypdfium2`, `mlx`, `mlx_vlm`, `paperqa`, `docling`, `pypandoc`, `huggingface_hub`, `httpx`, `typer`, `rich`, `quantum_sim`. | Use cases talk to ports only; the QASM export reaches quantum-sim through the `CircuitExporter` port. `PIL` (the image type that crosses the ports, an exception accepted in ADR 0001), `numpy` (`application/stats.py`) and `jiwer` (`application/metrics.py`) are deliberately not in this list. |
 | 5 | docingest never imports a plugin package (plugins are found by entry point) | `forbidden` | Any import of `docingest_index` from `docingest`. | Plugins are optional and found by entry point; the core must work without them. The `docingest-index` package has a contract of its own: it may import only `docingest.ports`, `docingest.domain` and `docingest.config`. |
 | 6 | Only the composition root and entrypoints wire concrete adapters | `protected` | A direct import of `docingest.adapters` from any module except `docingest.bootstrap`, `docingest.entrypoints` and `docingest.adapters` itself. | The choice of implementation is made in one place, from configuration. It also keeps `config`, `application`, `ports` and `domain` free of adapter imports. |
-| 7 | docingest never imports quantum_sim, research_api or qa_bench (separate packages) | `forbidden` | Any import of `quantum_sim`, `research_api` or `qa_bench` from `docingest`. | The circuit simulator of `packages/quantum-sim` must stay usable without docingest and docingest without it (ADR 0005), and the API and the benchmark package build on docingest, never the reverse. Those packages have the reverse contracts in their own `pyproject.toml`. |
+| 7 | docingest never imports research_api or qa_bench (separate packages) | `forbidden` | Any import of `research_api` or `qa_bench` from `docingest`. | The API and the benchmark package build on docingest, never the reverse. Those packages have the reverse contracts in their own `pyproject.toml`. |
+| 8 | Only the QASM adapter imports quantum_sim | `forbidden` | Any import of `quantum_sim` from `docingest` except the one in `docingest.adapters.qasm` (`ignore_imports`; the import graph keeps an external package whole, so the ignored import is `docingest.adapters.qasm -> quantum_sim`). `allow_indirect_imports = true`, because `bootstrap` reaches quantum-sim through that adapter. | The dependency on the simulator is one-way and sits in one adapter (ADR 0005, ADR 0006): quantum-sim never imports docingest, the domain and the application see only the `CircuitExporter` port, and a command that never exports a circuit does not load `quantum_sim` (a subprocess test in `tests/unit/test_qasm_export.py` checks it). |
 
 When a contract fails, fix the import, do not relax the contract. A legitimate change to `pyproject.toml` is adding a new adapter subpackage to the `independence` list (sections 9 and 10). Explain such a change in the pull request.
 
@@ -922,7 +923,7 @@ DOCINGEST_NETWORK_TESTS=1 uv run pytest -m network            # opt-in: live arX
 |---|---|---|
 | 1 | `uv run --frozen ruff check src tests` | lint rules (section 4) |
 | 2 | `uv run --frozen ruff format --check src tests` | formatting |
-| 3 | `uv run --frozen lint-imports` | the five architecture contracts (section 3) |
+| 3 | `uv run --frozen lint-imports` | the eight architecture contracts (section 3) |
 | 4 | `uv run --frozen pyright` | static types in `src` |
 | 5 | `uv run --frozen pytest --cov --cov-report=term-missing:skip-covered -q` | tests and the 85% coverage floor |
 

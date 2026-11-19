@@ -19,6 +19,7 @@ from .index import ChunkIndex, CommittedState, Hit, IndexStats, KeywordMode
 from .ocr import OcrEngine, OcrPreflight, OcrResult
 from .pdf import PdfDocument, PdfPage, PdfReader
 from .qa import QuestionAnswerer
+from .qasm import CircuitExporter, QasmExport, QasmProgram
 from .reranking import Reranker
 from .sources import FetchedSource, SourceCrawler, SourceRecord
 from .store import DocumentStore, StoredDocument
@@ -28,6 +29,7 @@ __all__ = [
     "CandidateSpec",
     "Chunk",
     "ChunkIndex",
+    "CircuitExporter",
     "CommittedState",
     "Conversion",
     "DocumentConverter",
@@ -45,6 +47,8 @@ __all__ = [
     "PdfDocument",
     "PdfPage",
     "PdfReader",
+    "QasmExport",
+    "QasmProgram",
     "QuestionAnswerer",
     "Reranker",
     "Sample",

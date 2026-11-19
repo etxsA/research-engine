@@ -4,10 +4,11 @@ This package holds the **driving adapters**: the code that turns a user action i
 
 | File | What it contains |
 |---|---|
-| `cli.py` | The Typer application `app`, installed as the `docingest` console script (`[project.scripts] docingest = "docingest.entrypoints.cli:app"` in `pyproject.toml`). Commands: `ingest`, `crawl`, `make-scan`, `eval-ocr`, `ask`, `adapters`, `model-path`. Mounts `bench` and `index`. |
+| `cli.py` | The Typer application `app`, installed as the `docingest` console script (`[project.scripts] docingest = "docingest.entrypoints.cli:app"` in `pyproject.toml`). Commands: `ingest`, `crawl`, `make-scan`, `eval-ocr`, `ask`, `adapters`, `model-path`. Mounts `bench`, `index` and `circuits`. |
 | `bench_cli.py` | The Typer sub-application `bench_app`, mounted as `docingest bench`. It is also the benchmark's composition root: it reads `config/benchmark.toml`, builds the suite adapters and builds each candidate's OCR engine through `bootstrap.build("ocr", ...)`. |
 | `index_cli.py` | The Typer sub-application `index_app`, mounted as `docingest index`: `build`, `status`, `remove`. It builds `Container.index_service` and prints its reports; an expected failure is a one-line message and exit code 1. |
 | `ask_lines.py` | The JSON-lines front of `AskSession` for `docingest ask --stdin`: `parse_request`, `format_result`, `format_error` and `serve_lines`, which answers one request line with one answer line until the input ends. Parsing and formatting only. |
+| `circuits_cli.py` | The Typer sub-application `circuits_app`, mounted as `docingest circuits`: `export`. It builds `Container.qasm_export` and prints the files, warnings and refusals; an expected failure is a one-line message and exit code 1. |
 | `paperqa_hook.py` | `parse_pdf_to_pages`, a drop-in for PaperQA2's `settings.parsing.parse_pdf`. |
 | `__init__.py` | Package marker. |
 
@@ -17,7 +18,7 @@ Contents:
 - [Command tree](#command-tree)
 - [How a command runs](#how-a-command-runs)
 - [Conventions shared by all commands](#conventions-shared-by-all-commands)
-- [Command reference](#command-reference): [ingest](#docingest-ingest), [crawl](#docingest-crawl), [make-scan](#docingest-make-scan), [eval-ocr](#docingest-eval-ocr), [ask](#docingest-ask), [adapters](#docingest-adapters), [model-path](#docingest-model-path), [index](#docingest-index), [bench](#docingest-bench)
+- [Command reference](#command-reference): [ingest](#docingest-ingest), [crawl](#docingest-crawl), [make-scan](#docingest-make-scan), [eval-ocr](#docingest-eval-ocr), [ask](#docingest-ask), [adapters](#docingest-adapters), [model-path](#docingest-model-path), [index](#docingest-index), [circuits](#docingest-circuits), [bench](#docingest-bench)
 - [Benchmark workflow](#benchmark-workflow)
 - [PaperQA2 `parse_pdf` hook](#paperqa2-parse_pdf-hook)
 - [Adding or changing a command](#adding-or-changing-a-command)
@@ -58,6 +59,8 @@ flowchart LR
     index --> ibuild["build"]
     index --> istatus["status"]
     index --> iremove["remove DOC_ID"]
+    root --> circuits["circuits"]
+    circuits --> cexport["export"]
     root --> bench["bench"]
     bench --> prepare["prepare"]
     bench --> run["run --run-id ID"]
@@ -81,6 +84,9 @@ flowchart LR
     askstdin["docingest ask --stdin"] --> SL["ask_lines.serve_lines"]
     SL --> SES["AskSession.ask, then AskService.complete and answer_from"]
     index["docingest index"] --> IXS["IndexService.build, status, remove"]
+    circuits["docingest circuits export"] --> QS["QasmExportService.export_corpus"]
+    ingestq["docingest ingest --qasm"] --> QD["QasmExportService.export_documents"]
+    crawlq["docingest crawl --qasm"] --> QD
     makescan["docingest make-scan"] --> MS["adapters.datasets.synthetic.make_scan"]
     adapters["docingest adapters"] --> REG["bootstrap.REGISTRY and entry-point plugins"]
     modelpath["docingest model-path"] --> HF["adapters.models.huggingface.resolve"]
@@ -137,7 +143,7 @@ sequenceDiagram
 | Code | Meaning |
 |---|---|
 | 0 | Success. |
-| 1 | The command ran but something failed: `ingest` or `crawl` with at least one failed input (for `crawl`, also a failed search or a query that cannot be sent), or an uncaught exception (for example a missing benchmark run, an empty corpus for `ask`, a configuration validation error). Uncaught exceptions print a traceback. |
+| 1 | The command ran but something failed: `ingest` or `crawl` with at least one failed input (for `crawl`, also a failed search or a query that cannot be sent), `circuits export` with a refused circuit (unless `--allow-partial`), with nothing to write, or with a document that could not be written (even with `--allow-partial`), or an uncaught exception (for example a missing benchmark run, an empty corpus for `ask`, a configuration validation error). Uncaught exceptions print a traceback. |
 | 2 | Usage error reported by Typer/Click: missing argument, value out of range, `--config` path that does not exist, or a `typer.BadParameter` raised by the command (unknown suite, candidate, preset or role, invalid run id, page-count mismatch in `eval-ocr`). `bench run` also exits with 2 when the run directory was started with a different suite or candidate definition. |
 
 ## Command reference
@@ -163,6 +169,7 @@ Detect type, route each page (text layer / OCR / converter); write Markdown + ma
 | `--ocr-all / --no-ocr-all` | flag | `--no-ocr-all` | OCR every PDF page, even born-digital. |
 | `--max-pages` | integer, at least 1 | none (all pages) | Only first N pages. |
 | `--index` | flag | off | After the batch, add the papers this run stored to the chunk index (`IndexService.update`). Needs `[adapters] index` and `embedder`. |
+| `--qasm` | flag | off | After the batch, write the circuits of the papers this run stored as OpenQASM 3 (`QasmExportService.export_documents`). Best effort: a refusal or an unwritable directory is a warning, never a failed ingestion. |
 
 **What it does.**
 
@@ -175,6 +182,7 @@ Detect type, route each page (text layer / OCR / converter); write Markdown + ma
 
 - `--force` skips the cache lookup and re-processes even when a cached result exists.
 - `--index` is checked before any input is processed: without a real `index` and `embedder` in `[adapters]` it is a usage error (exit 2), and an index built for another embedder stops the command (exit 1). After the summary, the stored papers (not the rest of the corpus) are embedded if new or changed and committed, each as the version the corpus serves (a `--max-pages` or `--ocr-all` run beside a complete canonical result does not replace it in the index); the line `index: added N, updated M, unchanged K; embedded C chunks in S s` reports it. If that step fails (the embedding server is down), the papers stay stored, the message says `run docingest index build` to catch up, and the exit code is 1.
+- `--qasm` runs after the summary (and after `--index`, if both are given) over the papers this run stored, each once (identical files share a `doc_id`); for a paper stored as a variant (`--ocr-all`, `--max-pages`) it exports the version the corpus serves when that is the canonical document or a longer variant, and otherwise the variant this run stored. It always writes one program per circuit part to `<output_dir>/qasm/`; `docingest circuits export --out DIR` is the way to write them elsewhere. An unreadable Markdown, a document with no circuits, a refused circuit or an unwritable directory is printed as a warning, and the exit code stays the one the ingestion earned: the store is already complete. A file that cannot be written stops that paper's export only and is printed as a warning naming the paper; an output folder that cannot be made is one warning. Any other error of the export is a warning too (`the export stopped: ...`). The hook passes no `--set` values, so a circuit with a free symbol is refused, and its programs from an earlier `docingest circuits export --set ...` are removed as stale; the warning names the circuit and the symbol (`block 1, circuit 1 was refused because theta has no value: run docingest circuits export --set NAME=VALUE to write it again`), but only when a value would export it: a circuit refused for another reason too (a `|1>` input, an `iSWAP`) gets no such hint. When `--index` fails, for any reason, the command exits 1 before the export and prints that the circuits were not exported. Use `docingest circuits export` to see the same work with exit code 1 on a refusal.
 - `--ocr-all` applies only to PDFs (other kinds ignore it). Every page is sent to OCR; a page that no routing rule would have sent to OCR gets the reason `forced (--ocr-all)`. The result is stored as a variant, never as the canonical result.
 - `--max-pages N` limits PDF pages, image frames or converter segments to the first N. A partial result is stored as a variant. A complete canonical result already in the store satisfies a `--max-pages` request.
 
@@ -219,6 +227,7 @@ Search arXiv, download LaTeX sources (PDF fallback) with metadata, then ingest t
 | `--no-ingest / --no-no-ingest` | flag | `--no-no-ingest` (ingest) | Only download. |
 | `--max-pages` | integer, at least 1 | none | Only first N pages (passed to ingestion). |
 | `--index` | flag | off | Add the papers this crawl ingested to the chunk index, as for `ingest --index`. An error with `--no-ingest`. |
+| `--qasm` | flag | off | Write the circuits of the papers this crawl ingested as OpenQASM 3, as for `ingest --qasm`. An error with `--no-ingest`. |
 
 **What it does.**
 
@@ -227,7 +236,7 @@ Search arXiv, download LaTeX sources (PDF fallback) with metadata, then ingest t
 3. Unless `--no-ingest` is given, each downloaded file is ingested with its metadata. With `--no-ingest` the ingestion service (and the OCR model) is never built.
 4. Prints the ingestion summary, then `fetched N, ingested M`. If the source asked the crawler to back off (rate limit), or an ingested PDF needs an OCR engine that cannot be used, the crawl stops, prints `crawl stopped early: ...` and lists the remaining records as not attempted. A failed search is reported the same way (`crawl stopped early: search failed: ...`). One failing record does not stop the others.
 
-With `--index`, the papers that were ingested (also when the crawl stopped early) are then added to the index and the line `index: added N, ...` is printed.
+With `--index`, the papers that were ingested (also when the crawl stopped early) are then added to the index and the line `index: added N, ...` is printed. With `--qasm`, the circuits of those papers are exported best effort, as for `ingest --qasm`; the two hooks can be combined.
 
 Request pacing, retries, the contact address in the User-Agent and license lookup are configured in `[arxiv]` ([../../../config/README.md](../../../config/README.md#arxiv)).
 
@@ -454,6 +463,95 @@ All three accept `--config` / `-c`. **Exit behaviour.** 0 on success; 1 for an e
 uv run docingest index build
 uv run docingest index status
 uv run docingest index remove 3fa9c2d1
+```
+
+### `docingest circuits`
+
+```
+docingest circuits [OPTIONS] COMMAND [ARGS]...
+```
+
+Read the circuits of stored documents. The sub-command `export` writes them as OpenQASM 3; it
+does not change the store, the manifest or the cache key.
+
+#### `docingest circuits export`
+
+```
+docingest circuits export [OPTIONS]
+```
+
+Write one OpenQASM 3 program per part of every circuit in the selected documents. The input is
+the fenced `latex` blocks of `document.md`; each circuit is validated by `quantum-sim`'s
+`circuit/1` reader before a line is written, so a circuit the simulator refuses is reported and
+not exported. The files are derived and can be made again at any time.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--doc` | text, repeatable | every stored document | Select a document by full `doc_id`, by source name, or by a unique `doc_id` prefix of at least 8 characters. An unknown or ambiguous selector is an error. |
+| `--config`, `-c` | file | `config/pipeline.toml` | Pipeline configuration. |
+| `--out` | directory | `<output_dir>/qasm` | Where to write the `.qasm` files. The directory is created if it does not exist. |
+| `--set` | `NAME=VALUE`, repeatable | none | Bind a free gate parameter for every circuit of the call. The value is LaTeX arithmetic (`pi/4`, `\frac{\pi}{2}`, `0.5`), read by `quantum_sim.angles.parse_value`, the rule of `quantum-sim run --set` too: a `pi` that stands alone is `\pi`; the name is one symbol, as an angle writes it (`theta`, `\theta` and `{\theta}` are `theta`; `\theta_{1}` is `theta_1`). A name that is not one symbol (`thetta`, `pi`, `e`, `the{ta}`, a name with a line break inside it; white space around a name is ignored), a malformed value (`1e10`: no exponent notation), or one name given twice in two spellings (`theta` and `\theta`) is a usage error before any circuit is written; a name that is one symbol but matches no symbol of any exported circuit is a warning. |
+| `--allow-partial` | flag | off | Exit 0 when some circuits are refused, if at least one program was written; the programs that could be made are still written. With no program written, or a write error, the exit code is still 1. |
+
+**What it does.**
+
+1. Reads the corpus (`store.corpus()`) or selects the documents named by `--doc`. A prefix shorter
+   than 8 characters is not a prefix: use the source name or a longer id. An empty corpus is the
+   warning `no stored documents: ingest a paper first`.
+2. For each document, finds its fenced `latex` code blocks and reads each block's circuits with
+   `gate_list`. A document with no circuit is a warning, not a failure.
+3. Calls the `CircuitExporter` port for each circuit with the source name and the block and
+   circuit numbers as provenance, and with the `--set` bindings. The adapter calls
+   `quantum_sim.qasm.to_qasm`, which reads the document with `from_gate_list`. One program is
+   written per part; the drawn sign of a part and the bindings of the symbols it uses are
+   comments. An angle that is undefined at the bound values (`\frac{\pi}{\theta}` with
+   `theta=0`) refuses the circuit with the simulator's reason.
+4. Writes `<doc_id[:16]>-b<block:02d>-c<circuit:02d>-p<part:02d>.qasm` atomically (UTF-8, LF, no
+   timestamps, the permissions of a normal write), then deletes that document's other
+   `<doc_id[:16]>-bNN-cNN-pNN.qasm` files, the ones this run did not write (a refused circuit, a
+   lost part, circuit or block), and warns with their number. Files of other documents, other
+   names and documents whose Markdown cannot be read stay. When a removed file belonged to a
+   circuit refused only because a symbol has no value, the warning names the circuit and the
+   symbol; the adapter checks that a placeholder value for each such symbol would export the
+   circuit, so a circuit refused for another reason too gets no such hint.
+   The folder is listed once, when the run starts. An `OSError` while writing a document stops
+   that document only: the error is printed with the document's name, its earlier files stay
+   (its cleanup is skipped), and the next document is exported. A failed cleanup is printed with
+   the number of files it had removed. An output folder that cannot be made is one error, and
+   the export stops there. It prints a table of the documents and files, then any warnings,
+   refusals and errors, and `wrote N program(s) from C circuit(s) in D document(s)`, where `D`
+   counts the documents the export reached (one whose Markdown could not be read counts, those
+   after a folder error do not). A run with an error prints no "matches no symbol" warning for a
+   `--set` name, because a document it did not finish may use it. A document whose Markdown
+   could not be read is a warning, not an error, so that warning is still printed (it speaks of
+   the exported circuits), next to the `cannot read the stored Markdown` warning.
+5. Does not stop at a refused circuit: the other circuits of the same document and of the later
+   documents are still exported. The refused circuit contributes no programs (the simulator's
+   reader is all-or-nothing), its old programs are removed, and its refusal is printed with the
+   simulator's reason.
+
+**Output contract.** The header names the tool, the source and part, the drawn sign, the bindings
+of the symbols the part uses, the wire convention (`q[0]` is wire 1, the top of the drawing, and
+the simulator reads it as the most significant bit) and the wire legends. A part that measures
+also gets `bit[n] c;` and two header lines: `c[i]` holds `q[i]`, a bit string of `c` reads
+`c[n-1] ... c[0]` (so wire 1 is its rightmost bit, the reverse of the simulator's basis label),
+and `bit[n]` has one bit per wire. The body is `OPENQASM 3.0;`, `include "stdgates.inc";`,
+`qubit[n] q;`, the `bit[n] c;` of a measured part, and the gates. The exact gate mapping and the
+refusal list are in [ADR 0006](../../../docs/adr/0006-openqasm-3-export.md#gate-mapping).
+
+**Exit behaviour.** 0 when the files were written and no circuit was refused (warnings about a
+document with no circuits do not change it). 1 when a circuit was refused and `--allow-partial` was
+not given, when no program could be written at all, when a selector matches no document or more
+than one, or when an I/O error stops a document or the export (also with `--allow-partial`). 2 for usage errors, such as a
+`--set` without `=`, a `--set` name that is not one symbol (`thetta`, `pi`) or a value the
+emitter cannot parse; a `--set` name that is one symbol but that no circuit uses is a warning.
+
+**Examples.**
+
+```bash
+uv run docingest circuits export                                  # every stored document
+uv run docingest circuits export --doc 01234567 --out /tmp/qasm   # one document, another folder
+uv run docingest circuits export --set 'theta=pi/4' --allow-partial
 ```
 
 ### `docingest bench`

@@ -2,7 +2,8 @@
 
 docingest keeps a copy of this grammar (``_BASIS_KET`` in docingest.domain.circuits) to decide which
 text on a wire it may leave in a gate list: empty, or a basis ket |0> or |1>. quantum_sim must never
-import docingest, and docingest must never import quantum_sim, so the two copies cannot be compared
+import docingest, and docingest's domain must never import quantum_sim (only its QASM adapter
+does), so the two copies cannot be compared
 directly. Both packages are tested against the one list in ``tests/fixtures/basis_kets.json``: a
 change to either grammar that moves a verdict fails the test of that package until the list and the
 other grammar follow.

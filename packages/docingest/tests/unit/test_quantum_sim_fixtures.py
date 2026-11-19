@@ -6,7 +6,8 @@ packages/quantum-sim/tests/fixtures/bridge/, one ``NAME.json`` for each ``NAME.t
 This test is the other half of that bridge: it makes the documents again from the sources and
 fails when docingest's output has changed. When it does, run
 ``uv run --package docingest python packages/quantum-sim/tools/make_bridge_fixtures.py`` and look
-at the diff. The folder is only read; docingest never imports quantum_sim.
+at the diff. The folder is only read; this test does not import quantum_sim (in docingest only
+``docingest.adapters.qasm`` does).
 """
 
 import json

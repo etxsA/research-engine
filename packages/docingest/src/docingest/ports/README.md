@@ -14,7 +14,7 @@ Related reading: [package map](../README.md), [domain types](../domain/README.md
 - [Ports grouped by concern](#ports-grouped-by-concern)
 - [Summary](#summary)
 - [Fingerprints and the cache key](#fingerprints-and-the-cache-key)
-- Port reference: [TypeDetector](#typedetector), [PdfReader, PdfDocument, PdfPage](#pdfreader-pdfdocument-pdfpage), [OcrEngine](#ocrengine), [ImageSource](#imagesource), [DocumentConverter](#documentconverter), [DocumentStore](#documentstore), [SourceCrawler](#sourcecrawler), [QuestionAnswerer](#questionanswerer), [Embedder](#embedder), [ChunkIndex](#chunkindex), [Reranker](#reranker), [BenchmarkSuite](#benchmarksuite)
+- Port reference: [TypeDetector](#typedetector), [PdfReader, PdfDocument, PdfPage](#pdfreader-pdfdocument-pdfpage), [OcrEngine](#ocrengine), [ImageSource](#imagesource), [DocumentConverter](#documentconverter), [DocumentStore](#documentstore), [SourceCrawler](#sourcecrawler), [QuestionAnswerer](#questionanswerer), [Embedder](#embedder), [ChunkIndex](#chunkindex), [Reranker](#reranker), [BenchmarkSuite](#benchmarksuite), [CircuitExporter](#circuitexporter)
 - [Implementing a new adapter](#implementing-a-new-adapter)
 - [Registering an adapter](#registering-an-adapter)
 - [Testing an adapter](#testing-an-adapter)
@@ -54,6 +54,9 @@ flowchart LR
     subgraph EVAL["Evaluate OCR"]
         BS["BenchmarkSuite"]
     end
+    subgraph EXPORT["Export circuits"]
+        CE["CircuitExporter"]
+    end
     ING["IngestService"] --> TD
     ING --> PR
     ING --> IS
@@ -66,6 +69,8 @@ flowchart LR
     ASK --> QQ
     BENCH["BenchmarkRunner"] --> BS
     BENCH --> OE
+    QASM["QasmExportService"] --> DS
+    QASM --> CE
 ```
 
 ## Summary
@@ -84,6 +89,7 @@ flowchart LR
 | `ChunkIndex` | `index.py` | `index` | `none`: `NoIndex`. Plugin ([docingest-index](../../../../docingest-index/README.md)): `local` | `IndexService` | yes |
 | `Reranker` | `reranking.py` | `reranker` | `none`: `NoReranker`. Plugin ([docingest-index](../../../../docingest-index/README.md)): `vllm` | none yet | no |
 | `BenchmarkSuite` | `benchmark.py` | none: built by `entrypoints/bench_cli.py` | `SyntheticSuite` (`synthetic`), `OlmOcrBenchSuite` (`olmocr-bench`) | `BenchmarkRunner`, `score_run` | yes |
+| `CircuitExporter` | `qasm.py` | none: built by `Container.qasm_export` | `QuantumSimExporter` (`adapters/qasm.py`) | `QasmExportService` | no |
 
 `uv run docingest adapters` prints, for the current configuration, every `[adapters]` slot with its selected adapter and the names available for it (built-ins and installed plugins). Benchmark suites are not listed there.
 
@@ -101,8 +107,9 @@ Value types defined next to the Protocols (all dataclasses):
 | `CommittedState` | `index.py` | yes | `ChunkIndex.committed` result |
 | `Sample`, `CandidateSpec`, `Estimate` | `benchmark.py` | yes | benchmark samples, candidates, estimates |
 | `SuiteScore` | `benchmark.py` | no | `BenchmarkSuite.score` result |
+| `QasmProgram`, `QasmExport` | `qasm.py` | yes | `CircuitExporter.export` result: one program per circuit part, or the reasons it was refused |
 
-Reference fakes for every port except `BenchmarkSuite` live in `tests/fakes.py` (`FakeDetector`, `FakePdfReader` with `FakePdfDocument` and `FakePage`, `FakeOcr`, `FakeImages`, `FakeConverter`, `InMemoryStore`, `FakeCrawler`, `FakeQA`, `FakeEmbedder`, `FakeIndex`, `FakeReranker`). They are complete, behaviour-level implementations, not mocks, and they are the shortest working example of each contract. A minimal benchmark suite, `MemSuite`, is in `tests/unit/test_benchmark.py`.
+Reference fakes for every port except `BenchmarkSuite` and `CircuitExporter` live in `tests/fakes.py` (`FakeDetector`, `FakePdfReader` with `FakePdfDocument` and `FakePage`, `FakeOcr`, `FakeImages`, `FakeConverter`, `InMemoryStore`, `FakeCrawler`, `FakeQA`, `FakeEmbedder`, `FakeIndex`, `FakeReranker`). They are complete, behaviour-level implementations, not mocks, and they are the shortest working example of each contract. A minimal benchmark suite, `MemSuite`, is in `tests/unit/test_benchmark.py`.
 
 ## Fingerprints and the cache key
 
@@ -119,6 +126,7 @@ Seven ports declare `fingerprint: str`. For the ingestion ports it identifies ev
 - `DocumentStore`, `SourceCrawler`, `QuestionAnswerer` and `Reranker` never change what an ingestion produces, so they have none.
 - `Embedder.fingerprint` and `ChunkIndex.fingerprint` are not part of the ingestion cache key either: they identify a chunk index, which is only valid for the embedder and chunker settings it was built with.
 - `BenchmarkSuite.fingerprint` is unrelated to the ingestion cache: it identifies a suite's data in a benchmark run directory.
+- `CircuitExporter` has none: the `.qasm` files are derived from `document.md`, are written again on every export and are in no cache key.
 
 Rules for a fingerprint:
 
@@ -698,6 +706,39 @@ Contract, as `BenchmarkRunner` and `score_run` in `application/benchmark.py` use
 Suites are not chosen through `[adapters]`. `entrypoints/bench_cli.py` builds them in `build_suite()` from `config/benchmark.toml` (suite names in `SUITES`: `synthetic`, `olmocr-bench`). A new suite therefore also needs, in that module, its name in `SUITES`, an entry in `SCORING_VERSIONS`, a settings model in `SuitesConfig` (read by `BenchConfig.suite_settings`) and a branch in `build_suite()`; see [entrypoints/README.md](../entrypoints/README.md). Candidates, on the other hand, are OCR engines built with `bootstrap.build("ocr", cfg)` from a copy of the pipeline configuration, so any registered OCR adapter name, including a plugin, can be benchmarked through `CandidateSpec.ocr`. Results are in [docs/benchmark.md](../../../docs/benchmark.md).
 
 Implementations: `adapters/datasets/synthetic.py` `SyntheticSuite` and `adapters/datasets/olmocr_bench.py` `OlmOcrBenchSuite`. Minimal example: `MemSuite` in `tests/unit/test_benchmark.py`.
+
+### CircuitExporter
+
+Module `qasm.py`. Exports one circuit of a paper, a `CircuitSteps` from `domain/circuits.py`, as OpenQASM 3. The port carries plain data only (`QasmProgram`, `QasmExport`), so `QasmExportService` never imports `quantum_sim` or an OpenQASM parser ([ADR 0006](../../../docs/adr/0006-openqasm-3-export.md)).
+
+```python
+@runtime_checkable
+class CircuitExporter(Protocol):
+    def check_values(self, values: Mapping[str, str | float | int] | None = None) -> None: ...
+
+    def export(
+        self,
+        circuit: CircuitSteps,
+        *,
+        values: Mapping[str, str | float | int] | None = None,
+        origin: str = "",
+        tool: str = "docingest",
+    ) -> QasmExport: ...
+```
+
+Contract, as `QasmExportService` in `application/qasm.py` uses it:
+
+- `check_values(values)` raises `ValueError` for a binding name or value the emitter cannot use (a name that is not one symbol of the angle grammar, such as `thetta` or `pi`; a name bound twice, as `theta` and `\theta`; `True`; a value with a free symbol). The service calls it once, before it exports any circuit, so a bad `--set` writes nothing.
+- `export(...)` returns a `QasmExport` and does not raise for a circuit it cannot write: `status` is `"ok"` or `"refused"`, and a refused export has no `programs` and one or more `reasons`. A circuit with several parts (the sides of a drawn equality) is all or nothing: if one part is refused, none is returned. An angle that cannot be evaluated at the bound values (`\frac{\pi}{\theta}` with `theta=0`) is a refusal, not an error.
+- `programs` holds one `QasmProgram` per part, with `part` (1-based), the drawn `sign` (`None` for the first part), the `text`, and the number of qubits and classical bits. The text must be deterministic: the same circuit and options give the same bytes.
+- `notes` are warnings from the reader, and `symbols` lists the free parameters the circuit mentions, whether or not `values` bound them. `unmatched` lists the keys of `values`, as given, whose name (the adapter's rule, `quantum_sim.angles.symbol_name`: `\theta_{1}` is `theta_1`) is none of those symbols, and every key when the circuit could not be read. Its default is `None`, which means the exporter did not report it: the service then counts every key as unmatched for that circuit, so an exporter that does not check never hides a typo. The service warns about a key that is unmatched in every export of the run, so the binding-name rule lives in the adapter only.
+- `unbound` lists, for a refused export, the symbols of the circuit that `values` gave no value, each as a binding key that `check_values` accepts (`theta_{12}`, not the reader's `theta_12`), and only when values for them alone would export the circuit (empty for an ok export, and for a circuit refused for another reason too, such as a `|1>` input). The service uses it to name the circuits whose earlier programs it removed because they were refused for lack of a value, without reading the reasons' text.
+- `origin` is a one-line provenance comment and `tool` names the caller in the generated-by header.
+- There is no `fingerprint`: the export is in no cache key (see [Fingerprints and the cache key](#fingerprints-and-the-cache-key)).
+
+Not chosen through `[adapters]`: `Container.qasm_export` builds the adapter directly, importing it lazily, so a command that never exports a circuit does not load `quantum_sim`. `Container(..., overrides={"exporter": ...})` replaces it.
+
+Implementation: `adapters/qasm.py` `QuantumSimExporter`, which calls `quantum_sim.qasm.to_qasm`. There is no fake in `tests/fakes.py`; the tests use the real adapter (`tests/unit/test_qasm_export.py`, which also has a minimal `NotingExporter` that leaves `unmatched` unreported), and `tests/contract/test_exporter_contract.py` checks the adapter against this contract (`unmatched`, `unbound`, `check_values`).
 
 ## Implementing a new adapter
 

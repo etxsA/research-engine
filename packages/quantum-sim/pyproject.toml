@@ -24,6 +24,8 @@ build-backend = "uv_build"
 dev = [
     "hypothesis>=6.168",
     "import-linter>=2.15",
+    # 0.5 is the grammar the contract tests parse; a 1.0 may rename or change parser.parse.
+    "openqasm3[parser]>=0.5,<1",
     "pyright>=1.1.414",
     "pytest>=9.1.1",
     "pytest-cov>=7",
@@ -72,11 +74,12 @@ include_external_packages = true
 exclude_type_checking_imports = true
 
 [[tool.importlinter.contracts]]
-name = "Layers: entrypoints, api, formats, engine and labels, gates and angles, domain; a module imports only the layers below it"
+name = "Layers: entrypoints, api, qasm, formats, engine and labels, gates and angles, domain; a module imports only the layers below it"
 type = "layers"
 layers = [
     "quantum_sim.entrypoints",
     "quantum_sim.api",
+    "quantum_sim.qasm",
     "quantum_sim.formats",
     "quantum_sim.engine | quantum_sim.labels",
     "quantum_sim.gates | quantum_sim.angles",
@@ -84,18 +87,21 @@ layers = [
 ]
 
 [[tool.importlinter.contracts]]
-name = "The domain, the angle parser, the label resolver and the formats are the standard library only"
+name = "The domain, the angle parser, the label resolver, the formats and the QASM emitter are the standard library only"
 type = "forbidden"
 source_modules = [
     "quantum_sim.domain",
     "quantum_sim.angles",
     "quantum_sim.labels",
     "quantum_sim.formats",
+    "quantum_sim.qasm",
 ]
 forbidden_modules = ["numpy"]
 
-# The other direction (docingest never imports quantum_sim) is a contract in docingest's
-# pyproject.toml, because each package's gates run with only that package installed.
+# The other direction is a contract in docingest's pyproject.toml: docingest's QASM adapter may
+# import quantum_sim (quantum_sim.qasm and quantum_sim.angles) for its OpenQASM 3 export, but
+# quantum_sim never imports docingest, because quantum-sim's gates run with only quantum-sim
+# installed.
 [[tool.importlinter.contracts]]
 name = "quantum_sim never imports docingest, its plugins, research_api or qa_bench"
 type = "forbidden"

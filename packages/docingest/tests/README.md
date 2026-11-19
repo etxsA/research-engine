@@ -83,6 +83,10 @@ flowchart LR
 
 ## Test modules
 
+The OpenQASM 3 emitter's unit tests, golden fixtures and contract/property tests live in
+`packages/quantum-sim/tests/` (`test_qasm.py`, `test_qasm_contracts.py`, `fixtures/qasm/`), because
+the emitter itself lives in `quantum-sim`. This package tests only the `QuantumSimExporter` adapter and the service.
+
 ### unit/
 
 | Module | Covers |
@@ -131,7 +135,8 @@ flowchart LR
 | `test_timing.py` | `tests/timing.py` on a fake clock: linear work passes after three rounds, quadratic work fails all three attempts, a burst of load in one attempt or one round is not held against the code, the floor and the ceiling, the collector switched off and back, `timeout_notes` |
 | `test_text.py` | `domain.text`: garbled-text detection, the math-symbol and equals-sign counts (the edges of every symbol block, `ϕ`, `ˆ`, `™`), de-hyphenation, page splitting |
 | `test_structure.py` | `domain.structure`, `furniture` and `headings` on synthetic lines: running headers and page numbers, paragraphs, hyphenation, headings, footnotes |
-| `test_quantum_sim_fixtures.py` | The `circuit/1` documents saved in `packages/quantum-sim/tests/fixtures/bridge/` are what `gate_list` returns for the LaTeX sources next to them (the other half of quantum-sim's bridge tests; docingest never imports `quantum_sim`), and an unknown command or a text token put in any of those sources is never read as `parsed` |
+| `test_qasm_export.py` | `QasmExportService`: selection by id prefix, source name and ambiguity; file naming, content, atomic writes and the permissions of a normal write; `--set` (a braced subscript, the bindings of each program, bindings refused as usage errors, keys that are not one symbol such as `thetta`, `pi` or a name with a line break inside it refused before anything is written, angles undefined after binding); open-control conjugation; refusals that do not stop the other circuits; stale programs removed per document (a lost part, circuit, block or every circuit, sparing other doc ids, other files, a directory with a program's name and an unreadable document; a program already gone is skipped and not counted; a cleanup error keeps the count of what it removed; the hook's note naming a circuit refused because `theta` has no value, and only the circuits whose programs it removed; no such note for a circuit that a `|1>` input, an `R_{zz}` or an `iSWAP` refuses too); a write error in the first of three documents that stops it, keeps its earlier programs and its stale one, and still exports and cleans up the later two; a document error that suppresses the "matches no symbol" warning; an output folder that cannot be made as one error, and a run it stops that counts only the documents it reached and gives no "matches no symbol" warning; an unreadable document counted as reached; a cleanup run that spares other files and reports no error; a simulator-refused ambiguous gate and a gate with no standard spelling (both write nothing); warnings for no circuits, an empty corpus, an unreadable Markdown, reader notes of an ok export and bindings that match no symbol (also when the exporter leaves `unmatched` unreported); the output override; the `export_documents` path the post-ingest hook uses (a document given twice, an `--ocr-all` variant, a variant exported as given when the corpus holds another variant of the same length and no canonical document, a longer variant in the corpus exported instead of the one given); the container's `exporter` override; and two subprocess checks that the CLI does not import `quantum_sim` and that `Container.qasm_export` does |
+| `test_quantum_sim_fixtures.py` | The `circuit/1` documents saved in `packages/quantum-sim/tests/fixtures/bridge/` are what `gate_list` returns for the LaTeX sources next to them (the other half of quantum-sim's bridge tests), and an unknown command or a text token put in any of those sources is never read as `parsed` |
 | `test_wire_names.py` | docingest's copy of quantum-sim's wire-name grammar (`_WIRE_NAME`) gives the same verdict as quantum-sim on every sample of `packages/quantum-sim/tests/fixtures/wire_names.json`; a word in `\text` or `\mathrm` is never a name |
 
 ### contract/
@@ -141,6 +146,7 @@ flowchart LR
 | `test_ocr_contract.py` | `FakeOcr`, `OpenAICompatibleOcr` against a local stub `/v1/chat/completions` server, `MlxVlmOcr` with a pinned Qwen3-VL-2B 4-bit model (`model` marker) |
 | `test_retrieval_contract.py` | `FakeEmbedder`, `FakeIndex` and `FakeReranker` (from `fakes.py`): the `Embedder`, `ChunkIndex` and `Reranker` contracts. The [`docingest-index`](../../docingest-index/README.md) package imports this module and runs it against its real adapters (see [Plugin tests](#plugin-tests-reusing-the-contracts)) |
 | `test_store_contract.py` | `InMemoryStore` (from `fakes.py`) and `FilesystemStore` |
+| `test_exporter_contract.py` | `QuantumSimExporter`: the `CircuitExporter` contract the QASM export relies on (`unmatched` reports a key that names no symbol, `unbound` the binding keys (`theta_{12}`) of the symbols of a refused circuit without a value, and none when a `|1>` input, an `R_{zz}` or a bound value the angle cannot take refuses it too; `\frac{1}{\theta - \phi}` with neither bound still names both, as each symbol gets its own placeholder, and `\sqrt{\theta - 1}`, singular at every placeholder, gets no hint; `check_values` refuses a key that is not one symbol) |
 
 ### integration/
 
@@ -153,7 +159,8 @@ flowchart LR
 | `test_chunking_parity.py` | `chunk_pages` gives the same chunks as PaperQA2's `chunk_pdf` on the repository's own documents, an ingested LaTeX paper and random pages (hypothesis); skipped when `paperqa` is not installed |
 | `test_filesystem_store.py` | `FilesystemStore` file permissions, no leftover temp files, a corrupt cached manifest treated as a cache miss |
 | `test_index_cli.py` | `docingest index build`, `status` and `remove` with fake plugins |
-| `test_index_on_ingest.py` | `ingest --index` and `crawl --index`: off by default, only the papers of the run, checked before any work, a failing update keeps the papers |
+| `test_index_on_ingest.py` | `ingest --index` and `crawl --index`: off by default, only the papers of the run, checked before any work, a failing update keeps the papers and says that `--qasm` did not run (with a circuit in the input, so a hook that ran would show), the same for `crawl --index --qasm` (a crawled paper with a circuit), an unexpected error (`OSError`) gives the same catch-up lines and exit 1 |
+| `test_qasm_cli.py` | `docingest circuits export` end to end: ingest a Markdown circuit, select it, set `--out` and `--set`, read the `.qasm` on disk, the exit codes for a refusal, `--allow-partial`, no circuit, an unknown document, a malformed name, a name that is not one symbol (`thetta`, `pi`, a line break: exit 2), a name bound twice as `theta` and `\theta`, a bad value, an unwritable output (all before or without writing a program), an empty corpus and its warning, and `ingest --qasm` / `crawl --qasm` as best-effort hooks (identical files exported once, file permissions like the store's, a write error and an unexpected error as warnings, the note naming a circuit whose bound program the hook removed, and no such note when the changed Markdown refuses it for a `|1>` input, `crawl --qasm --no-ingest` rejected before the crawler is called), a write error that exits 1 even with `--allow-partial`, an `--out` that is a file with `--set theta` and the theta paper second (exit 1, no "matches no symbol" warning, `in 1 document(s)`), and a store that cannot be read. Usage errors are asserted on `one_line(result.output)`, since typer colours option names on GitHub Actions |
 | `test_magic_detector.py` | `MagicBytesDetector` on real files |
 | `test_openai_ocr.py` | `OpenAICompatibleOcr` against a scripted local OpenAI-compatible server: request shape, retries, the retry ladder (stricter retries, more room for a dense page, a server that refuses it), authentication |
 | `test_ask_equation_lookup_paperqa.py` | The whole ask path with a mocked LLM and the real `PaperQAAnswerer`: the answer prompt holds the header and the chunk of each paper's Eq. (2) with `skip_summary` and no request holds them without it, the sentence about equation numbers is in the copy rule once, the prompt keeps its size, the retry with fewer sources drops the lowest-ranked chunks and keeps the best paper's, a failing lookup still answers |
@@ -398,7 +405,7 @@ def test_born_digital_pdf_uses_the_text_layer(cfg, tmp_path):
     assert doc.manifest.pages[0].method == PageMethod.TEXT_LAYER
 ```
 
-`overrides` accepts any port name used by `Container.adapter()` (`"detector"`, `"pdf"`, `"ocr"`, `"images"`, `"office"`, `"latex"`, `"text"`, `"store"`, `"qa"`, `"crawler"`). To select a fake by adapter name instead, as the configuration would, patch the registry:
+`overrides` accepts any port name used by `Container.adapter()` (`"detector"`, `"pdf"`, `"ocr"`, `"images"`, `"office"`, `"latex"`, `"text"`, `"store"`, `"qa"`, `"crawler"`, `"embedder"`, `"index"`, `"reranker"`), and `"exporter"`, which `Container.qasm_export` reads instead of building the QASM adapter (it is not an `adapter()` port). To select a fake by adapter name instead, as the configuration would, patch the registry:
 
 ```python
 from fakes import FakeOcr
@@ -427,6 +434,7 @@ flowchart LR
     ST["test_store_contract.py"] --> S1["InMemoryStore"]
     ST --> S2["FilesystemStore"]
     RT["test_retrieval_contract.py"] --> R1["FakeEmbedder, FakeIndex, FakeReranker"]
+    XT["test_exporter_contract.py"] --> X1["QuantumSimExporter"]
 ```
 
 **A new `DocumentStore`**: add a parameter to the `store` fixture in `tests/contract/test_store_contract.py`. `MyStore` below stands for your adapter:
@@ -459,7 +467,7 @@ The contract fixtures therefore have a shape other packages depend on: `make_emb
 
 ### Writing a contract for a port that has none yet
 
-`OcrEngine`, `DocumentStore` and the three retrieval ports (`test_retrieval_contract.py`) have contract modules today. A new one follows the same shape: one parametrized fixture that yields every implementation, and tests that use only the port's methods. This complete example for `DocumentConverter`, placed at `tests/contract/test_converter_contract.py`, runs against the current code:
+`OcrEngine`, `DocumentStore`, the three retrieval ports (`test_retrieval_contract.py`) and `CircuitExporter` (`test_exporter_contract.py`) have contract modules today. A new one follows the same shape: one parametrized fixture that yields every implementation, and tests that use only the port's methods. This complete example for `DocumentConverter`, placed at `tests/contract/test_converter_contract.py`, runs against the current code:
 
 ```python
 """DocumentConverter contract: every converter implementation must pass the same tests."""

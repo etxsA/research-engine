@@ -15,7 +15,11 @@ export interface ParsedValues {
 
 const NUMBER = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
 
-/** The name as quantum-sim compares it: `theta`, `\theta` and `{theta}` are one symbol. */
+/**
+ * A loose form of the name quantum-sim compares, to catch a name given twice before the request:
+ * `theta`, `\theta` and `{theta}` are one symbol. quantum-sim's `symbol_name` is the rule; it
+ * also refuses a key that is not one symbol (`thetta`, `pi`).
+ */
 export function symbolKey(name: string): string {
   return name.replace(/[\\{}\s]/g, "");
 }

@@ -105,7 +105,7 @@ def _assignments(items: Sequence[str]) -> dict[str, str]:
             raise _BadInput(f"--set expects NAME=VALUE, got {item!r}")
         if name.strip() in values:
             raise _BadInput(f"--set gives {short_text(name.strip())!r} twice; give it once")
-        values[name.strip()] = value.strip()
+        values[name.strip()] = value  # parse_value strips it; error positions count from here
     return values
 
 
@@ -137,7 +137,8 @@ def _parser() -> argparse.ArgumentParser:
             action="append",
             default=[],
             metavar="NAME=VALUE",
-            help="a value for a symbol, a number or an angle such as '\\pi/2' (repeatable)",
+            help="a value for a symbol, a number or an angle such as '\\pi/2' or 'pi/2' "
+            "(repeatable)",
         )
     return parser
 

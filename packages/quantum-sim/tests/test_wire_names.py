@@ -1,10 +1,11 @@
 """The grammar of a wire name, against the samples that docingest's copy is tested on too.
 
 docingest keeps a copy of this grammar (``_WIRE_NAME`` in docingest.domain.circuits) to decide which
-marks of a drawing it may skip. quantum_sim must never import docingest, and docingest must never
-import quantum_sim, so the two copies cannot be compared directly. Both packages are tested
-against the one list in ``tests/fixtures/wire_names.json``: a change to either grammar that moves a
-verdict fails the test of that package until the list and the other grammar follow.
+marks of a drawing it may skip. quantum_sim must never import docingest, and docingest's domain
+must never import quantum_sim (only its QASM adapter does), so the two copies cannot be compared
+directly. Both packages are tested against the one list in ``tests/fixtures/wire_names.json``: a
+change to either grammar that moves a verdict fails the test of that package until the list and
+the other grammar follow.
 """
 
 import json

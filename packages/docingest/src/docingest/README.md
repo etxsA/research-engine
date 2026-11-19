@@ -31,7 +31,7 @@ src/docingest/
 ├── bootstrap.py       composition root: adapter REGISTRY, entry-point plugins, Container
 ├── domain/            pure models, OCR routing policy, text functions, chunker, errors
 ├── ports/             typing.Protocol interfaces and the value types that cross them
-├── application/       use cases: ingest, crawl, ask, index, benchmark (plus metrics and statistics)
+├── application/       use cases: ingest, crawl, ask, index, qasm export, benchmark (plus metrics and statistics)
 ├── adapters/          implementations of the ports, one subpackage per concern
 │   ├── converters/    office (Docling), LaTeX (pandoc + pylatexenc fallback), text (passthrough)
 │   ├── datasets/      benchmark suites: synthetic scans, olmOCR-bench
@@ -41,6 +41,7 @@ src/docingest/
 │   ├── ocr/           mlx-vlm and OpenAI-compatible OCR engines, per-model OCR profiles
 │   ├── pdf/           pypdfium2 PDF reader
 │   ├── qa/            PaperQA2 question answering
+│   ├── qasm.py        QuantumSimExporter: OpenQASM 3 export, the only module that imports quantum_sim
 │   ├── retrieval/     none adapters for the embedder, index and reranker ports
 │   ├── sources/       arXiv crawler and the polite HTTP client it uses
 │   └── store/         filesystem document store
@@ -55,12 +56,12 @@ src/docingest/
 | `config.py` | config | Pydantic models for `config/pipeline.toml` and the loader. One model per TOML section. | `AppConfig`, `AdapterSelection`, `OcrConfig`, `QaConfig`, `LatexConfig`, `ArxivConfig`, `IndexConfig`, `index_config`, `load_config`, `DEFAULT_CONFIG`, `DEFAULT_OCR_REPO`, `DEFAULT_OCR_REVISION`, `DEFAULT_LLM_BASE` | [config/README.md](../../config/README.md) |
 | `bootstrap.py` | composition root | The only module that knows every adapter. Maps adapter names to factories, discovers entry-point plugins and builds the services. | `REGISTRY`, `Factory`, `plugins`, `available`, `factory`, `build`, `Container` | [below](#runtime-wiring-bootstrapcontainer) |
 | `domain/` | domain | `models.py` (manifest, page records, metadata, enums), `routing.py` (OCR routing policy), `text.py` (text-layer clean-up, Markdown serialization), `chunking.py` (page-aware chunks), `circuits.py` (gate lists of circuit source), `equations.py` (equation numbers of a question and of a paper), `blocks.py` (display equations, code blocks and tables that a chunk cuts, and their completion), `errors.py` (exception hierarchy). No I/O. | `DocumentManifest`, `PageRecord`, `SourceKind`, `PageMethod`, `SourceMetadata`, `RoutingPolicy`, `decide`, `render_markdown`, `split_pages`, `chunk_pages`, `DocingestError` | [domain/README.md](domain/README.md) |
-| `ports/` | ports | One module per concern, each defining `@runtime_checkable` Protocols plus the dataclasses passed through them. | `TypeDetector`, `PdfReader`, `OcrEngine`, `ImageSource`, `DocumentConverter`, `DocumentStore`, `SourceCrawler`, `QuestionAnswerer`, `Embedder`, `ChunkIndex`, `Reranker`, `BenchmarkSuite` | [ports/README.md](ports/README.md) |
-| `application/` | application | `ingest.py` (`IngestService`, `IngestOptions`), `crawl.py` (`CrawlService`, `CrawlReport`), `ask.py` (`AskService`, `AskSession`, `Retrieval`, `EquationLookup`, `retrieve`, `cap_per_paper`, `with_gate_lists`, `with_equation_lookup`), `index.py` (`IndexService`), `benchmark.py` (`BenchmarkRunner`, scoring and reports), `metrics.py` (CER, WER, F1 on normalized text), `stats.py` (cluster bootstrap and paired tests). Depends on ports, never on adapters. | `IngestService`, `IngestOptions`, `PIPELINE_VERSION`, `CrawlService`, `AskService`, `IndexService`, `BenchmarkRunner` | [application/README.md](application/README.md) |
-| `adapters/` | adapters | Concrete implementations of the ports. Subpackages are independent of each other (only `adapters/models` is shared). | see [adapters/README.md](adapters/README.md) | [adapters/README.md](adapters/README.md) |
+| `ports/` | ports | One module per concern, each defining `@runtime_checkable` Protocols plus the dataclasses passed through them. | `TypeDetector`, `PdfReader`, `OcrEngine`, `ImageSource`, `DocumentConverter`, `DocumentStore`, `SourceCrawler`, `QuestionAnswerer`, `Embedder`, `ChunkIndex`, `Reranker`, `BenchmarkSuite`, `CircuitExporter` | [ports/README.md](ports/README.md) |
+| `application/` | application | `ingest.py` (`IngestService`, `IngestOptions`), `crawl.py` (`CrawlService`, `CrawlReport`), `ask.py` (`AskService`, `AskSession`, `Retrieval`, `EquationLookup`, `retrieve`, `cap_per_paper`, `with_gate_lists`, `with_equation_lookup`), `index.py` (`IndexService`), `qasm.py` (`QasmExportService`), `benchmark.py` (`BenchmarkRunner`, scoring and reports), `metrics.py` (CER, WER, F1 on normalized text), `stats.py` (cluster bootstrap and paired tests). Depends on ports, never on adapters. | `IngestService`, `IngestOptions`, `PIPELINE_VERSION`, `CrawlService`, `AskService`, `IndexService`, `QasmExportService`, `BenchmarkRunner` | [application/README.md](application/README.md) |
+| `adapters/` | adapters | Concrete implementations of the ports. Subpackages are independent of each other (only `adapters/models` is shared). `adapters/qasm.py` (`QuantumSimExporter`, the `CircuitExporter` adapter) is the only module of docingest that imports `quantum_sim`. | see [adapters/README.md](adapters/README.md) | [adapters/README.md](adapters/README.md) |
 | `adapters/ocr/` | adapters | `MlxVlmOcr`, `OpenAICompatibleOcr` and the `OcrProfile` table (prompt, image size, clean-up, retry ladder per model family). | `MlxVlmOcr`, `OpenAICompatibleOcr`, `PROFILES`, `profile_for` | [adapters/ocr/README.md](adapters/ocr/README.md) |
 | `adapters/converters/` | adapters | `DoclingConverter`, `PandocLatexConverter` (with `latex_source.py`, which unpacks, flattens and prepares the LaTeX source without calling pandoc), `PassthroughConverter`. | as listed | [adapters/converters/README.md](adapters/converters/README.md) |
-| `entrypoints/` | entrypoints | `cli.py` (the `docingest` typer app), `bench_cli.py` (`docingest bench ...`, also the benchmark's composition root), `ask_lines.py` (the JSON lines of `docingest ask --stdin`), `index_cli.py` (`docingest index ...`), `paperqa_hook.py` (`parse_pdf_to_pages` for PaperQA2). | `app`, `bench_app`, `index_app`, `parse_pdf_to_pages` | [entrypoints/README.md](entrypoints/README.md) |
+| `entrypoints/` | entrypoints | `cli.py` (the `docingest` typer app), `bench_cli.py` (`docingest bench ...`, also the benchmark's composition root), `ask_lines.py` (the JSON lines of `docingest ask --stdin`), `index_cli.py` (`docingest index ...`), `circuits_cli.py` (`docingest circuits ...`), `paperqa_hook.py` (`parse_pdf_to_pages` for PaperQA2). | `app`, `bench_app`, `index_app`, `circuits_app`, `parse_pdf_to_pages` | [entrypoints/README.md](entrypoints/README.md) |
 
 The console script `docingest` is declared in `pyproject.toml` as `docingest.entrypoints.cli:app`.
 
@@ -72,9 +73,9 @@ The diagram shows the imports that actually exist in the code. An arrow means "i
 
 ```mermaid
 flowchart TD
-    EP["entrypoints: cli, bench_cli, paperqa_hook"]
+    EP["entrypoints: cli, bench_cli, circuits_cli, paperqa_hook"]
     BOOT["bootstrap: REGISTRY, Container"]
-    AD["adapters: one subpackage per port"]
+    AD["adapters: one subpackage per port, and the qasm module"]
     CFG["config: AppConfig, load_config"]
     APP["application: use cases"]
     PORTS["ports: Protocols"]
@@ -109,7 +110,7 @@ What each arrow carries:
 |---|---|---|
 | `entrypoints` | `bootstrap` | `Container`, `REGISTRY`, `available`, `factory`, `plugins` (CLI) and `build` (benchmark CLI, to build each candidate's OCR engine). |
 | `entrypoints` | `adapters` | `bench_cli.py` imports the benchmark suites from `adapters/datasets` at module level and `adapters/ocr/profiles` lazily. `cli.py` imports `adapters/datasets/synthetic` (for `make-scan`), `adapters/models/huggingface` and `adapters/qa/paperqa` (for `model-path`) inside the commands. |
-| `bootstrap` | `adapters` | Every adapter module, imported inside its factory function, so optional heavy dependencies (mlx-vlm, docling, paperqa) load only when that adapter is selected. |
+| `bootstrap` | `adapters` | Every adapter module, imported inside its factory function, so optional heavy dependencies (mlx-vlm, docling, paperqa) load only when that adapter is selected. `adapters/qasm.py` is imported inside `Container.qasm_export`, so only an export loads `quantum_sim`. |
 | `adapters` | `config` | Section models: `LatexConfig` (pandoc converter), `ArxivConfig` (arXiv crawler), `AppConfig` and `DEFAULT_LLM_BASE` (PaperQA2 adapter). `OcrConfig` is imported by the OpenAI-compatible OCR adapter for type checking only. |
 | `adapters` | `application` | `SIDECAR_SUFFIX` (arXiv crawler), `sha256_file`, `metrics` and `stats` helpers (benchmark suites). |
 | `adapters` | `docingest/__init__.py` | `__version__`, which the arXiv crawler puts in its User-Agent (`adapters/sources/arxiv.py`). |
@@ -120,14 +121,17 @@ What each arrow carries:
 
 The remaining import-linter contracts, numbered as in [docs/architecture.md](../../docs/architecture.md#4-import-contracts) and [CONTRIBUTING.md](../../CONTRIBUTING.md) (contract 1 is the `layers` contract above):
 
-2. Adapter subpackages (`detection`, `pdf`, `ocr`, `images`, `converters`, `store`, `sources`, `qa`, `retrieval`, `datasets`) do not import each other. `adapters/models` is outside that list and is shared by `ocr` and `qa`.
-3. `domain` may not import pypdfium2, PIL, numpy, mlx, mlx_vlm, paperqa, docling, pypandoc, huggingface_hub, httpx, urllib, typer, rich or jiwer.
-4. `application` and `ports` may not import pypdfium2, mlx, mlx_vlm, paperqa, docling, pypandoc, huggingface_hub, httpx, typer or rich.
-5. Only `bootstrap`, `entrypoints` and `adapters` itself may import `docingest.adapters`.
+2. Adapter subpackages and modules (`detection`, `pdf`, `ocr`, `images`, `converters`, `store`, `sources`, `qa`, `retrieval`, `datasets`, `qasm`) do not import each other. `adapters/models` is outside that list and is shared by `ocr` and `qa`.
+3. `domain` may not import pypdfium2, PIL, numpy, mlx, mlx_vlm, paperqa, docling, pypandoc, huggingface_hub, httpx, urllib, typer, rich, jiwer or quantum_sim.
+4. `application` and `ports` may not import pypdfium2, mlx, mlx_vlm, paperqa, docling, pypandoc, huggingface_hub, httpx, typer, rich or quantum_sim.
+5. `docingest` may not import the plugin package `docingest_index`.
+6. Only `bootstrap`, `entrypoints` and `adapters` itself may import `docingest.adapters`.
+7. `docingest` may not import `research_api` or `qa_bench`.
+8. Only `adapters/qasm.py` imports `quantum_sim`; the domain and the application see the `CircuitExporter` port, and quantum-sim never imports docingest.
 
 ## Runtime wiring: `bootstrap.Container`
 
-`Container(cfg, log=print, overrides=None)` is a lazily built object graph for one `AppConfig`. Its `functools.cached_property` services (`ingest`, `crawl`, `ask`, `index_service`) are the entry points of the library.
+`Container(cfg, log=print, overrides=None)` is a lazily built object graph for one `AppConfig`. Its `functools.cached_property` services (`ingest`, `crawl`, `ask`, `index_service`, `qasm_export`) are the entry points of the library.
 
 ```mermaid
 flowchart LR
@@ -136,6 +140,7 @@ flowchart LR
     C -->|crawl| CR["CrawlService"]
     C -->|ask| ASK["AskService"]
     C -->|index_service| IDX["IndexService"]
+    C -->|qasm_export| QX["QasmExportService"]
     ING --> DET["detector: TypeDetector"]
     ING --> PDF["pdf: PdfReader"]
     ING --> OCR["ocr: OcrEngine"]
@@ -150,6 +155,8 @@ flowchart LR
     IDX --> CIX["index: ChunkIndex"]
     CR --> CRAWLER["crawler: SourceCrawler"]
     CR -.->|only when ingest is requested| ING
+    QX --> STORE
+    QX --> EXP["exporter: CircuitExporter (QuantumSimExporter, imported lazily)"]
 ```
 
 Each port slot is resolved by `Container.adapter(port)`:
@@ -174,7 +181,7 @@ flowchart TD
 
 Behaviour worth knowing:
 
-- Port names (the keys of `REGISTRY`, of `[adapters]` and of `overrides`) are `detector`, `pdf`, `ocr`, `images`, `office`, `latex`, `text`, `store`, `qa`, `crawler`, `embedder`, `index`, `reranker`.
+- Port names (the keys of `REGISTRY`, of `[adapters]` and of `overrides`) are `detector`, `pdf`, `ocr`, `images`, `office`, `latex`, `text`, `store`, `qa`, `crawler`, `embedder`, `index`, `reranker`. `overrides` also takes `exporter`, the `CircuitExporter` of `qasm_export`, which has no `[adapters]` slot; without it `qasm_export` imports `adapters/qasm.py` and builds a `QuantumSimExporter`.
 - An adapter is built once per container and shared: `ingest` and `ask` use the same store instance. The container copies the `overrides` dict you pass and keeps built adapters in a cache of its own, so your dict is never modified and can be passed to several containers with different configurations.
 - A built-in adapter wins a name clash with a plugin. A plugin is imported only when it is selected; if its import fails, the exception keeps its type and gets a note naming the plugin.
 - `Container.ingest` builds the detector, PDF reader, OCR engine, image source and store when first accessed. Converters are built only when a document of that kind is ingested (`_LazyConverters` maps `SourceKind.OFFICE`, `LATEX`, `TEXT` to the `office`, `latex`, `text` slots).

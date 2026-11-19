@@ -193,6 +193,78 @@ def test_a_failing_index_update_keeps_the_papers_and_says_how_to_catch_up(setup,
     assert parts["index"].closed >= 1
 
 
+def test_a_failing_index_update_says_that_qasm_did_not_run(setup, parts):
+    runner, cfg, _, raw, out = setup
+    circuit = "\\begin{quantikz}\n& \\gate{H} & \\qw\n\\end{quantikz}"
+    (raw / "c_circuit.md").write_text(f"# Circuit\n\n``` latex\n{circuit}\n```\n\n{LONG}")
+
+    def down(texts):
+        raise RuntimeError("the embedding server went away")
+
+    parts["embedder"].embed_documents = down
+    result = runner.invoke(app, ["ingest", str(raw), "--index", "--qasm", "-c", str(cfg)])
+    assert result.exit_code == 1
+    expected = (
+        "the circuits were not exported (--qasm runs after the index); "
+        "run `docingest circuits export` to catch up"
+    )
+    output = one_line(result.output)
+    assert expected in output
+    assert "qasm: wrote" not in output and "no circuits found" not in output
+    assert not (out / "qasm").exists()
+
+    without = runner.invoke(app, ["ingest", str(raw), "--index", "--force", "-c", str(cfg)])
+    assert without.exit_code == 1
+    assert "circuits were not exported" not in one_line(without.output)
+
+
+def test_a_failing_index_update_after_a_crawl_says_that_qasm_did_not_run(setup, parts):
+    runner, cfg, _, _, out = setup
+    circuit = "\\begin{quantikz}\n& \\gate{H} & \\qw\n\\end{quantikz}"
+
+    def fetch(rec, dest_dir):
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        path = dest_dir / f"{rec.key}.md"
+        path.write_text(f"# {rec.key}\n\n``` latex\n{circuit}\n```\n\n{LONG}")
+        return FetchedSource(path=path, record=rec, format="text")
+
+    def down(texts):
+        raise RuntimeError("the embedding server went away")
+
+    parts["crawler"].fetch = fetch
+    parts["embedder"].embed_documents = down
+    result = runner.invoke(app, ["crawl", "anything", "--index", "--qasm", "-c", str(cfg)])
+
+    assert result.exit_code == 1
+    output = one_line(result.output)
+    assert "the index was not updated: the embedding server went away" in output
+    assert (
+        "the circuits were not exported (--qasm runs after the index); "
+        "run `docingest circuits export` to catch up"
+    ) in output
+    assert "qasm: wrote" not in output
+    assert len(stored(out)) == 2  # the crawl's papers are stored
+    assert not (out / "qasm").exists()
+
+
+def test_an_unexpected_index_error_still_says_how_to_catch_up(setup, parts):
+    runner, cfg, _, raw, out = setup
+
+    def read_only(texts):
+        raise OSError("read-only")
+
+    parts["embedder"].embed_documents = read_only
+    result = runner.invoke(app, ["ingest", str(raw), "--index", "--qasm", "-c", str(cfg)])
+
+    assert result.exit_code == 1
+    assert isinstance(result.exception, SystemExit)  # a message, not a traceback
+    output = one_line(result.output)
+    assert "the index was not updated: read-only" in output
+    assert "the papers are stored; run `docingest index build` to catch up" in output
+    assert "run `docingest circuits export` to catch up" in output
+    assert len(stored(out)) == 2
+
+
 def test_files_that_fail_to_ingest_still_leave_the_good_ones_indexed(setup, parts):
     runner, cfg, _, raw, _ = setup
     (raw / "broken.xyz").write_bytes(b"\x00\x01")  # unsupported: a failed input

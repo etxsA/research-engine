@@ -1,7 +1,8 @@
 r"""docingest's copy of the wire-name grammar gives the same verdicts as quantum-sim's.
 
 ``_WIRE_NAME`` decides which marks of a quantikz drawing are skipped (a ``\wire`` that only names
-a wire). It copies quantum-sim's ``_SYMBOL``. docingest never imports quantum_sim, so the two are
+a wire). It copies quantum-sim's ``_SYMBOL``. The domain never imports quantum_sim (only
+``docingest.adapters.qasm`` does), so the two are
 tested against one list of samples, kept in quantum-sim's tests
 (packages/quantum-sim/tests/fixtures/wire_names.json) and run by
 packages/quantum-sim/tests/test_wire_names.py against its own grammar. The folder is only read.

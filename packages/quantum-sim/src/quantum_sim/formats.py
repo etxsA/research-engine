@@ -215,6 +215,10 @@ class Reading:
     circuits: tuple[ParametricCircuit, ...]
     signs: tuple[str, ...] = ()
     notes: tuple[str, ...] = ()
+    # Every basis ket at an input (a wire legend or a text item before any operation), as
+    # (wire, "0" | "1"). The reader does not add an initialization; a caller that writes a
+    # program can use this to refuse a |1> it cannot state as an operation.
+    input_kets: tuple[tuple[int, str], ...] = ()
 
     @property
     def symbols(self) -> tuple[str, ...]:
@@ -551,9 +555,9 @@ def _misplaced(legend: str, number: int) -> bool:
 
 
 def _legend_notes(
-    legends: object, n_wires: int, notes: _Reasons
+    legends: object, n_wires: int, notes: _Reasons, kets: list[tuple[int, str]]
 ) -> tuple[tuple[str, ...], list[_Bad]]:
-    """(legends as text, causes to refuse); a ket |1> adds a note."""
+    """(legends as text, causes to refuse); a ket |1> adds a note and every ket is recorded."""
     if legends is None:
         return (), []
     if not isinstance(legends, list) or not all(isinstance(t, str) for t in legends):
@@ -590,6 +594,8 @@ def _legend_notes(
                 causes.append(_Bad(f"input legend not read: {shown!r}; {_INPUT_RULE}", place))
             if not _read_output(after):
                 causes.append(_Bad(f"output legend not read: {shown!r}; {_OUTPUT_RULE}", place))
+            if bit is not None and read:
+                kets.append((number, bit))
             if bit == "1" and read:
                 notes.add(
                     place,
@@ -656,9 +662,12 @@ class _Context:
     notation: str
     reasons: _Reasons
     notes: _Reasons
+    kets: list[tuple[int, str]]
 
 
-def _note_ket(item: _Item, place: str, used: set[int], notes: _Reasons) -> None:
+def _note_ket(
+    item: _Item, place: str, used: set[int], notes: _Reasons, kets: list[tuple[int, str]]
+) -> None:
     """A text item that is a ket. On a wire an operation uses, in an earlier step or in the same
     step (a step has no order), it is refused: it may be a reset or a postselection, neither is
     simulated. With no wire it is refused too: it is not an input and not a mark on a wire.
@@ -675,6 +684,7 @@ def _note_ket(item: _Item, place: str, used: set[int], notes: _Reasons) -> None:
             f"the text {text!r} is a ket after a gate on its wire or in the column of one: it "
             "may be a reset or a postselection, which are not simulated"
         )
+    kets.extend((wire, bit) for wire in item.targets)
     if bit == "1":
         notes.add(
             place,
@@ -720,7 +730,7 @@ def _read_part(
         for item_number, read in texts:  # once the whole column is read: it has no order
             place = f"part {index + 1}, step {step_number}, item {item_number}"
             try:
-                _note_ket(read, place, touched, notes)
+                _note_ket(read, place, touched, notes, shared.kets)
             except _Bad as bad:
                 reasons.add(place, bad.text)
     return ops, sign
@@ -770,7 +780,8 @@ def from_gate_list(data: object) -> Reading:
         raise reasons.error() from None
     document: dict[str, Any] = data  # type: ignore[assignment]  # _check_shape saw a dict
     notes = _Reasons()
-    legends, causes = _legend_notes(document.get("wire_labels"), n_wires, notes)
+    kets: list[tuple[int, str]] = []
+    legends, causes = _legend_notes(document.get("wire_labels"), n_wires, notes, kets)
     for cause in causes:
         reasons.add(cause.place, cause.text)
     label = document.get("label", "")
@@ -787,7 +798,7 @@ def from_gate_list(data: object) -> Reading:
     if not isinstance(kind, str):
         reasons.add("kind", "the document kind must be text")
     notation = _notation_of(kind)
-    shared = _Context(n_wires, notation, reasons, notes)
+    shared = _Context(n_wires, notation, reasons, notes, kets)
     circuits: list[ParametricCircuit] = []
     signs: list[str] = []
     for index, part in enumerate(parts):
@@ -803,7 +814,7 @@ def from_gate_list(data: object) -> Reading:
         circuits.append(circuit)
     if reasons:
         raise reasons.error()
-    return Reading(tuple(circuits), tuple(signs), tuple(notes.listed()))
+    return Reading(tuple(circuits), tuple(signs), tuple(notes.listed()), tuple(kets))
 
 
 # --- Writer ------------------------------------------------------------------------------------

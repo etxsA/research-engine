@@ -1,0 +1,40 @@
+{
+  "format": "circuit/1",
+  "kind": "quantikz",
+  "status": "parsed",
+  "label": "",
+  "wires": 1,
+  "wire_labels": [
+    "1"
+  ],
+  "parts": [
+    [
+      [
+        {
+          "kind": "gate",
+          "label": "H",
+          "targets": [
+            1
+          ],
+          "controls": [],
+          "open_controls": [],
+          "classical": false,
+          "source": ""
+        }
+      ],
+      [
+        {
+          "kind": "text",
+          "label": "\\ket{1}",
+          "targets": [
+            1
+          ],
+          "controls": [],
+          "open_controls": [],
+          "classical": false,
+          "source": ""
+        }
+      ]
+    ]
+  ]
+}

@@ -24,11 +24,13 @@ from ..domain.text import split_pages
 from ..ports import StoredDocument
 from .ask_lines import serve_lines
 from .bench_cli import bench_app
+from .circuits_cli import circuits_app
 from .index_cli import index_app
 
 app = typer.Typer(add_completion=False, help="Normalize any research document to Markdown.")
 app.add_typer(bench_app, name="bench")
 app.add_typer(index_app, name="index")
+app.add_typer(circuits_app, name="circuits")
 console = Console()
 
 # exists=True: a mistyped --config is an error, never a silent switch to the defaults.
@@ -113,20 +115,58 @@ def _index_ready(container: Container) -> None:
         raise typer.Exit(1) from e
 
 
-def _index_new(container: Container, stored: list[StoredDocument]) -> None:
-    """Add what an ingest stored to the index. The papers are stored whatever happens here."""
+def _index_new(container: Container, stored: list[StoredDocument], *, qasm: bool = False) -> None:
+    """Add what an ingest stored to the index. The papers are stored whatever happens here.
+
+    A failure of any kind ends the command with exit 1 and says how to catch up, so ``--qasm``
+    (``qasm``) does not run; the message says so."""
     if not stored:
         return
     try:
         report = container.index_service.update(stored)
-    except (DocingestError, RuntimeError, ValueError) as e:
+    except Exception as e:  # any failure: the papers are stored, say how to catch up
         console.print(f"[red]error[/]: the index was not updated: {escape(str(e))}")
         console.print("the papers are stored; run `docingest index build` to catch up")
+        if qasm:
+            console.print(
+                "the circuits were not exported (--qasm runs after the index); "
+                "run `docingest circuits export` to catch up"
+            )
         raise typer.Exit(1) from e
     console.print(
         f"index: added {report.added}, updated {report.updated}, unchanged {report.unchanged}; "
         f"embedded {report.chunks_embedded} chunks in {report.seconds:.1f}s"
     )
+
+
+def _qasm_new(container: Container, stored: list[StoredDocument]) -> None:
+    """Write the circuits of what an ingest stored. Best effort: the papers are stored, and a
+    problem is a warning that leaves the exit code alone.
+
+    The hook passes no ``--set`` values, so a circuit with a free symbol is refused and its
+    programs from an earlier ``circuits export --set`` are removed; the export's note names it.
+    """
+    if not stored:
+        return
+    try:
+        report = container.qasm_export.export_documents(stored)
+    except Exception as e:  # best effort: the papers are stored and the exit code stays theirs
+        console.print(
+            f"[yellow]warning[/]: the export stopped: {escape(str(e))}; "
+            "run `docingest circuits export` to catch up"
+        )
+        return
+    for warning in report.warnings:
+        console.print(f"[yellow]warning[/]: {escape(warning)}")
+    for refusal in report.refusals:
+        console.print(f"[yellow]refused[/]: {escape(refusal)}")
+    for error in report.errors:
+        console.print(f"[yellow]warning[/]: {escape(error)}")
+    if report.files:
+        console.print(
+            f"qasm: wrote {report.written} program(s) from {report.circuits} circuit(s) "
+            f"to {escape(str(report.out))}"
+        )
 
 
 @app.command()
@@ -138,6 +178,12 @@ def ingest(
     max_pages: Annotated[int | None, typer.Option(min=1, help="Only first N pages")] = None,
     *,
     index: IndexOpt = False,
+    qasm: Annotated[
+        bool,
+        typer.Option(
+            "--qasm", help="Afterwards write the circuits of the stored documents as QASM"
+        ),
+    ] = False,
 ) -> None:
     """Detect type, route each page (text layer / OCR / converter); write Markdown + manifest."""
     container = _container(config)
@@ -167,7 +213,9 @@ def ingest(
     if stored:
         _summary(stored)
     if index:
-        _index_new(container, stored)
+        _index_new(container, stored, qasm=qasm)
+    if qasm:
+        _qasm_new(container, stored)
     if failures:
         _failures(failures)
     if failures or stopped:
@@ -183,6 +231,12 @@ def crawl(
     max_pages: Annotated[int | None, typer.Option(min=1, help="Only first N pages")] = None,
     *,
     index: IndexOpt = False,
+    qasm: Annotated[
+        bool,
+        typer.Option(
+            "--qasm", help="Afterwards write the circuits of the stored documents as QASM"
+        ),
+    ] = False,
 ) -> None:
     """Search arXiv, download LaTeX sources (PDF fallback) with metadata, then ingest them."""
     container = _container(config)
@@ -190,13 +244,17 @@ def crawl(
         if no_ingest:
             raise typer.BadParameter("--index has nothing to add with --no-ingest")
         _index_ready(container)
+    if qasm and no_ingest:
+        raise typer.BadParameter("--qasm has nothing to export with --no-ingest")
     report = container.crawl.run(
         query, limit, ingest=not no_ingest, options=IngestOptions(max_pages=max_pages)
     )
     if report.ingested:
         _summary(report.ingested)
     if index:
-        _index_new(container, report.ingested)
+        _index_new(container, report.ingested, qasm=qasm)
+    if qasm:
+        _qasm_new(container, report.ingested)
     console.print(f"fetched {len(report.fetched)}, ingested {len(report.ingested)}")
     if report.stopped:
         console.print(f"[yellow]crawl stopped early[/]: {escape(report.stopped)}")

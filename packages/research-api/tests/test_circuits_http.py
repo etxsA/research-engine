@@ -144,6 +144,30 @@ def test_run_binds_symbols(run: Callable[..., Any]) -> None:
     assert bound["circuits"][0]["probabilities"]["values"] == pytest.approx([0, 1])
 
 
+@pytest.mark.parametrize("value", ["pi", r"\pi", "2pi/2"])
+def test_a_value_may_write_pi_without_the_backslash(run: Callable[..., Any], value: str) -> None:
+    ry = {
+        "format": "circuit/1",
+        "wires": 1,
+        "parts": [[[{"kind": "gate", "label": r"R_y(\theta)", "targets": [1]}]]],
+    }
+    body = run(circuit_json=text(ry), values={"theta": value}).json()
+    assert body["status"] == "ok", body["refused"]
+    assert body["values"] == {"theta": pytest.approx(3.141592653589793)}
+    assert body["circuits"][0]["probabilities"]["values"] == pytest.approx([0, 1])
+
+
+def test_a_value_error_names_the_position_in_the_value_as_sent(run: Callable[..., Any]) -> None:
+    ry = {
+        "format": "circuit/1",
+        "wires": 1,
+        "parts": [[[{"kind": "gate", "label": r"R_y(\theta)", "targets": [1]}]]],
+    }
+    body = run(circuit_json=text(ry), values={"theta": "pi pi ?"}).json()
+    assert body["status"] == "refused"
+    assert any("'?' at position 6" in reason for reason in body["refused"]), body["refused"]
+
+
 def test_a_circuit_the_simulator_refuses_is_a_200_with_its_reasons(
     run: Callable[..., Any],
 ) -> None:

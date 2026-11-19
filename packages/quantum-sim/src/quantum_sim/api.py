@@ -24,7 +24,7 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
-from quantum_sim.angles import parse_angle
+from quantum_sim.angles import binding_name, parse_value
 from quantum_sim.domain import (
     ATOL,
     CONVENTIONS,
@@ -132,14 +132,10 @@ def _read(document: object, name: str = "") -> Reading:
         raise _Refuse(*(prefix + r for r in error.reasons)) from None
 
 
-def _symbol_name(raw: str) -> str:
-    return raw.lstrip("\\").replace("{", "").replace("}", "")
-
-
 def _value_of(name: str, raw: object) -> float:
     if isinstance(raw, str):
         try:
-            number = parse_angle(raw).value
+            number = parse_value(raw).value
         except AngleError as error:
             raise _Refuse(f"the value of {name!r}: {error}") from None
     elif _is_number(raw):
@@ -162,7 +158,10 @@ def _bind_values(raw: object, symbols: Sequence[str]) -> dict[str, float]:
     bound: dict[str, float] = {}
     spelled: dict[str, str] = {}  # the key that gave each name
     for key, value in raw.items():
-        name = _symbol_name(str(key))
+        try:  # the one rule for a binding name, shared with the export
+            name = binding_name(str(key))
+        except AngleError as error:
+            raise _Refuse(str(error)) from None
         if name not in symbols:
             known = ", ".join(symbols) or "none"
             raise _Refuse(f"no parameter named {name!r} (the circuit has: {known})")
@@ -325,7 +324,10 @@ def run(
 
     ``request`` is a circuit/1 document, or an object with ``circuit`` and optionally ``input``
     (a basis label such as ``"010"``, wire 1 first, or a list of amplitudes), ``values`` (a
-    number or an angle in text for each symbol) and ``unitary`` (true to list the matrix); the
+    number or an angle in text for each symbol, keyed by one symbol such as ``theta``,
+    ``\\theta`` or ``\\theta_{1}``: :func:`quantum_sim.angles.symbol_name`; a text value is read
+    by :func:`quantum_sim.angles.parse_value`, so ``pi/4`` is ``\\pi/4``, as in the export) and
+    ``unitary`` (true to list the matrix); the
     keyword arguments, when given, replace those keys. A document with several parts (a drawn
     equality) is simulated part by part. Without a value for every symbol, nothing is simulated:
     ``status`` is ``"symbolic"`` and ``unbound`` lists the symbols.
@@ -385,7 +387,8 @@ def check(request: object, *, values: object = None) -> dict[str, Any]:
     A matrix or state is a list of numbers or ``[re, im]`` pairs; a matrix must be unitary. A
     circuit with measurements is refused in every one of these (it has no unitary, and no single
     state). ``equal_to_target`` is true only if every comparison is equal; ``comparisons`` has
-    the details of each.
+    the details of each. ``values`` (the keyword, or the request's key) binds the symbols as in
+    :func:`run`.
     """
     try:
         return _check(request, values)
@@ -402,7 +405,12 @@ def _two_circuits(envelope: dict[str, Any]) -> tuple[Reading, list[str]]:
     for name, reading in (("a", first), ("b", second)):
         if len(reading.circuits) != 1:
             raise _Refuse(f"{name}: give one circuit without a drawn equality")
-    merged = Reading((first.circuits[0], second.circuits[0]), ("=",), first.notes + second.notes)
+    merged = Reading(
+        (first.circuits[0], second.circuits[0]),
+        ("=",),
+        first.notes + second.notes,
+        first.input_kets + second.input_kets,
+    )
     return merged, ["a", "b"]
 
 

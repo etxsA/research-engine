@@ -204,8 +204,10 @@ def test_a_wire_legend_with_a_ket_1_becomes_a_note():
     reading = from_gate_list(document)
     assert len(reading.notes) == 1 and reading.notes[0].startswith("wire 2: the legend")
     assert "not read as an input state" in reading.notes[0]
+    assert reading.input_kets == ((1, "0"), (2, "1"))
     plain = from_gate_list(doc(gate("H", 1), wire_labels=["1 = \\ket{0}", "2"]))
     assert plain.notes == ()
+    assert plain.input_kets == ((1, "0"),)
 
 
 # the spellings of a computational-basis ket that docingest copies from a paper
@@ -453,7 +455,9 @@ def test_what_docingest_writes_for_a_legend_is_read_part_by_part():
 
 @pytest.mark.parametrize("text", [r"\ket{0}", r"|0\rangle", "", "  ", r"\lvert 0\rangle"])
 def test_a_ket_0_or_an_empty_text_item_gets_no_note(text):
-    assert from_gate_list(doc(item("text", text, [1]), gate("H", 2))).notes == ()
+    reading = from_gate_list(doc(item("text", text, [1]), gate("H", 2)))
+    assert reading.notes == ()
+    assert reading.input_kets == (((1, "0"),) if text.strip() else ())
 
 
 @pytest.mark.parametrize("text", [r"\ket{1}", r"$\ket{1}$", r"|1\rangle", r"\lvert 1\rangle"])
@@ -463,6 +467,7 @@ def test_a_ket_1_in_a_text_item_gets_a_note_with_its_place(text):
     (note,) = reading.notes
     assert note.startswith("part 1, step 1, item 1: the text ")
     assert "is a ket, not read as an input state" in note and "|0...0>" in note
+    assert reading.input_kets == ((1, "1"),)
     assert reading.circuits[0].bind().ops == (Op("h", (2,)),)
 
 

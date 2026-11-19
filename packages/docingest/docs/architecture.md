@@ -50,7 +50,7 @@ The architecture follows from four goals:
 | Port | A `typing.Protocol` in `docingest.ports` that the application depends on, for example `OcrEngine`. |
 | Adapter | A concrete class that has the shape of a port, for example `MlxVlmOcr`. Adapters never subclass or import the Protocol classes. |
 | Composition root | `docingest.bootstrap`: the only module that maps configuration names to adapters and wires them into use cases. |
-| Use case | An application service: `IngestService`, `CrawlService`, `AskService`, `BenchmarkRunner`. |
+| Use case | An application service: `IngestService`, `CrawlService`, `AskService`, `QasmExportService`, `BenchmarkRunner`. |
 | Page, segment | The unit of a document in the manifest. For PDFs it is a page, for images a frame, for LaTeX a section, for office and text files the whole document. The code calls all of them pages (`PageRecord`). |
 | `doc_id` | The SHA-256 of the input file's raw bytes. |
 | Fingerprint | A string on an adapter that names its version and every setting that can change its output. |
@@ -65,11 +65,11 @@ The package has seven layers. A module may import modules of its own layer and o
 
 ```mermaid
 flowchart TD
-    EP["entrypoints: cli, bench_cli, paperqa_hook"]
+    EP["entrypoints: cli, bench_cli, circuits_cli, paperqa_hook"]
     BS["bootstrap: REGISTRY, plugins, Container"]
-    AD["adapters: detection, pdf, ocr, images, converters, store, sources, qa, retrieval, datasets, models"]
+    AD["adapters: detection, pdf, ocr, images, converters, store, sources, qa, retrieval, datasets, models, qasm (QuantumSimExporter)"]
     CF["config: AppConfig loaded from config/pipeline.toml"]
-    AP["application: IngestService, CrawlService, AskService, BenchmarkRunner, metrics, stats"]
+    AP["application: IngestService, CrawlService, AskService, BenchmarkRunner, QasmExportService, metrics, stats"]
     PT["ports: typing.Protocol interfaces and the dataclasses that cross them"]
     DM["domain: models, routing, text, chunking, errors"]
     EP --> BS
@@ -118,9 +118,9 @@ flowchart LR
 
 | Layer | Package | May import inside docingest | Contains |
 |---|---|---|---|
-| Entrypoints | `docingest.entrypoints` | every layer below | `cli.py` (the `docingest` typer app), `bench_cli.py` (`docingest bench`, which is also the benchmark's composition root), `ask_lines.py` (the JSON lines of `docingest ask --stdin`), `paperqa_hook.py` (a PaperQA2 `parse_pdf` replacement) |
+| Entrypoints | `docingest.entrypoints` | every layer below | `cli.py` (the `docingest` typer app), `bench_cli.py` (`docingest bench`, which is also the benchmark's composition root), `circuits_cli.py` (`docingest circuits export`), `ask_lines.py` (the JSON lines of `docingest ask --stdin`), `paperqa_hook.py` (a PaperQA2 `parse_pdf` replacement) |
 | Composition root | `docingest.bootstrap` | adapters, config, application, ports, domain | `REGISTRY`, `plugins`, `available`, `factory`, `build`, `Container` |
-| Adapters | `docingest.adapters.*` | config, application, ports, domain | one subpackage per technology area, plus the shared Hugging Face resolver in `adapters.models` |
+| Adapters | `docingest.adapters.*` | config, application, ports, domain | one subpackage per technology area, the `adapters.qasm` module (the QASM exporter, the only importer of `quantum_sim`), plus the shared Hugging Face resolver in `adapters.models` |
 | Config | `docingest.config` | application, ports, domain (in practice only `domain.routing`) | `AppConfig` and its sections, `load_config` |
 | Application | `docingest.application` | ports, domain | use cases, the benchmark runner and report, `metrics`, `stats` |
 | Ports | `docingest.ports` | domain | `@runtime_checkable` Protocols and frozen dataclasses such as `OcrResult`, `Conversion`, `StoredDocument` |
@@ -136,17 +136,18 @@ Consequences of the rule that are visible in the code:
 
 ## 4. Import contracts
 
-The layering is enforced by seven import-linter contracts in `[tool.importlinter]` of `pyproject.toml`. They run with `uv run lint-imports`, which is part of `scripts/check.sh` and of the Linux job in `.github/workflows/ci.yml`.
+The layering is enforced by eight import-linter contracts in `[tool.importlinter]` of `pyproject.toml`. They run with `uv run lint-imports`, which is part of `scripts/check.sh` and of the Linux job in `.github/workflows/ci.yml`.
 
 | # | Contract name | Type | What it enforces |
 |---|---|---|---|
 | 1 | Hexagonal layers: outer layers may import inner ones, never the reverse | `layers` | The order `entrypoints`, `bootstrap`, `adapters`, `config`, `application`, `ports`, `domain`. A module may import its own layer and the layers listed after it, never a layer listed before it. |
-| 2 | Adapters are independent of each other (shared HF resolver excepted) | `independence` | None of `adapters.detection`, `pdf`, `ocr`, `images`, `converters`, `store`, `sources`, `qa`, `retrieval`, `datasets` imports another. `adapters.models` is deliberately not in the list, so `ocr.mlx_vlm` and `qa.paperqa` can share `models.huggingface.resolve`. |
-| 3 | Domain is pure: no I/O or framework libraries | `forbidden` | `docingest.domain` may not import `pypdfium2`, `PIL`, `numpy`, `mlx`, `mlx_vlm`, `paperqa`, `docling`, `pypandoc`, `huggingface_hub`, `httpx`, `urllib`, `typer`, `rich`, `jiwer`. |
-| 4 | Application depends on ports, not on concrete libraries | `forbidden` | `docingest.application` and `docingest.ports` may not import `pypdfium2`, `mlx`, `mlx_vlm`, `paperqa`, `docling`, `pypandoc`, `huggingface_hub`, `httpx`, `typer`, `rich`. |
+| 2 | Adapters are independent of each other (shared HF resolver excepted) | `independence` | None of `adapters.detection`, `pdf`, `ocr`, `images`, `converters`, `store`, `sources`, `qa`, `retrieval`, `datasets`, `qasm` imports another. `adapters.models` is deliberately not in the list, so `ocr.mlx_vlm` and `qa.paperqa` can share `models.huggingface.resolve`. |
+| 3 | Domain is pure: no I/O or framework libraries | `forbidden` | `docingest.domain` may not import `pypdfium2`, `PIL`, `numpy`, `mlx`, `mlx_vlm`, `paperqa`, `docling`, `pypandoc`, `huggingface_hub`, `httpx`, `urllib`, `typer`, `rich`, `jiwer`, `quantum_sim`. The QASM exporter is behind the `CircuitExporter` port, so the domain does not import quantum-sim (ADR 0006). |
+| 4 | Application depends on ports, not on concrete libraries | `forbidden` | `docingest.application` and `docingest.ports` may not import `pypdfium2`, `mlx`, `mlx_vlm`, `paperqa`, `docling`, `pypandoc`, `huggingface_hub`, `httpx`, `typer`, `rich`, `quantum_sim`. |
 | 5 | docingest never imports a plugin package (plugins are found by entry point) | `forbidden` | `docingest` may not import `docingest_index`. The plugin package has a contract of its own, in its `pyproject.toml`: it may import only `docingest.ports`, `docingest.domain` and `docingest.config`. |
 | 6 | Only the composition root and entrypoints wire concrete adapters | `protected` | Only `docingest.bootstrap`, `docingest.entrypoints` and the adapters themselves may import `docingest.adapters`. |
-| 7 | docingest never imports quantum_sim, research_api or qa_bench (separate packages) | `forbidden` | `docingest` may not import `quantum_sim`, the circuit simulator of `packages/quantum-sim`, nor `research_api` (the HTTP API) or `qa_bench` (the benchmark package). Those packages have the reverse contracts in their own `pyproject.toml` (see [ADR 0005](adr/0005-own-numpy-circuit-simulator.md)). |
+| 7 | docingest never imports research_api or qa_bench (separate packages) | `forbidden` | `docingest` may not import `research_api` (the HTTP API) or `qa_bench` (the benchmark package). Those packages have the reverse contracts in their own `pyproject.toml`. |
+| 8 | Only the QASM adapter imports quantum_sim | `forbidden` | No module of `docingest` imports `quantum_sim` except `docingest.adapters.qasm` (the one ignored import, `docingest.adapters.qasm -> quantum_sim`; `allow_indirect_imports = true`, since `bootstrap` reaches it through the adapter, lazily). The domain and the application see only the `CircuitExporter` port, and the dependency is one-way, because quantum-sim never imports docingest (see [ADR 0005](adr/0005-own-numpy-circuit-simulator.md) and [ADR 0006](adr/0006-openqasm-3-export.md)). |
 
 Global settings that matter:
 
@@ -227,6 +228,7 @@ flowchart LR
 | `ChunkIndex` | `ports/index.py` | `index` | `none` | `NoIndex`, `adapters/retrieval/none.py` | `IndexService` |
 | `Reranker` | `ports/reranking.py` | `reranker` | `none` | `NoReranker`, `adapters/retrieval/none.py` | no use case yet |
 | `BenchmarkSuite` | `ports/benchmark.py` | none | `synthetic`, `olmocr-bench` | `SyntheticSuite`, `OlmOcrBenchSuite`, `adapters/datasets/` | `BenchmarkRunner`, `score_run` |
+| `CircuitExporter` | `ports/qasm.py` | none (override `exporter`) | none | `QuantumSimExporter`, `adapters/qasm.py` | `QasmExportService` |
 
 Some adapter modules are shared helpers rather than port implementations: `adapters/models/huggingface.py` (`resolve(repo_id, revision)`, an offline-first snapshot resolver), `adapters/ocr/profiles.py` (per-model prompt, image size, clean-up and retry ladder, shared by both OCR adapters), `adapters/converters/latex_source.py` (safe unpacking, main-file detection, `\input` flattening and the source rewrites pandoc needs, for LaTeX) and `adapters/sources/http.py` (`PoliteClient`, the rate-limited HTTP client of the arXiv crawler). See [adapters/README.md](../src/docingest/adapters/README.md), [adapters/ocr/README.md](../src/docingest/adapters/ocr/README.md) and [adapters/converters/README.md](../src/docingest/adapters/converters/README.md).
 
@@ -1301,4 +1303,4 @@ All quality gates (ruff, import-linter, pyright, pytest with coverage) run with 
 | [0002: Per-page OCR routing and a content-addressed cache](adr/0002-per-page-routing-and-content-addressed-cache.md) | Route each PDF page on measured signals, record the reason, address outputs by content, and keep partial and forced-OCR runs as variants. |
 | [0003: Prefer LaTeX sources over PDFs for arXiv](adr/0003-latex-first-for-arxiv.md) | Download the source first, convert it with pandoc after safe unpacking and include flattening, fall back to plain text, and record metadata and license. |
 | [0004: A persistent chunk index and two-stage retrieval](adr/0004-chunk-index-and-two-stage-retrieval.md) | Dense and BM25 candidates fused, then a reranker; the index and its model clients in the separate `docingest-index` package; an on-disk index keyed by corpus, embedder and chunker. |
-| [0005: Our own NumPy circuit simulator, in a separate package, checked against a fixture](adr/0005-own-numpy-circuit-simulator.md) | A numpy-only `quantum-sim` workspace package that docingest does not import, Nielsen and Chuang conventions written down, tests first, and a Qiskit reference committed as a fixture instead of a dependency. |
+| [0005: Our own NumPy circuit simulator, in a separate package, checked against a fixture](adr/0005-own-numpy-circuit-simulator.md) | A numpy-only `quantum-sim` workspace package that never imports docingest, Nielsen and Chuang conventions written down, tests first, and a Qiskit reference committed as a fixture instead of a dependency. docingest depends on it only through the QASM export adapter. |

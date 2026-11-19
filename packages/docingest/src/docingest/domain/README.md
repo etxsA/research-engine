@@ -2,7 +2,7 @@
 
 The domain layer holds the canonical representation of an ingested document, the OCR routing policy, the pure text functions, the page-aware chunker and the error hierarchy. It performs no I/O and knows no adapter. Every other layer depends on it; it depends only on the Python standard library and pydantic.
 
-The import-linter contract "Domain is pure: no I/O or framework libraries" in `pyproject.toml` enforces this: `docingest.domain` may not import pypdfium2, PIL, numpy, mlx, mlx_vlm, paperqa, docling, pypandoc, huggingface_hub, httpx, urllib, typer, rich or jiwer.
+The import-linter contract "Domain is pure: no I/O or framework libraries" in `pyproject.toml` enforces this: `docingest.domain` may not import pypdfium2, PIL, numpy, mlx, mlx_vlm, paperqa, docling, pypandoc, huggingface_hub, httpx, urllib, typer, rich, jiwer or quantum_sim.
 
 Related reading: [package map](../README.md), [ports](../ports/README.md), [application](../application/README.md), [ADR 0002: per-page routing and content-addressed cache](../../../docs/adr/0002-per-page-routing-and-content-addressed-cache.md).
 
@@ -34,7 +34,7 @@ Related reading: [package map](../README.md), [ports](../ports/README.md), [appl
 | `headings.py` | `line_style`, `page_styles`, `level`, `is_marker`, `is_caption` | `structure.py` |
 | `structure.py` | `structure_pages` (text-layer pages of a document to Markdown) | `IngestService` for the text-layer pages of a PDF |
 | `chunking.py` | `Chunk`, `chunk_pages`, `CHUNKER_VERSION`, `CHUNK_CHARS`, `OVERLAP` | `ports` (`Chunk` is re-exported there); the chunk index and `AskService` use it through those |
-| `circuits.py` | `gate_list`, `GateList`, `GateOp`, `CircuitSteps`, `circuit_code_blocks`, `CodeBlock`, `add_gate_lists`, `MAX_STEPS`, `MAX_GATE_WIRES`, `CIRCUIT_FORMAT` | `AskService` (the text of a gate list after each circuit code block of the retrieved chunks); `GateList.circuits` is for callers that must compute with a circuit (nothing in this package reads it yet) |
+| `circuits.py` | `gate_list`, `GateList`, `GateOp`, `CircuitSteps`, `circuit_code_blocks`, `CodeBlock`, `add_gate_lists`, `MAX_STEPS`, `MAX_GATE_WIRES`, `CIRCUIT_FORMAT` | `AskService` (the text of a gate list after each circuit code block of the retrieved chunks); `GateList.circuits` is for callers that must compute with a circuit: `QasmExportService` hands each `CircuitSteps` to the `CircuitExporter` port, which exports it as OpenQASM 3 (see [ports](../ports/README.md#circuitexporter)) |
 | `equations.py` | `equation_references`, `canonical`, `find_equations`, `EquationSpan`, `chunk_for`, `covers`, `equation_header`, `content_words`, `title_overlap`, `lead_sentence_start`, `MAX_REFERENCES`, `MIN_TITLE_WORDS`, `LOOK_BACK`, `TITLE_LENGTH` | `AskService` (the chunk of an equation number the question names) |
 | `blocks.py` | `find_blocks`, `attach_captions`, `whole_blocks`, `Block`, `Whole`, `complete`, `Completion`, `partial_note`, `BLOCK_MAX` | `AskService` (the rest of a display equation, code block or table that a retrieved chunk cuts) |
 | `errors.py` | `DocingestError` and its subclasses | adapters raise them, application and entrypoints handle them |
@@ -718,6 +718,8 @@ What a reader of the data (a simulator, say) must know, because the fields do no
 - **`status` describes the text.** A gate over more than `MAX_GATE_WIRES` wires is `unparsed_op` in the data and is not counted as unparsed in the text, so `status` can be `parsed` while an item is not understood: check every item, not only the status.
 - **A label next to an item** (Qcircuit `\dstick`) is in the `source` of the last operation of that item only.
 - **`wires` in the dict** is a count (`len(wires)`), while `CircuitSteps.wires` is the tuple of legends; the legends are `wire_labels` in `to_dict()`.
+
+The OpenQASM 3 export is the first consumer of this data inside docingest. `QasmExportService` (application) finds the circuit blocks with `circuit_code_blocks`, reads each with `gate_list`, and passes every `CircuitSteps` to the `CircuitExporter` port; the adapter sends `to_dict()` to quantum-sim's reader. This module stays pure: it does not import `quantum_sim` (an import-linter contract forbids it), and it only produces the `circuit/1` dict, so the simulator, not docingest, decides whether that data is a circuit ([ADR 0006](../../../docs/adr/0006-openqasm-3-export.md)).
 
 `CircuitSteps.to_dict()` returns plain dicts and lists, the `circuit/1` format, so that a package that must not import `docingest` can read it:
 

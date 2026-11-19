@@ -17,9 +17,13 @@ dependencies = [
     "pylatexenc>=2.11",
     "pypandoc-binary>=1.17",
     "pypdfium2>=5.13",
+    "quantum-sim",
     "rich>=15.0.0",
     "typer>=0.19",
 ]
+
+[tool.uv.sources]
+quantum-sim = { workspace = true }
 
 [project.scripts]
 docingest = "docingest.entrypoints.cli:app"
@@ -129,6 +133,7 @@ modules = [
     "docingest.adapters.qa",
     "docingest.adapters.retrieval",
     "docingest.adapters.datasets",
+    "docingest.adapters.qasm",
 ]
 
 [[tool.importlinter.contracts]]
@@ -137,7 +142,7 @@ type = "forbidden"
 source_modules = ["docingest.domain"]
 forbidden_modules = [
     "pypdfium2", "PIL", "numpy", "mlx", "mlx_vlm", "paperqa", "docling", "pypandoc",
-    "huggingface_hub", "httpx", "urllib", "typer", "rich", "jiwer",
+    "huggingface_hub", "httpx", "urllib", "typer", "rich", "jiwer", "quantum_sim",
 ]
 
 [[tool.importlinter.contracts]]
@@ -146,7 +151,7 @@ type = "forbidden"
 source_modules = ["docingest.application", "docingest.ports"]
 forbidden_modules = [
     "pypdfium2", "mlx", "mlx_vlm", "paperqa", "docling", "pypandoc", "huggingface_hub",
-    "httpx", "typer", "rich",
+    "httpx", "typer", "rich", "quantum_sim",
 ]
 
 [[tool.importlinter.contracts]]
@@ -156,10 +161,23 @@ source_modules = ["docingest"]
 forbidden_modules = ["docingest_index"]
 
 [[tool.importlinter.contracts]]
-name = "docingest never imports quantum_sim, research_api or qa_bench (separate packages)"
+name = "docingest never imports research_api or qa_bench (separate packages)"
 type = "forbidden"
 source_modules = ["docingest"]
-forbidden_modules = ["quantum_sim", "research_api", "qa_bench"]
+forbidden_modules = ["research_api", "qa_bench"]
+
+# The QASM export deliberately uses quantum-sim's circuit/1 reader: docingest writes the drawing
+# as data, the simulator decides whether that data is a circuit. quantum_sim never imports
+# docingest, so the dependency stays one-way, and only the QASM adapter may import it. The import
+# graph keeps an external package whole, so the ignored import names `quantum_sim`, not the
+# modules the adapter uses (`quantum_sim.qasm` and `quantum_sim.angles`).
+[[tool.importlinter.contracts]]
+name = "Only the QASM adapter imports quantum_sim"
+type = "forbidden"
+source_modules = ["docingest"]
+forbidden_modules = ["quantum_sim"]
+ignore_imports = ["docingest.adapters.qasm -> quantum_sim"]
+allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
 name = "Only the composition root and entrypoints wire concrete adapters"
