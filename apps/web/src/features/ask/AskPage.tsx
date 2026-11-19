@@ -38,7 +38,7 @@ export function AskPage() {
             blocked={blocked}
             busy={active !== undefined}
             askAnyway={view.kind === "unavailable"}
-            speechUnavailable={status.data?.speech.stt === "unavailable"}
+            speechUnavailable={status.data?.speech?.stt === "unavailable"}
             onSubmit={submit}
           />
           <Announcer entry={entries[0]} />

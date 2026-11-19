@@ -12,6 +12,13 @@ const expect = baseExpect.configure({ timeout: 15_000 });
 
 test.describe.configure({ mode: "default" });
 
+// Chromium answers the microphone with a test tone, for the voice input test.
+test.use({
+  launchOptions: {
+    args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"],
+  },
+});
+
 const TRANSMON_TITLE = "Coherence limits of fixed-frequency transmon qubits (synthetic)";
 const TELEPORT_TITLE = "A compact teleportation circuit with mid-circuit measurement (synthetic)";
 
@@ -249,6 +256,7 @@ const READY = {
   started_at: "2026-01-01T00:00:00Z",
   uptime_s: 12.5,
   ready: true,
+  speech: { stt: "ready" },
 };
 
 async function engineState(page: Page, ask: Record<string, unknown>) {
@@ -457,6 +465,22 @@ for (const colorScheme of ["light", "dark"] as const) {
     });
   });
 }
+
+test.describe("voice input", () => {
+  test("records through the fake microphone and fills the question box", async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(["microphone"]);
+    await openAsk(page);
+    await page.getByRole("button", { name: "Speak" }).click();
+    await expect(page.getByRole("button", { name: "Stop" })).toBeVisible();
+    await page.waitForTimeout(1000);
+    await page.getByRole("button", { name: "Stop" }).click();
+    await expect(page.getByLabel("Your question")).toHaveValue(/tiempo T2 de un transmon/);
+    await expectNoAxeViolations(page);
+  });
+});
 
 test.describe("a narrow screen", () => {
   test.use({ viewport: { width: 375, height: 760 } });

@@ -46,6 +46,9 @@ export function installFakeMic(options: Options = {}): FakeMic {
     constructor() {
       contexts.push(this.state);
     }
+    resume() {
+      return Promise.resolve();
+    }
     createMediaStreamSource() {
       return { connect: vi.fn() };
     }

@@ -27,7 +27,7 @@ export function MicButton({ unavailable, onText }: MicButtonProps) {
   else if (state.phase === "done") message = t("done");
   else if (state.problem) message = t(`problem.${state.problem}`);
 
-  const disabled = unavailable || support !== "ok" || transcribing;
+  const disabled = !recording && (unavailable || support !== "ok" || transcribing);
   const failed = state.phase === "error" || unavailable || support !== "ok";
 
   return (

@@ -111,9 +111,10 @@ const TRANSCRIPTIONS = "/api/v1/speech/transcriptions";
 /** Turns a recorded clip into text. The API stores neither the clip nor the text. */
 export function useTranscribe() {
   return useMutation({
-    mutationFn: async ({ wav, lang }: { wav: Uint8Array; lang: "es" | "en" }) => {
+    // The clip and the text are not kept after the call.
+    gcTime: 0,
+    mutationFn: async ({ wav }: { wav: Uint8Array }) => {
       const { data } = await fetchClient.POST(TRANSCRIPTIONS, {
-        params: { query: { lang } },
         // The contract types the body as a string; the bytes go out as they are.
         body: wav as unknown as string,
         bodySerializer: (body: unknown) => body,

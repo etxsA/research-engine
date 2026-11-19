@@ -7,7 +7,6 @@ import {
   type MicProblem,
   type Recording,
 } from "@/shared/lib/recorder";
-import { useUiStore } from "@/shared/stores/ui-store";
 import { useTranscribe } from "./api";
 
 export type VoiceProblem =
@@ -41,7 +40,6 @@ export function useVoiceInput(onText: (text: string) => void) {
   const starting = useRef(false);
   const alive = useRef(true);
   const { mutateAsync: transcribe } = useTranscribe();
-  const language = useUiStore((s) => s.language);
   const onTextRef = useRef(onText);
   useEffect(() => {
     onTextRef.current = onText;
@@ -67,7 +65,7 @@ export function useVoiceInput(onText: (text: string) => void) {
         if (alive.current) setState({ phase: "error", level: 0, problem: "tooShort" });
         return;
       }
-      const text = (await transcribe({ wav: clip.wav, lang: language })).trim();
+      const text = (await transcribe({ wav: clip.wav })).trim();
       if (!alive.current) return;
       if (text === "") {
         setState({ phase: "error", level: 0, problem: "empty" });
@@ -78,7 +76,7 @@ export function useVoiceInput(onText: (text: string) => void) {
     } catch (error) {
       if (alive.current) setState({ phase: "error", level: 0, problem: transcribeProblem(error) });
     }
-  }, [transcribe, language]);
+  }, [transcribe]);
 
   const toggle = useCallback(async () => {
     if (recording.current) {

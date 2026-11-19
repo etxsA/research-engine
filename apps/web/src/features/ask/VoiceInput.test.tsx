@@ -17,16 +17,14 @@ afterEach(() => {
 interface Seen {
   contentType: string | null;
   bytes: number;
-  lang: string | null;
 }
 
 function transcribes(text: string | Response = "what limits T1"): Seen {
-  const seen: Seen = { contentType: null, bytes: 0, lang: null };
+  const seen: Seen = { contentType: null, bytes: 0 };
   server.use(
     http.post("*/api/v1/speech/transcriptions", async ({ request }) => {
       seen.contentType = request.headers.get("content-type");
       seen.bytes = (await request.arrayBuffer()).byteLength;
-      seen.lang = new URL(request.url).searchParams.get("lang");
       if (text instanceof Response) return text;
       return HttpResponse.json({ text, language: "en", duration_s: 1 });
     }),
@@ -64,7 +62,6 @@ describe("voice input on the Ask screen", () => {
     );
     expect(seen.contentType).toBe("audio/wav");
     expect(seen.bytes).toBe(44 + 16_000 * 2);
-    expect(seen.lang).toBe("en");
     expect(mic.tracks[0]?.stop).toHaveBeenCalled();
     expect(await screen.findByText(/added to the question box/)).toBeInTheDocument();
     expect(screen.getByLabelText("Your question")).toHaveFocus();
@@ -97,6 +94,40 @@ describe("voice input on the Ask screen", () => {
     await speak(user);
     expect(await screen.findByText(/Too many transcriptions/)).toBeInTheDocument();
     expect(screen.getByLabelText("Your question")).toHaveValue("");
+  });
+
+  it.each([
+    [
+      "a busy speech server",
+      () => new HttpResponse(null, { status: 503 }),
+      /busy or not reachable/,
+    ],
+    ["a clip that is too large", () => new HttpResponse(null, { status: 413 }), /did not accept/],
+    ["a clip that cannot be read", () => new HttpResponse(null, { status: 422 }), /did not accept/],
+    [
+      "an empty transcript",
+      () => HttpResponse.json({ text: "  ", language: "en", duration_s: 1 }),
+      /No words were heard/,
+    ],
+  ])("says why it failed on %s", async (_name, reply, message) => {
+    mic = installFakeMic();
+    transcribes(reply() as Response);
+    const user = await openAsk();
+    await speak(user);
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(screen.getByLabelText("Your question")).toHaveValue("");
+  });
+
+  it("says a clip under 0.3 s is too short, without asking the server", async () => {
+    mic = installFakeMic();
+    const seen = transcribes();
+    const user = await openAsk();
+    await user.click(screen.getByRole("button", { name: "Speak" }));
+    await screen.findByRole("button", { name: "Stop" });
+    act(() => mic.emit(new Float32Array(4_800).fill(0.2)));
+    await user.click(screen.getByRole("button", { name: "Stop" }));
+    expect(await screen.findByText(/too short/)).toBeInTheDocument();
+    expect(seen.bytes).toBe(0);
   });
 
   it("explains a blocked microphone", async () => {

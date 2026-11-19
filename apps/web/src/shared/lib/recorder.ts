@@ -107,9 +107,10 @@ export async function startRecording(options: RecordingOptions = {}): Promise<Re
 
   try {
     context = new AudioContext();
+    await context.resume();
     await context.audioWorklet.addModule(WORKLET_URL);
     const source = context.createMediaStreamSource(stream);
-    node = new AudioWorkletNode(context, "mic-capture");
+    node = new AudioWorkletNode(context, "mic-capture", { numberOfOutputs: 0 });
     const rate = context.sampleRate;
     node.port.onmessage = (event: MessageEvent<Float32Array>) => {
       if (closed) return;
