@@ -59,6 +59,8 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 argv = sys.argv[1:]
 host, port = argv[argv.index("--host") + 1], int(argv[argv.index("--port") + 1])
+with open(os.path.join(os.path.dirname(__file__), "pids"), "a") as handle:
+    handle.write(f"{os.getpid()}\\n")
 record = {"pid": os.getpid(), "argv": argv, "env": {k: v for k, v in os.environ.items() if k.startswith("RESEARCH_API")}}
 with open(os.path.join(os.path.dirname(__file__), "uvicorn.json"), "w") as handle:
     json.dump(record, handle)
@@ -170,33 +172,54 @@ class Deploy:
     def pid(self) -> int:
         return int((self.home / "run" / "research-api.pid").read_text(encoding="utf-8"))
 
-    def service_pids(self) -> set[int]:
-        """The service this folder started: from the pid file and from what the fake recorded."""
+    def fake_pids(self) -> set[int]:
+        """Every pid a fake of this folder ever had (append-only, written before it binds)."""
         pids: set[int] = set()
-        pid_file = self.home / "run" / "research-api.pid"
-        record = self.fake_dir / "uvicorn.json"
+        with contextlib.suppress(OSError):
+            for line in (self.fake_dir / "pids").read_text(encoding="utf-8").splitlines():
+                with contextlib.suppress(ValueError):
+                    pids.add(int(line))
+        return pids
+
+    def service_pids(self) -> set[int]:
+        """The service this folder started: the pid file plus every fake that ever ran here."""
+        pids = self.fake_pids()
         with contextlib.suppress(OSError, ValueError):
-            pids.add(int(pid_file.read_text()))
-        with contextlib.suppress(OSError, ValueError, KeyError):
-            pids.add(int(json.loads(record.read_text())["pid"]))
+            pids.add(int((self.home / "run" / "research-api.pid").read_text()))
         return pids
 
     def force_stop(self) -> None:
-        """Kill the process group the script started, then check that nothing of it survives.
+        """Kill every service this folder started, then fail if one survives the kill.
 
-        The fake records its own pid, so a service whose pid file was never written (a start
-        that was killed) or was already removed is found as well."""
-        pids = self.service_pids()
+        Never signals the test session: a pid that is pytest's own, or in its process group, is
+        skipped (a test may write such a pid into the pid file). Only pids a fake of this folder
+        recorded are asserted dead."""
+        fakes = self.fake_pids()
+        pids = {
+            pid for pid in self.service_pids() if pid != os.getpid() and not self._in_own_group(pid)
+        }
         for pid in pids:
             with contextlib.suppress(ProcessLookupError, PermissionError):
                 if os.getpgid(pid) == pid:  # the script runs the service in its own session
                     os.killpg(pid, signal.SIGKILL)
-        for pid in pids:
+                elif pid in fakes:  # last fallback of the script: no session of its own
+                    os.kill(pid, signal.SIGKILL)
+        for pid in pids & fakes:
             for _ in range(50):
                 if not alive(pid):
                     break
                 time.sleep(0.1)
             assert not alive(pid), f"the service (pid {pid}) outlived its test"
+            with contextlib.suppress(ProcessLookupError, PermissionError):
+                os.killpg(pid, 0)
+                raise AssertionError(f"a process of the service group {pid} outlived its test")
+
+    @staticmethod
+    def _in_own_group(pid: int) -> bool:
+        try:
+            return os.getpgid(pid) == os.getpgrp()
+        except (ProcessLookupError, PermissionError):
+            return False
 
 
 @pytest.fixture
