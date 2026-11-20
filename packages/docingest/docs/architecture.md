@@ -93,14 +93,15 @@ flowchart LR
         ING["IngestService"]
         CRW["CrawlService"]
         ASK["AskService"]
+        QEX["QasmExportService"]
         RUN["BenchmarkRunner"]
         DOM["domain: manifest, routing policy, text cleanup"]
     end
     subgraph PORTS["Ports"]
-        PP["TypeDetector, PdfReader, OcrEngine, ImageSource, DocumentConverter, DocumentStore, SourceCrawler, QuestionAnswerer, Embedder, ChunkIndex, Reranker, BenchmarkSuite"]
+        PP["TypeDetector, PdfReader, OcrEngine, ImageSource, DocumentConverter, DocumentStore, SourceCrawler, QuestionAnswerer, Embedder, ChunkIndex, Reranker, BenchmarkSuite, CircuitExporter"]
     end
     subgraph DRIVEN["Driven adapters"]
-        IMPL["magic, pdfium, mlx-vlm, openai-compatible, pillow, docling, pandoc, passthrough, filesystem, arxiv, paperqa, synthetic, olmocr-bench"]
+        IMPL["magic, pdfium, mlx-vlm, openai-compatible, pillow, docling, pandoc, passthrough, filesystem, arxiv, paperqa, synthetic, olmocr-bench, quantum-sim"]
     end
     CLI --> ING
     CLI --> CRW
@@ -112,6 +113,7 @@ flowchart LR
     ING --> PP
     CRW --> PP
     ASK --> PP
+    QEX --> PP
     RUN --> PP
     IMPL -.->|"implements"| PP
 ```
@@ -159,7 +161,7 @@ When a contract fails, the fix is to move the code to the right layer or to pass
 
 ## 5. Ports and adapters
 
-Every port is a `typing.Protocol` decorated with `@runtime_checkable`, so `isinstance(obj, OcrEngine)` checks the shape of any object. The diagram shows which built-in adapters implement which port, labelled with the `[adapters]` key that selects them in `config/pipeline.toml`. `BenchmarkSuite` has no `[adapters]` key: its implementations are built by `docingest bench` from `config/benchmark.toml`.
+Every port is a `typing.Protocol` decorated with `@runtime_checkable`, so `isinstance(obj, OcrEngine)` checks the shape of any object. The diagram shows which built-in adapters implement which port, labelled with the `[adapters]` key that selects them in `config/pipeline.toml`. `BenchmarkSuite` has no `[adapters]` key: its implementations are built by `docingest bench` from `config/benchmark.toml`. `CircuitExporter` has no `[adapters]` key either: the `Container` builds `QuantumSimExporter` itself, and `overrides["exporter"]` replaces it.
 
 ```mermaid
 flowchart LR
@@ -176,6 +178,7 @@ flowchart LR
         IDX["ChunkIndex"]
         RRK["Reranker"]
         BSU["BenchmarkSuite"]
+        CEX["CircuitExporter"]
     end
     subgraph A["Built-in adapters (docingest.adapters)"]
         MAG["detector = magic: MagicBytesDetector"]
@@ -192,6 +195,7 @@ flowchart LR
         NON["embedder, index, reranker = none: NoEmbedder, NoIndex, NoReranker"]
         SYN["bench suite synthetic: SyntheticSuite"]
         OLM["bench suite olmocr-bench: OlmOcrBenchSuite"]
+        QSE["exporter (override key, no [adapters] key): QuantumSimExporter"]
     end
     MAG -.-> TD
     PDFI -.-> PR
@@ -209,6 +213,7 @@ flowchart LR
     NON -.-> RRK
     SYN -.-> BSU
     OLM -.-> BSU
+    QSE -.-> CEX
 ```
 
 | Port | Defined in | `[adapters]` key | Built-in name | Adapter class and module | Used by |
@@ -509,6 +514,8 @@ flowchart LR
     CT --> PA["ask: AskService"]
     CT --> PC["crawl: CrawlService"]
     CT --> PX["index_service: IndexService"]
+    CT --> PQ["qasm_export: QasmExportService"]
+    PQ --> A9["adapter store, plus overrides[exporter] or QuantumSimExporter (imported lazily); out = output_dir / qasm"]
     PX --> A8["adapters store, embedder, index; chunk_chars and overlap from [qa]"]
     PI --> A1["adapter detector"]
     PI --> A2["adapter pdf"]

@@ -136,11 +136,13 @@ def test_a_symbol_with_a_subscript_of_several_characters_keeps_the_hint(
 
 
 def test_every_one_of_many_unbound_symbols_gets_its_own_placeholder(exporter):
-    # 25 symbols, sorted x_01 ... x_25; 1/(x_23 - x_24 + 1) is zero at no placeholders
+    # 25 symbols, sorted x_01 ... x_25; 1/(x_23 - x_24) is singular if two placeholders are
+    # equal, and 1/(x_23 - x_24 + 1) is singular at no placeholders
     names = [f"x_{{{n:02d}}}" for n in range(1, 26)]
     gates = " & ".join(f"\\gate{{R_y({name})}}" for name in names)
+    apart = "\\gate{R_y(\\frac{1}{x_{23} - x_{24}})}"
     last = "\\gate{R_y(\\frac{1}{x_{23} - x_{24} + 1})}"
-    source = f"\\begin{{quantikz}}\n& {gates} & {last} & \\qw\n\\end{{quantikz}}"
+    source = f"\\begin{{quantikz}}\n& {gates} & {apart} & {last} & \\qw\n\\end{{quantikz}}"
     export = exporter.export(circuit(source))
     assert export.status == "refused"
     assert export.unbound == tuple(names)

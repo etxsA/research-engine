@@ -266,7 +266,31 @@ def test_the_hook_names_the_circuit_whose_bound_program_it_removed(tmp_path):
     ) in report.warnings
 
 
+PHI = quantikz("& \\gate{R_z(\\phi)} & \\qw")
+
+
 def test_the_hook_names_only_the_circuits_whose_programs_it_removed(tmp_path):
+    # block 2 is refused only for a missing value (phi), but the --set export never gave it a
+    # program: removing block 1 must not name it
+    store = InMemoryStore()
+    document(store, "a" * 64, THETA, PHI)
+    out = tmp_path / "qasm"
+    service = QasmExportService(store, out, QuantumSimExporter())
+    bound = service.export_corpus(values={"theta": "pi/4"})
+    assert [file.path.name for file in bound.files] == ["aaaaaaaaaaaaaaaa-b01-c01-p01.qasm"]
+
+    report = service.export_documents(store.corpus()[0])
+
+    [note] = [warning for warning in report.warnings if "stale" in warning]
+    assert note == (
+        "a.md: removed 1 stale QASM file(s) from an earlier export; block 1, circuit 1 was "
+        "refused because theta has no value: run docingest circuits export --set NAME=VALUE to "
+        "write it again"
+    )
+    assert "phi" not in note
+
+
+def test_the_hook_does_not_name_a_circuit_that_is_refused_for_another_reason(tmp_path):
     # block 2 is a parametric R_zz: refused with or without a value, it never had a program
     store = InMemoryStore()
     document(store, "a" * 64, THETA, RZZ_GAMMA)
