@@ -195,16 +195,19 @@ class Deploy:
         skipped (a test may write such a pid into the pid file). Only pids a fake of this folder
         recorded are asserted dead."""
         fakes = self.fake_pids()
-        pids = {
-            pid for pid in self.service_pids() if pid != os.getpid() and not self._in_own_group(pid)
+        others = {
+            pid
+            for pid in self.service_pids() - fakes
+            if pid != os.getpid() and not self._in_own_group(pid)
         }
-        for pid in pids:
+        targets = {pid for pid in fakes if pid != os.getpid()} | others
+        for pid in targets:
             with contextlib.suppress(ProcessLookupError, PermissionError):
                 if os.getpgid(pid) == pid:  # the script runs the service in its own session
                     os.killpg(pid, signal.SIGKILL)
                 elif pid in fakes:  # last fallback of the script: no session of its own
                     os.kill(pid, signal.SIGKILL)
-        for pid in pids & fakes:
+        for pid in targets & fakes:
             for _ in range(50):
                 if not alive(pid):
                     break
