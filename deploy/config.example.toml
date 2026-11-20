@@ -77,7 +77,7 @@ login_window_minutes = 15
 #   per_member_open  open transcriptions allowed per member (default 2).
 #
 # The microphone opens only on https, http://localhost or http://127.0.0.1. To use voice from a
-# laptop through an SSH tunnel (ssh -N -L 8090:<tailscale-address>:8090 <user>@<server>), set
+# laptop through an SSH tunnel (ssh -N -L 8090:<tailscale-address>:8090 <server>), set
 # public_origin = "http://localhost:8090" above and restart: writes (sign-in, ask, speech) are
 # accepted only when the browser's Origin equals public_origin, and every write on the Tailscale
 # URL is then refused with a 403 (sign-in, ask, speech, edit), also for people already signed in.
