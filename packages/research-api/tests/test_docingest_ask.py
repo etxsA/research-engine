@@ -840,6 +840,35 @@ class BadRequestError(Exception):
     pass
 
 
+class AllModelsExhaustedError(RuntimeError):
+    """Named like lmi's, which carries the last error of the chain."""
+
+    def __init__(self, last_exc: BaseException | None = None) -> None:
+        super().__init__(f"All models failed. Last error: {last_exc!r} my question LEAK")
+        self.last_exc = last_exc
+
+
+class RemoteServiceError(Exception):
+    """Named like docingest-index's: no HTTP status when the server never answered."""
+
+    def __init__(self, message: str, status: int | None = None) -> None:
+        super().__init__(message)
+        self.status = status
+
+
+class TransportError(Exception):
+    """Named like httpx's base of the connect, read and reset errors."""
+
+
+class ConnectError(TransportError):
+    pass
+
+
+def _caused_by(error: Exception, cause: BaseException) -> Exception:
+    error.__cause__ = cause
+    return error
+
+
 class ContextWindowExceededError(BadRequestError):
     pass
 
@@ -873,6 +902,23 @@ class ContextWindowExceededError(BadRequestError):
             UnavailableError,
             15,
         ),
+        (AllModelsExhaustedError(APIConnectionError("refused LEAK")), UnavailableError, 15),
+        (AllModelsExhaustedError(ConnectionResetError("reset LEAK")), UnavailableError, 15),
+        (
+            _caused_by(AllModelsExhaustedError(), ConnectionError("refused LEAK")),
+            UnavailableError,
+            15,
+        ),
+        (
+            _caused_by(RemoteServiceError("unreachable LEAK"), ConnectError("refused LEAK")),
+            UnavailableError,
+            15,
+        ),
+        (
+            _caused_by(RemoteServiceError("unreachable LEAK"), TransportError("reset LEAK")),
+            UnavailableError,
+            15,
+        ),
         (BadRequestError("maximum context length: my question LEAK"), UpstreamError, None),
         (ContextWindowExceededError("too long: my question LEAK"), UpstreamError, None),
     ],
@@ -898,6 +944,13 @@ def test_each_failure_has_words_that_leave_the_library_message_out(
         UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte"),
         RuntimeError("some other runtime"),
         OSError("disk"),
+        # a wrapper around something that is not a lost server stays an ordinary error
+        AllModelsExhaustedError(BadRequestError("maximum context length LEAK")),
+        AllModelsExhaustedError(),
+        RemoteServiceError("answered HTTP 400 LEAK", status=400),
+        RemoteServiceError("answered HTTP 503 LEAK", status=503),
+        RemoteServiceError("api_key_env not set LEAK"),
+        _caused_by(RemoteServiceError("non-JSON LEAK"), ValueError("bad body LEAK")),
     ],
 )
 def test_other_errors_are_surprises(error: Exception) -> None:
