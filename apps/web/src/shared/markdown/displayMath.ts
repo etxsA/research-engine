@@ -25,6 +25,7 @@ export function closeDisplayMathOnItsOwnLine(text: string): string {
   const out: string[] = [];
   let fenced = false;
   let size = 0; // length of the dollars that opened the block, 0 outside one
+  let opener = ""; // indentation of the line that opened the block
   const lines = text.split("\n");
   for (let n = 0; n < lines.length; n++) {
     const line = lines[n] ?? "";
@@ -36,6 +37,7 @@ export function closeDisplayMathOnItsOwnLine(text: string): string {
         continue;
       }
       const indent = open[1] ?? "";
+      opener = indent;
       size = open[2]?.length ?? 2;
       const first = open[3]?.trim() ?? "";
       // The indentation stays on both lines, so a formula inside a list item stays inside it.
@@ -59,11 +61,11 @@ export function closeDisplayMathOnItsOwnLine(text: string): string {
     const before = line.slice(0, index).trimEnd();
     const after = line.slice(end).trim();
     if (before) out.push(before);
-    out.push(line.slice(index, end));
+    out.push(opener + line.slice(index, end));
     // The text after it is read as a new line, since it may open the next block (`$$ $$\begin{...}`).
     if (after) {
       out.push("");
-      lines.splice(n + 1, 0, after);
+      lines.splice(n + 1, 0, opener + after);
     }
     size = 0;
   }
