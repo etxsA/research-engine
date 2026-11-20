@@ -66,10 +66,16 @@ def test_a_type_other_than_wav_is_a_422(member: TestClient, kind: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "clip", [make_wav(1, rate=44_100), make_wav(1, channels=2), b"RIFFjunk", b"", make_wav(0)]
+    "clip", [make_wav(1, rate=44_100), make_wav(1, channels=2), b"RIFFjunk", make_wav(0)]
 )
 def test_a_body_that_is_not_a_16_khz_mono_wav_is_a_422(member: TestClient, clip: bytes) -> None:
     assert post(member, clip).status_code == 422
+
+
+def test_an_empty_body_is_a_422_that_says_the_recording_is_empty(member: TestClient) -> None:
+    reply = post(member, b"")
+    assert reply.status_code == 422 and reply.headers["content-type"] == PROBLEM
+    assert "empty" in reply.json()["detail"]
 
 
 def test_a_clip_over_the_length_limit_is_a_422(member: TestClient) -> None:

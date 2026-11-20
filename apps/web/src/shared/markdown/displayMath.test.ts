@@ -27,6 +27,26 @@ describe("display math that does not close on a line of its own", () => {
     );
   });
 
+  it("keeps the indentation of the opener on a $$ that closes in the middle of a line", () => {
+    expect(fix("- item\n\n  $$\\begin{equation}\n  x\n  \\end{equation}$$ after")).toBe(
+      "- item\n\n  $$\n  \\begin{equation}\n  x\n  \\end{equation}\n  $$\n\n  after",
+    );
+  });
+
+  it("keeps the indentation inside a nested list", () => {
+    expect(fix("- a\n - b\n\n   $$\\begin{equation}\n   x\n   \\end{equation}$$ after\n - c")).toBe(
+      "- a\n - b\n\n   $$\n   \\begin{equation}\n   x\n   \\end{equation}\n   $$\n\n   after\n - c",
+    );
+  });
+
+  it("keeps a block at column 0 without indentation", () => {
+    expect(fix("$$\nx\n\\end{equation}$$ after")).toBe("$$\nx\n\\end{equation}\n$$\n\nafter");
+  });
+
+  it("indents the opener of a following block like the first one", () => {
+    expect(fix("  $$\na\nb$$ $$\nc\n$$")).toBe("  $$\na\nb\n  $$\n\n  $$\nc\n$$");
+  });
+
   it("opens the next block when the text after a closing $$ is another opening $$", () => {
     expect(
       fix("$$\\begin{align}\na\n\\end{align}$$ $$\\begin{align}\nb\n\\end{align}$$\n\nEnd."),
