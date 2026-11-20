@@ -645,11 +645,11 @@ The details are in [Speech to text (stt)](../serving/README.md#speech-to-text-st
 
 ### What it does and what it needs
 
-- **A server with a CPU and no GPU.** The speech server uses 8 CPU threads by default (`STT_THREADS`). It does not touch the GPUs, so it runs next to the model servers without taking memory from them.
+- **CPU only.** The speech server needs no GPU and uses 8 CPU threads by default (`STT_THREADS`). It does not touch the GPUs, so it runs next to the model servers without taking memory from them.
 - **RAM:** about 2.3 GB while idle and about 3 GB at its peak.
-- **Disk:** about 2.4 GB for the model, downloaded on the first start into `$SERVING_CACHE_DIR/huggingface` (or `HF_HOME`). Put the cache on the big disk, as for the vLLM models.
+- **Disk:** about 2.5 GB for the model, downloaded on the first start into `$SERVING_CACHE_DIR/huggingface` (or `HF_HOME`). Put the cache on the big disk, as for the vLLM models.
 - **Python 3.12 and `uv`** on the server, for a small environment of its own. No `sudo`.
-- **The web app and its API already running** as in [Run the web app on a shared server](#run-the-web-app-on-a-shared-server). Fake mode needs none of this: it has a speech stand-in that answers a canned sentence (see [Open the app in a secure context](#open-the-app-in-a-secure-context)).
+- **The web app and its API already running** as in [Run the web app on a shared server](#run-the-web-app-on-a-shared-server). Fake mode needs none of this: it has a speech stand-in that answers a canned sentence (see [Open the app in a secure context](#open-the-app-in-a-secure-context)). The Speak button sends no language, so the stand-in always answers its Spanish sentence, whatever you say.
 - **A microphone and a browser that opens it.** The browser opens the microphone only on a secure page, which is the main thing to plan for.
 
 The model understands Spanish and English and finds the language itself, so you can speak Spanish with the English screen. On the lab server's CPU, with 8 threads, one spoken question takes about 0.8 s (median). See [Measured times](#measured-times).
@@ -666,34 +666,36 @@ umask 077 && mkdir -p ~/.local/state/research-engine
 python3 -c "import secrets; print(secrets.token_urlsafe(32))" > ~/.local/state/research-engine/stt.key
 
 echo 'STT_PYTHON=/path/to/stt-env/bin/python' >> serving/env.local
+echo 'SERVING_CACHE_DIR=/path/to/big-disk/cache' >> serving/env.local   # skip if step 3 already set it
 ```
 
 - The key file holds one line, a random key. It must be mode 0600 and stay outside the repository; `umask 077` above makes it so. The speech server refuses to start otherwise.
 - The research API reads the same file, so keep its path: you write it in the next step. If you want the key somewhere else, set `STT_API_KEY_FILE=/path/to/stt.key` in `serving/env.local` and use that path.
+- If `serving/env.local` sets `SERVING_STATE_DIR`, the speech server looks for `$SERVING_STATE_DIR/stt.key`: write the key there, or set `STT_API_KEY_FILE` to the file you made.
 - `serving/env.local` is the file for the model servers (see [serving/env.example](../serving/env.example)), not the `deploy/env.local` of the web service. Git ignores both.
 - Do not print the key in a chat, a ticket or a commit.
 
 Start it, and check it:
 
 ```bash
-export SERVING_CACHE_DIR=/path/to/big-disk/cache      # the first start downloads about 2.4 GB
-serving/serve.sh stt start
+ss -ltn | grep 8004                  # prints nothing when the port is free
+serving/serve.sh stt start           # the first start downloads about 2.5 GB
 curl -s http://127.0.0.1:8004/health
 ```
 
-`start` waits until the server answers `/health` and prints `ready after N s`. The first start includes the download, so it takes longer; after that the server is ready about 10 s after the start. It waits at most 10 minutes. `serving/serve.sh stt status` says whether it runs, and `serving/serve.sh stt stop` stops it.
+`start` waits until the server answers `/health` and prints `ready after N s`. Once the model is on disk it prints `ready after 10 s` (it checks every 5 s; the load itself takes about 5 s). The first start takes about 35 s, download included. It waits at most 10 minutes. `serving/serve.sh stt status` says whether it runs, and `serving/serve.sh stt stop` stops it.
 
 ### Point the service at it
 
-Open `config.toml` in the data folder of the service (`/path/to/research-api/config.toml`) and add this table. [`deploy/config.example.toml`](../deploy/config.example.toml) has it, commented:
+Open `config.toml` in the data folder of the service (`/path/to/research-api/config.toml`) and add this table at the end of the file (a TOML table takes every line below it up to the next table). [`deploy/config.example.toml`](../deploy/config.example.toml) has it, commented:
 
 ```toml
 [speech]
 stt_endpoint = "http://127.0.0.1:8004/v1"
-stt_api_key_file = "/home/<user>/.local/state/research-engine/stt.key"
+stt_api_key_file = "~/.local/state/research-engine/stt.key"
 ```
 
-`stt_endpoint` is the speech server's address up to `/v1`. `stt_api_key_file` is the absolute path of the key file from the last step. The other keys have defaults (a clip up to 2 MiB and 60 s, two open transcriptions per member); they are in the [research-api README](../packages/research-api/README.md#run-it).
+`stt_endpoint` is the speech server's address up to `/v1`. `stt_api_key_file` is the path of the key file from the last step (a leading `~` is expanded). The other keys have defaults (a clip up to 2 MiB and 60 s, two open transcriptions per member); they are in the [research-api README](../packages/research-api/README.md#run-it).
 
 Settings are read at start, so restart the service:
 
@@ -708,7 +710,7 @@ Without the `[speech]` table the Speak button is off and says voice input is not
 
 Browsers open the microphone only on a secure page: `https`, `http://localhost` or `http://127.0.0.1`. The team URL of this guide is plain `http://<tailscale-address>:8090`. It is safe inside the tailnet, but the browser does not call it secure, so there the Speak button stays off and says the page is not secure. Pick the case that fits you.
 
-**1. The browser runs on the same machine as the service.** Use `http://127.0.0.1:<port>/` or `http://localhost:<port>/`. Fake mode (`deploy/research-api.sh start --fake`) listens on loopback and accepts both, so it needs no change. For a live service on loopback, type exactly its `public_origin` (`http://127.0.0.1:8090` when `bind_host = "127.0.0.1"` and `public_origin` is not set). With `pnpm dev` on `http://localhost:5173` ([apps/web/README.md](../apps/web/README.md#tests)) the page is secure too.
+**1. The browser runs on the same machine as the service.** Use `http://127.0.0.1:<port>/` or `http://localhost:<port>/`. Fake mode (`deploy/research-api.sh start --fake`) listens on loopback and accepts both, so it needs no change. A fake-mode service also needs no `public_origin` change for a laptop: tunnel to loopback (`ssh -N -L 8090:127.0.0.1:8090 <user>@<server>`) and Speak works. For a live service on loopback, type exactly its `public_origin` (`http://127.0.0.1:8090` when `bind_host = "127.0.0.1"` and `public_origin` is not set). With `pnpm dev` on `http://localhost:5173` ([apps/web/README.md](../apps/web/README.md#tests)) the page is secure too (with the API in fake mode, as the web README says).
 
 **2. A laptop, through an SSH tunnel.** The service accepts a write (sign-in, ask, speech) only when the browser's `Origin` is exactly `public_origin`. The browser on the laptop will type `http://localhost:8090`, so that must be the origin:
 
@@ -728,7 +730,7 @@ Browsers open the microphone only on a secure page: `https`, `http://localhost` 
 
 4. On the laptop, open `http://localhost:8090/`. This address counts as secure, so the Speak button works.
 
-The trade-off: while `public_origin` is `http://localhost:8090`, the team URL (`http://<tailscale-address>:8090`) can still show pages, but signing in there is refused with a 403, because the origin no longer matches. So this is for one person or a trial. To give the team its URL back, put the old `public_origin` in `config.toml`, restart the service and stop the tunnel.
+The trade-off: while `public_origin` is `http://localhost:8090`, the team URL (`http://<tailscale-address>:8090`) can still show pages, but every write there is refused with a 403 (sign-in, asking, speech, editing), also for people who were already signed in, because the origin no longer matches. So this is for one person or a trial. To give the team its URL back, put the old `public_origin` in `config.toml`, restart the service and stop the tunnel.
 
 If another copy of the service already holds port 8090 on the shared server, run this one on another port (`port = 8091` in `config.toml`) and tunnel to it: `ssh -N -L 8090:<tailscale-address>:8091 <user>@<server>`. Keep `public_origin = "http://localhost:8090"`. It is what the browser types, not the port of the server. Check the free port first (`ss -ltn | grep 8091` prints nothing).
 
@@ -739,7 +741,7 @@ If another copy of the service already holds port 8090 on the shared server, run
 1. Open the app in a secure context (above), sign in and go to the Ask screen.
 2. Press **Speak**. The first time, the browser asks to use the microphone: choose Allow. If you chose Block by mistake, allow it again in the site settings of the browser.
 3. Say the question. A level bar shows that the microphone hears you.
-4. Press **Stop**, or just stop talking and wait: the recording ends by itself after 60 seconds.
+4. Press **Stop** when you finish. If you do not, the recording stops by itself at 60 seconds.
 5. The button shows "Transcribing" for about a second. Then the text is added to the question box, after what was already there.
 6. Read the text and fix it. Check numbers, names and formulas with most care.
 7. Press **Ask**, as for a typed question.
@@ -757,6 +759,7 @@ In order, on the server, then on the laptop:
 ```bash
 # server
 serving/serve.sh stt start                    # about 10 s
+# tunnel case: public_origin must be http://localhost:8090 (see case 2)
 deploy/research-api.sh start                  # if it is not already running
 
 # laptop (only for the tunnel case)
@@ -779,7 +782,7 @@ ffmpeg -i recording.m4a -ar 16000 -ac 1 -c:a pcm_s16le question.wav
 curl -s http://127.0.0.1:8004/v1/audio/transcriptions \
   -H "Authorization: Bearer $(cat ~/.local/state/research-engine/stt.key)" \
   -F file=@question.wav -F model=local-stt
-# {"text": "...", "language": "es", "duration": 3.2}
+# {"text": "...", "language": null, "duration": 3.2}
 ```
 
 `GET /health` needs no key. A call without the key gets a 401. The full list of answers is in [serving/README.md](../serving/README.md#speech-to-text-stt). The API route needs a signed-in session and the CSRF header, so test that one from the browser.
@@ -790,18 +793,20 @@ curl -s http://127.0.0.1:8004/v1/audio/transcriptions \
 |---|---|
 | The Speak button is off and says the microphone needs a secure page | The page is plain `http` on a tailnet address or name. Open it as `http://localhost:8090/` through the tunnel (case 2 above), or use one of the other cases. |
 | The Speak button is off and says voice input is not set up on this server | The settings have no `[speech]` table, or the service was not restarted after you added it. See [Point the service at it](#point-the-service-at-it). |
-| The service does not start after you added `[speech]` | The key file path is wrong, is not absolute, is open to other accounts, is empty or holds more than one word. Run `chmod 600` on it and read `deploy/research-api.sh logs --process`. |
+| The service does not start after you added `[speech]` | A mistyped key, the table pasted above other top-level lines, `stt_endpoint` on plain http to a host that is neither loopback nor Tailscale, or a key file path that is wrong, is open to other accounts, is empty or holds more than one word. Run `chmod 600` on it and read `deploy/research-api.sh logs --process`. |
 | "Microphone access was blocked" | You chose Block. Allow the microphone for this site in the browser settings, then press Speak again. |
 | "No microphone was found" | No input device is connected or selected. Connect one and try again. |
 | "The microphone cannot be opened" | Another program (a call, a recorder) holds it. Close it and try again. |
 | "Too many transcriptions are running" (429) | You already have two open. Wait a few seconds. |
 | "The speech server is busy or not reachable" (503) | The speech server is not running, is still loading, or four transcriptions are open at once. Run `serving/serve.sh stt status` and `curl -s http://127.0.0.1:8004/health`, start it if needed and try again. |
-| "The server did not accept that recording" (413) | The clip is over 2 MiB. The Speak button stops at 60 s, which fits, so this means another client or a changed limit. Record a shorter one. |
-| "The recording could not be turned into text" (422) | The API got something that is not a 16 kHz mono 16-bit WAV, or a clip longer than 60 s. The Speak button always makes that format, so this comes from a script or another tool. An empty request body also gets this wrong-format message instead of a "no audio" one. That is a known cosmetic issue. |
+| "The server did not accept that recording" (413 or 422) | The clip is over 2 MiB (413), or (422) it is not a 16 kHz mono 16-bit WAV, is empty, or is longer than 60 s. The Speak button always makes a valid clip under both limits, so this comes from a script, another tool or a changed limit. An empty request body also gets the wrong-format message instead of a "no audio" one. That is a known cosmetic issue. |
+| "The recording could not be turned into text" (502) | The speech server refused the API's request. Check that `stt_api_key_file` names the same file serve.sh uses (`STT_API_KEY_FILE`, else `$SERVING_STATE_DIR/stt.key`), and that port 8004 is your own server (`serving/serve.sh stt status`). Then read `deploy/research-api.sh logs`. |
+| "That was too short" | The clip was under 0.3 s. Press Speak, talk, then press again. |
+| "This browser cannot record from the microphone" | The browser has no `getUserMedia`, `AudioContext` or `AudioWorklet`. Use a current Chrome, Firefox or Safari. |
 | "No words were heard" | The text came back empty: silence, or the microphone is too quiet or too far. Move closer and try again, and check the input level in the system settings. |
 | Wrong or missing words | Speak closer to the microphone, in short sentences, with little noise around you. Check and edit the text before you press Ask. Spanish is more exact than English (word error rate about 4.6% against 14.4% in a test, where the English references spell numbers out). |
 | `serve.sh stt start` says no API key file | Make the key file as in [Install the speech server once](#install-the-speech-server-once), or set `STT_API_KEY_FILE`. |
-| `serve.sh stt start` says the server exited | Read the last log lines it prints. Usual causes: `STT_PYTHON` is not set or does not point at the environment you made, the port 8004 is taken (start it on another one: `serving/serve.sh stt start 8005`, and change `stt_endpoint`), or the machine cannot download the model. |
+| `serve.sh stt start` says the server exited | Read the last log lines it prints. Usual causes: `STT_PYTHON` is not set or does not point at the environment you made, the port 8004 is taken (on a shared server, another account's speech server can answer `/health` and make yours look ready while it dies; start yours on another port: `serving/serve.sh stt start 8005`, and change `stt_endpoint`), or the machine cannot download the model. |
 
 ## Export a paper's circuits as OpenQASM 3
 
@@ -875,13 +880,13 @@ Each row says what it was measured with. The first block is the servers, the sec
 | Start `rerank` | 80 s and 100 s | same |
 | Start `llm` | about 231 s and 385 s | models already downloaded, empty compile cache in both; CUDA graph capture and `torch.compile` |
 | Start `llm` with `LLM_EAGER=1` | about 90 s | no CUDA graphs; decoding about 3 times slower |
+| Start the speech server (`stt`) | about 10 s printed (about 5 s of load) and about 35 s on the first start | CPU only; the first start includes the 2.5 GB download |
 | `index build`, first time | 200.3 s printed, 201.1 s with start-up | 100 papers, 9,404 chunks |
 | `index build`, nothing changed | 0.2 s printed, 0.90 s with start-up | same corpus |
 | `index build`, small corpus | 8.3 s printed, 9.4 s with start-up | 5 papers, 388 chunks |
 | `crawl --limit 5` with ingest | 32 s | 5 LaTeX sources, the 3 s spacing between requests included |
 | `ask`, one question per process | 19.0 to 24.9 s, mean 21.1 s | 9 math and circuit questions on 1,249 papers (119,564 chunks), `skip_summary = true`, `answer_max_sources = 10`, 10 chunks read; program start-up included; the first question after the servers started took 21.8 s, so there is no slow first question |
 | `index status` | 2.5 s | same corpus |
-| Start the speech server (`stt`) | about 10 s until ready; the first start also downloads about 2.4 GB | CPU only, model already on disk for the 10 s |
 | One spoken question | about 0.8 s (median) | Parakeet-TDT-0.6B-v3 on 8 CPU threads of the lab server, 50 FLEURS clips per language, one clip at a time, through the HTTP route; about 11 times faster than real time |
 | One question inside the evaluation harness | 18.5 s and 21.2 s (medians) | another corpus (QASPER) and the 9,404-chunk corpus; no CLI start-up, so not comparable with the rows above |
 
