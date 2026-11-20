@@ -59,7 +59,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 argv = sys.argv[1:]
 host, port = argv[argv.index("--host") + 1], int(argv[argv.index("--port") + 1])
-record = {"argv": argv, "env": {k: v for k, v in os.environ.items() if k.startswith("RESEARCH_API")}}
+record = {"pid": os.getpid(), "argv": argv, "env": {k: v for k, v in os.environ.items() if k.startswith("RESEARCH_API")}}
 with open(os.path.join(os.path.dirname(__file__), "uvicorn.json"), "w") as handle:
     json.dump(record, handle)
 
@@ -170,11 +170,33 @@ class Deploy:
     def pid(self) -> int:
         return int((self.home / "run" / "research-api.pid").read_text(encoding="utf-8"))
 
-    def force_stop(self) -> None:
+    def service_pids(self) -> set[int]:
+        """The service this folder started: from the pid file and from what the fake recorded."""
+        pids: set[int] = set()
         pid_file = self.home / "run" / "research-api.pid"
-        if pid_file.exists():
-            with contextlib.suppress(ProcessLookupError, PermissionError, ValueError):
-                os.killpg(int(pid_file.read_text()), signal.SIGKILL)
+        record = self.fake_dir / "uvicorn.json"
+        with contextlib.suppress(OSError, ValueError):
+            pids.add(int(pid_file.read_text()))
+        with contextlib.suppress(OSError, ValueError, KeyError):
+            pids.add(int(json.loads(record.read_text())["pid"]))
+        return pids
+
+    def force_stop(self) -> None:
+        """Kill the process group the script started, then check that nothing of it survives.
+
+        The fake records its own pid, so a service whose pid file was never written (a start
+        that was killed) or was already removed is found as well."""
+        pids = self.service_pids()
+        for pid in pids:
+            with contextlib.suppress(ProcessLookupError, PermissionError):
+                if os.getpgid(pid) == pid:  # the script runs the service in its own session
+                    os.killpg(pid, signal.SIGKILL)
+        for pid in pids:
+            for _ in range(50):
+                if not alive(pid):
+                    break
+                time.sleep(0.1)
+            assert not alive(pid), f"the service (pid {pid}) outlived its test"
 
 
 @pytest.fixture
