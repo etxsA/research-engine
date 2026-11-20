@@ -80,7 +80,8 @@ login_window_minutes = 15
 # laptop through an SSH tunnel (ssh -N -L 8090:<tailscale-address>:8090 <user>@<server>), set
 # public_origin = "http://localhost:8090" above and restart: writes (sign-in, ask, speech) are
 # accepted only when the browser's Origin equals public_origin, and every write on the Tailscale
-# URL is then refused with a 403 (sign-in, ask, speech, edit), also for people already signed in. Put the old value back to give the team its URL again.
+# URL is then refused with a 403 (sign-in, ask, speech, edit), also for people already signed in.
+# Put the old value back to give the team its URL again.
 # [speech]
 # stt_endpoint = "http://127.0.0.1:8004/v1"
 # stt_model = "local-stt"
