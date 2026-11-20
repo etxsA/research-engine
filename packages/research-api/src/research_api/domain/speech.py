@@ -28,6 +28,7 @@ DEFAULT_PER_MEMBER_OPEN: Final = 2
 DEFAULT_GLOBAL_OPEN: Final = 4
 
 WRONG_TYPE: Final = "Send the clip as audio/wav: 16 kHz, mono, 16-bit PCM."
+EMPTY_CLIP: Final = "The recording is empty: no audio was sent."
 
 
 @dataclass(frozen=True)
@@ -53,8 +54,10 @@ def is_wav_type(content_type: str) -> bool:
 
 
 def clip_seconds(audio: bytes, *, max_s: float) -> float:
-    """The length of a clip in seconds, or an ``InvalidInputError`` when it is not a 16 kHz mono
-    16-bit PCM WAV, holds no sound, or is longer than ``max_s``."""
+    """The length of a clip in seconds, or an ``InvalidInputError`` when it is empty, not a 16 kHz
+    mono 16-bit PCM WAV, holds no sound, or is longer than ``max_s``."""
+    if not audio:
+        raise InvalidInputError(EMPTY_CLIP)
     try:
         with wave.open(io.BytesIO(audio), "rb") as clip:
             format_ok = (

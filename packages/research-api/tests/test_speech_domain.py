@@ -4,7 +4,7 @@ import pytest
 from helpers import make_wav
 
 from research_api.domain.errors import InvalidInputError
-from research_api.domain.speech import WRONG_TYPE, clip_seconds, is_wav_type
+from research_api.domain.speech import EMPTY_CLIP, WRONG_TYPE, clip_seconds, is_wav_type
 
 
 def test_a_clip_is_measured_in_seconds() -> None:
@@ -25,13 +25,18 @@ def test_a_clip_at_the_limit_passes_and_one_over_it_does_not() -> None:
         make_wav(1, width=1),
         b"RIFF",
         b"not audio at all",
-        b"",
     ],
 )
 def test_anything_but_16_khz_mono_16_bit_pcm_is_refused(clip: bytes) -> None:
     with pytest.raises(InvalidInputError) as error:
         clip_seconds(clip, max_s=60)
     assert error.value.detail == WRONG_TYPE
+
+
+def test_a_body_of_zero_bytes_is_called_empty_not_wrong_format() -> None:
+    with pytest.raises(InvalidInputError) as error:
+        clip_seconds(b"", max_s=60)
+    assert error.value.detail == EMPTY_CLIP
 
 
 def test_a_clip_with_no_sound_is_refused() -> None:
