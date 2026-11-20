@@ -61,8 +61,35 @@ _REFUSED = frozenset(
 )
 
 
+# httpx's base class for every failure to reach a server (refused, reset, timed out, dropped
+# mid-answer). Its HTTPStatusError is not one: a server that answered is not a lost server.
+_TRANSPORT = frozenset({"TransportError"})
+
+
 def _names(error: BaseException) -> set[str]:
     return {cls.__name__ for cls in type(error).__mro__}
+
+
+def _unreachable(error: BaseException | None) -> bool:
+    """Whether ``error`` says that a model server could not be reached."""
+    if error is None:
+        return False
+    if isinstance(error, ConnectionError | TimeoutError):
+        return True
+    return bool(_names(error) & (_NO_ANSWER | _TRANSPORT))
+
+
+def _lost_server(error: Exception) -> bool:
+    """The wrappers that hide a connection failure: litellm's chain of models (the last error
+    it saw) and docingest-index's ``RemoteServiceError`` without an HTTP status (its cause is
+    what httpx raised). A wrapper around a refusal, a 4xx or a bad body is not one."""
+    names = _names(error)
+    if "AllModelsExhaustedError" in names:
+        last = getattr(error, "last_exc", None) or error.__cause__
+        return _unreachable(last)
+    if "RemoteServiceError" in names and getattr(error, "status", None) is None:
+        return _unreachable(error.__cause__)
+    return False
 
 
 def _retrieval(error: Exception) -> ResearchApiError:
@@ -133,7 +160,7 @@ def classify(error: Exception) -> ResearchApiError | None:
     if isinstance(error, ValueError) and (refused := _refused(text)) is not None:
         return refused
     names = _names(error)
-    if names & _NO_ANSWER:
+    if names & _NO_ANSWER or _lost_server(error):
         return _no_answer(error)
     if names & _REFUSED:
         return UpstreamError("A model server refused the request (it may be too long).")

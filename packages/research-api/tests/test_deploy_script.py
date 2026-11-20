@@ -12,6 +12,7 @@ from __future__ import annotations
 import contextlib
 import json
 import os
+import random
 import select
 import shlex
 import shutil
@@ -59,7 +60,9 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 argv = sys.argv[1:]
 host, port = argv[argv.index("--host") + 1], int(argv[argv.index("--port") + 1])
-record = {"argv": argv, "env": {k: v for k, v in os.environ.items() if k.startswith("RESEARCH_API")}}
+with open(os.path.join(os.path.dirname(__file__), "pids"), "a") as handle:
+    handle.write(f"{os.getpid()}\\n")
+record = {"pid": os.getpid(), "argv": argv, "env": {k: v for k, v in os.environ.items() if k.startswith("RESEARCH_API")}}
 with open(os.path.join(os.path.dirname(__file__), "uvicorn.json"), "w") as handle:
     json.dump(record, handle)
 
@@ -84,10 +87,23 @@ HTTPServer((host, port), Handler).serve_forever()
 """
 
 
+_PORTS_GIVEN: set[int] = set()
+
+
 def free_port() -> int:
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return int(s.getsockname()[1])
+    """A free port below the range the system hands out to outgoing connections.
+
+    Port 0 gives one from that range, and between this function closing it and the service binding
+    it any connection of this machine may take it as its own source port, so the bind fails."""
+    for _ in range(200):
+        port = random.randint(20000, 29999)
+        if port in _PORTS_GIVEN:
+            continue
+        with socket.socket() as s, contextlib.suppress(OSError):
+            s.bind(("127.0.0.1", port))
+            _PORTS_GIVEN.add(port)
+            return port
+    raise RuntimeError("no free port between 20000 and 29999")
 
 
 class Deploy:
@@ -170,11 +186,57 @@ class Deploy:
     def pid(self) -> int:
         return int((self.home / "run" / "research-api.pid").read_text(encoding="utf-8"))
 
+    def fake_pids(self) -> set[int]:
+        """Every pid a fake of this folder ever had (append-only, written before it binds)."""
+        pids: set[int] = set()
+        with contextlib.suppress(OSError):
+            for line in (self.fake_dir / "pids").read_text(encoding="utf-8").splitlines():
+                with contextlib.suppress(ValueError):
+                    pids.add(int(line))
+        return pids
+
+    def service_pids(self) -> set[int]:
+        """The service this folder started: the pid file plus every fake that ever ran here."""
+        pids = self.fake_pids()
+        with contextlib.suppress(OSError, ValueError):
+            pids.add(int((self.home / "run" / "research-api.pid").read_text()))
+        return pids
+
     def force_stop(self) -> None:
-        pid_file = self.home / "run" / "research-api.pid"
-        if pid_file.exists():
-            with contextlib.suppress(ProcessLookupError, PermissionError, ValueError):
-                os.killpg(int(pid_file.read_text()), signal.SIGKILL)
+        """Kill every service this folder started, then fail if one survives the kill.
+
+        Never signals the test session: a pid that is pytest's own, or in its process group, is
+        skipped (a test may write such a pid into the pid file). Only pids a fake of this folder
+        recorded are asserted dead."""
+        fakes = self.fake_pids()
+        others = {
+            pid
+            for pid in self.service_pids() - fakes
+            if pid != os.getpid() and not self._in_own_group(pid)
+        }
+        targets = {pid for pid in fakes if pid != os.getpid()} | others
+        for pid in targets:
+            with contextlib.suppress(ProcessLookupError, PermissionError):
+                if os.getpgid(pid) == pid:  # the script runs the service in its own session
+                    os.killpg(pid, signal.SIGKILL)
+                elif pid in fakes:  # last fallback of the script: no session of its own
+                    os.kill(pid, signal.SIGKILL)
+        for pid in targets & fakes:
+            for _ in range(50):
+                if not alive(pid):
+                    break
+                time.sleep(0.1)
+            assert not alive(pid), f"the service (pid {pid}) outlived its test"
+            with contextlib.suppress(ProcessLookupError, PermissionError):
+                os.killpg(pid, 0)
+                raise AssertionError(f"a process of the service group {pid} outlived its test")
+
+    @staticmethod
+    def _in_own_group(pid: int) -> bool:
+        try:
+            return os.getpgid(pid) == os.getpgrp()
+        except (ProcessLookupError, PermissionError):
+            return False
 
 
 @pytest.fixture
