@@ -12,6 +12,7 @@ from __future__ import annotations
 import contextlib
 import json
 import os
+import random
 import select
 import shlex
 import shutil
@@ -86,10 +87,23 @@ HTTPServer((host, port), Handler).serve_forever()
 """
 
 
+_PORTS_GIVEN: set[int] = set()
+
+
 def free_port() -> int:
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return int(s.getsockname()[1])
+    """A free port below the range the system hands out to outgoing connections.
+
+    Port 0 gives one from that range, and between this function closing it and the service binding
+    it any connection of this machine may take it as its own source port, so the bind fails."""
+    for _ in range(200):
+        port = random.randint(20000, 29999)
+        if port in _PORTS_GIVEN:
+            continue
+        with socket.socket() as s, contextlib.suppress(OSError):
+            s.bind(("127.0.0.1", port))
+            _PORTS_GIVEN.add(port)
+            return port
+    raise RuntimeError("no free port between 20000 and 29999")
 
 
 class Deploy:
