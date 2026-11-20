@@ -27,6 +27,8 @@ For the whole path from a clone to an answer, including a shared GPU machine and
 
 ## Speech to text (stt)
 
+For the whole path (install, the research API settings, the microphone on a laptop, troubleshooting) see [Ask by voice](../docs/run-guide.md#ask-by-voice) in the run guide. This section is the reference for the server itself.
+
 The `stt` role is not vLLM. `stt/stt_server.py` is a small FastAPI wrapper (Apache-2.0, like the rest of the repo)
 around [onnx-asr](https://github.com/istupakov/onnx-asr) (MIT), which runs a Parakeet-TDT model with onnxruntime on
 the CPU, behind the Silero VAD (MIT, ONNX, downloaded from `istupakov/silero-vad-onnx` at the revision pinned in

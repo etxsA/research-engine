@@ -315,6 +315,8 @@ A citation prints the first 16 characters of a document id and a page range. `GE
 
 ## Speech to text
 
+To set it up and use it from a browser, see [Ask by voice](../../docs/run-guide.md#ask-by-voice) in the run guide. This section describes the route.
+
 `POST /speech/transcriptions` turns a spoken clip into text for the question box. It does only that: the person reads and edits the text and asks as before. There is no synthesis route.
 
 1. The body is the clip, `Content-Type: audio/wav` (also `audio/x-wav`, `audio/wave`), 16 kHz, mono, 16-bit PCM, which is what the browser records and what the speech server takes without converting. The raw body is used on purpose: `python-multipart` is not a dependency. An optional `?lang=es` or `en` is a hint; without it the speech server decides.
