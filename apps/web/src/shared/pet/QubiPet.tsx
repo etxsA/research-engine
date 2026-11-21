@@ -47,9 +47,9 @@ export function QubiPet({ micLevel, position, ...signals }: QubiPetProps) {
   useEffect(() => {
     stage.current?.style.setProperty(
       "--qubi-level",
-      state === "listening" ? String(micLevel) : "0",
+      state === "listening" && !reduced ? String(micLevel) : "0",
     );
-  }, [micLevel, state, visible]);
+  }, [micLevel, state, visible, reduced]);
 
   // While speaking, the mouth follows the loudness, one frame at a time, outside React.
   useEffect(() => {

@@ -11,18 +11,18 @@ interface MicButtonProps {
   /** Receives the transcript. */
   onText: (text: string) => void;
   /** Hears every change of the recording, for what reacts to it (the pet). */
-  onVoice?: (state: Pick<VoiceState, "phase" | "level">) => void;
+  onVoice?: (state: VoiceState) => void;
 }
 
 /** Push-to-talk: press to record, press again to stop; the words land in the question box. */
 export function MicButton({ unavailable, onText, onVoice }: MicButtonProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "voice" });
   const { state, toggle } = useVoiceInput(onText);
-  const { phase, level } = state;
+  // The state object is new on every change, so a repeated error is reported again.
   useEffect(() => {
-    onVoice?.({ phase, level });
-  }, [onVoice, phase, level]);
-  useEffect(() => () => onVoice?.({ phase: "idle", level: 0 }), [onVoice]);
+    onVoice?.(state);
+  }, [onVoice, state]);
+  useEffect(() => () => onVoice?.({ phase: "idle", level: 0, problem: null }), [onVoice]);
   const support = micSupport();
   const recording = state.phase === "recording";
   const transcribing = state.phase === "transcribing";

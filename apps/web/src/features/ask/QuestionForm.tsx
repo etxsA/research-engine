@@ -22,7 +22,7 @@ interface QuestionFormProps {
   /** `/status` says speech to text is not set up: the mic button is off. */
   speechUnavailable?: boolean;
   /** Hears the recording as it goes, so the pet can listen along. */
-  onVoice?: (state: Pick<VoiceState, "phase" | "level">) => void;
+  onVoice?: (state: VoiceState) => void;
   onSubmit: (question: string) => void;
 }
 

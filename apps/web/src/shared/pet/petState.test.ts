@@ -18,6 +18,7 @@ describe("petState", () => {
     ["reading the answer aloud", { playback: "speaking" }, "speaking"],
     ["a microphone error", { mic: "error" }, "error"],
     ["a failed question", { ask: "failed" }, "error"],
+    ["a new recording over a failed question", { ask: "failed", mic: "recording" }, "listening"],
     ["an engine that cannot answer", { unavailable: true }, "unavailable"],
   ])("%s", (_name, change, expected) => {
     expect(pet(change)).toBe(expected);

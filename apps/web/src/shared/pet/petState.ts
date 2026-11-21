@@ -37,10 +37,11 @@ export interface PetInput {
 
 /**
  * One state out of everything that may be going on. When several apply the order is
- * error, speaking, listening, transcribing, thinking, waiting, then unavailable, then idle.
+ * error (an old failed question yields once the person starts a new recording), speaking, listening, transcribing, thinking, waiting, then unavailable, then idle.
  */
 export function petState(input: PetInput): PetState {
-  if (input.mic === "error" || input.ask === "failed") return "error";
+  const micBusy = input.mic === "recording" || input.mic === "transcribing";
+  if (input.mic === "error" || (input.ask === "failed" && !micBusy)) return "error";
   if (input.playback === "speaking") return "speaking";
   if (input.mic === "recording") return "listening";
   if (input.mic === "transcribing") return "transcribing";

@@ -128,14 +128,25 @@ describe("QubiPet", () => {
       const { rerender } = render(pet());
       expect(stage()).toHaveAttribute("data-motion", "still");
       expect(raf).not.toHaveBeenCalled();
-      for (const change of [{}, { ask: "retrieving" }, { mic: "transcribing" }] as const) {
+      for (const change of [
+        {},
+        { ask: "retrieving" },
+        { mic: "transcribing" },
+        { mic: "recording" },
+      ] as const) {
         usePlayback.setState({ state: "idle" });
         rerender(pet(change));
         expect(
           stage().querySelector("[class*='qubi-bob'], .qubi-antenna-precess, .qubi-dot"),
         ).toBeNull();
       }
-      expect(stage()).toHaveAttribute("data-state", "transcribing");
+      expect(stage()).toHaveAttribute("data-state", "listening");
+    });
+
+    it("keeps the rings still while listening", () => {
+      setReducedMotion(true);
+      render(pet({ mic: "recording" }, { micLevel: 0.8 }));
+      expect(stage().parentElement?.style.getPropertyValue("--qubi-level")).toBe("0");
     });
 
     it("animates when motion is welcome", () => {

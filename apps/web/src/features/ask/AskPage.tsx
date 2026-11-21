@@ -29,16 +29,13 @@ export function AskPage() {
   const blocked = blocksAsking(view) || active !== undefined;
   // A retry is an explicit second try, so only a starting engine (or a question in flight) stops it.
   const retryBlocked = isStarting(view) || active !== undefined;
-  const [voice, setVoice] = useState<Pick<VoiceState, "phase" | "level">>({
-    phase: "idle",
-    level: 0,
-  });
+  const [voice, setVoice] = useState<VoiceState>({ phase: "idle", level: 0, problem: null });
   const newest = entries[0];
   // A new question stops the voice of the answer being read.
   const submit = (question: string) => {
     stopReading();
     // A microphone problem is old news once the person asks: Qubi follows the question now.
-    setVoice((now) => (now.phase === "error" ? { phase: "idle", level: 0 } : now));
+    setVoice((now) => (now.phase === "error" ? { phase: "idle", level: 0, problem: null } : now));
     const { settings, spoken } = useAskStore.getState();
     void flow.submit(question, settings, spoken);
   };
