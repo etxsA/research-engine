@@ -8,6 +8,7 @@ import { isBlank } from "./flow";
 import { MicButton } from "./MicButton";
 import { SettingsPopover } from "./SettingsPopover";
 import { useAskStore } from "./store";
+import type { VoiceState } from "./useVoiceInput";
 
 export const MAX_QUESTION_CHARS = 4000; // the API's limit
 
@@ -20,6 +21,8 @@ interface QuestionFormProps {
   askAnyway: boolean;
   /** `/status` says speech to text is not set up: the mic button is off. */
   speechUnavailable?: boolean;
+  /** Hears the recording as it goes, so the pet can listen along. */
+  onVoice?: (state: Pick<VoiceState, "phase" | "level">) => void;
   onSubmit: (question: string) => void;
 }
 
@@ -29,6 +32,7 @@ export function QuestionForm({
   busy,
   askAnyway,
   speechUnavailable = false,
+  onVoice,
   onSubmit,
 }: QuestionFormProps) {
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "ask" });
@@ -107,7 +111,7 @@ export function QuestionForm({
           </Button>
         ) : null}
         <SettingsPopover disabled={busy} />
-        <MicButton unavailable={speechUnavailable} onText={addTranscript} />
+        <MicButton unavailable={speechUnavailable} onText={addTranscript} onVoice={onVoice} />
         {speechUnavailable ? null : (
           <div className="flex items-center gap-2">
             <input

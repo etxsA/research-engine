@@ -242,3 +242,62 @@
     padding: 0.25rem 0;
   }
 }
+
+/* Qubi, the pet of the Ask screen (src/shared/pet). Every motion is a class the component adds only
+   when the person has not asked for reduced motion. */
+.qubi-antenna {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+.qubi-antenna-droop {
+  transform: rotate(68deg);
+}
+.qubi-antenna-precess {
+  animation: qubi-precess 2.4s ease-in-out infinite;
+}
+.qubi-bob {
+  animation: qubi-bob 3.6s ease-in-out infinite;
+}
+.qubi-rings {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  transform: scale(calc(1 + var(--qubi-level, 0) * 0.14));
+}
+.qubi-rings-live {
+  transition: transform 0.1s linear;
+}
+.qubi-mouth {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  transform: scaleY(calc(0.2 + var(--qubi-mouth, 0.5) * 0.8));
+}
+.qubi-dot {
+  animation: qubi-dot 1.2s ease-in-out infinite;
+}
+@keyframes qubi-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+@keyframes qubi-precess {
+  0%,
+  100% {
+    transform: rotate(-26deg);
+  }
+  50% {
+    transform: rotate(26deg);
+  }
+}
+@keyframes qubi-dot {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}

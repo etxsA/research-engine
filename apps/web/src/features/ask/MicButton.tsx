@@ -1,20 +1,28 @@
+import { useEffect } from "react";
 import { Loader2, Mic, Square } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { micSupport } from "@/shared/lib/recorder";
 import { Button } from "@/shared/ui/button";
-import { useVoiceInput } from "./useVoiceInput";
+import { useVoiceInput, type VoiceState } from "./useVoiceInput";
 
 interface MicButtonProps {
   /** The speech server is not set up: the button is off and says so. */
   unavailable: boolean;
   /** Receives the transcript. */
   onText: (text: string) => void;
+  /** Hears every change of the recording, for what reacts to it (the pet). */
+  onVoice?: (state: Pick<VoiceState, "phase" | "level">) => void;
 }
 
 /** Push-to-talk: press to record, press again to stop; the words land in the question box. */
-export function MicButton({ unavailable, onText }: MicButtonProps) {
+export function MicButton({ unavailable, onText, onVoice }: MicButtonProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "voice" });
   const { state, toggle } = useVoiceInput(onText);
+  const { phase, level } = state;
+  useEffect(() => {
+    onVoice?.({ phase, level });
+  }, [onVoice, phase, level]);
+  useEffect(() => () => onVoice?.({ phase: "idle", level: 0 }), [onVoice]);
   const support = micSupport();
   const recording = state.phase === "recording";
   const transcribing = state.phase === "transcribing";

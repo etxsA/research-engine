@@ -1219,5 +1219,19 @@
       }
     },
     "autoRead": "Read answers after a spoken question"
+  },
+  "pet": {
+    "hide": "Hide Qubi",
+    "show": "Show Qubi",
+    "state": {
+      "idle": "Qubi is resting.",
+      "listening": "Qubi is listening.",
+      "transcribing": "Qubi is writing down what you said.",
+      "waiting": "Qubi is waiting for its turn.",
+      "thinking": "Qubi is thinking.",
+      "speaking": "Qubi is reading the answer aloud.",
+      "error": "Qubi ran into a problem.",
+      "unavailable": "Qubi is resting, the engine is not available."
+    }
   }
 }

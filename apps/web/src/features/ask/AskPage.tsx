@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { QubiPet } from "@/shared/pet/QubiPet";
 import { PageHeader } from "@/shared/layout/PageHeader";
 import { Button } from "@/shared/ui/button";
 import { useAskFlow, useEngineStatus, useReadingEngine, useReadSessionGuard } from "./api";
@@ -13,6 +14,7 @@ import { QuestionForm } from "./QuestionForm";
 import { startReading, type Engine, stopReading } from "./reader";
 import { SourcePanel } from "./SourcePanel";
 import { activeEntry, isActive, useAskStore, type AskEntry } from "./store";
+import type { VoiceState } from "./useVoiceInput";
 
 export function AskPage() {
   const { t } = useTranslation(undefined, { keyPrefix: "ask" });
@@ -27,9 +29,16 @@ export function AskPage() {
   const blocked = blocksAsking(view) || active !== undefined;
   // A retry is an explicit second try, so only a starting engine (or a question in flight) stops it.
   const retryBlocked = isStarting(view) || active !== undefined;
+  const [voice, setVoice] = useState<Pick<VoiceState, "phase" | "level">>({
+    phase: "idle",
+    level: 0,
+  });
+  const newest = entries[0];
   // A new question stops the voice of the answer being read.
   const submit = (question: string) => {
     stopReading();
+    // A microphone problem is old news once the person asks: Qubi follows the question now.
+    setVoice((now) => (now.phase === "error" ? { phase: "idle", level: 0 } : now));
     const { settings, spoken } = useAskStore.getState();
     void flow.submit(question, settings, spoken);
   };
@@ -46,13 +55,25 @@ export function AskPage() {
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[minmax(0,1fr)_16rem]">
         <div className="grid grid-cols-[minmax(0,1fr)] content-start gap-4">
           <EngineNotice view={view} />
-          <QuestionForm
-            blocked={blocked}
-            busy={active !== undefined}
-            askAnyway={view.kind === "unavailable"}
-            speechUnavailable={status.data?.speech?.stt === "unavailable"}
-            onSubmit={submit}
-          />
+          <div className="flex items-start gap-3">
+            <QubiPet
+              mic={voice.phase}
+              micLevel={voice.level}
+              ask={newest?.status ?? null}
+              position={newest?.status === "queued" ? newest.position : null}
+              unavailable={view.kind === "unavailable"}
+            />
+            <div className="min-w-0 flex-1">
+              <QuestionForm
+                blocked={blocked}
+                busy={active !== undefined}
+                askAnyway={view.kind === "unavailable"}
+                speechUnavailable={status.data?.speech?.stt === "unavailable"}
+                onVoice={setVoice}
+                onSubmit={submit}
+              />
+            </div>
+          </div>
           <Announcer entry={entries[0]} />
           {selected ? (
             <EntryView
