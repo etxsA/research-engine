@@ -25,6 +25,7 @@ from .problems import install_problem_handlers, use_problem_media_in_openapi
 from .routes import router
 from .sets import router as sets_router
 from .speech import router as speech_router
+from .synthesis import router as synthesis_router
 from .webapp import WebApp
 
 API_PREFIX = "/api/v1"
@@ -84,6 +85,7 @@ def build_app(container: Container) -> FastAPI:
     app.include_router(sets_router, prefix=API_PREFIX)
     app.include_router(jobs_router, prefix=API_PREFIX)
     app.include_router(speech_router, prefix=API_PREFIX)
+    app.include_router(synthesis_router, prefix=API_PREFIX)
     install_problem_handlers(app)
     install_ask_handlers(app)
     if container.settings.web_dir is not None:

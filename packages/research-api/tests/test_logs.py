@@ -15,7 +15,8 @@ import pytest
 from fastapi.testclient import TestClient
 from helpers import MovableClock, live_settings, make_wav, prepare_live
 
-from research_api.adapters.models import OpenAiTranscriber
+from research_api.adapters.fake.synthesis import tone
+from research_api.adapters.models import OpenAiSynthesizer, OpenAiTranscriber
 from research_api.bootstrap import Settings, build_container
 from research_api.bootstrap.seed import SeedUser
 from research_api.entrypoints.http import build_app
@@ -263,6 +264,67 @@ def test_neither_the_speech_key_nor_the_transcript_reaches_the_log(
     assert text.count("\n") > 0
     assert "stt-key-never-in-a-log" not in text
     assert transcript not in text
+
+
+def test_neither_the_reading_key_nor_the_text_reaches_the_log(
+    tmp_path: Path, seed: list[SeedUser]
+) -> None:
+    key_file = tmp_path / "tts.key"
+    key_file.write_text("tts-key-never-in-a-log-0002")
+    key_file.chmod(0o600)
+    home = tmp_path / "home"
+    settings = prepare_live(
+        live_settings(
+            home,
+            log_dir=home / "logs",
+            speech={"tts_endpoint": "http://127.0.0.1:8005/v1", "tts_api_key_file": key_file},
+        )
+    )
+    container = build_container(settings, cheap_hashing=True)
+    for account in seed:
+        container.auth.users.create(
+            account.username,
+            account.display_name,
+            account.role,
+            password=account.password,
+            must_change_password=account.must_change_password,
+        )
+    assert settings.log_dir and container.synthesis
+    configure_logging(settings.log_dir)
+    private = "the-private-sentence-of-an-answer"
+    state = {"down": False}
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        if state["down"]:
+            raise httpx.ConnectError(private, request=request)
+        return httpx.Response(200, content=tone(0.1, 220))
+
+    container.synthesis._synthesizer = OpenAiSynthesizer(
+        "http://127.0.0.1:8005/v1",
+        "local-tts",
+        "tts-key-never-in-a-log-0002",
+        timeout_s=5,
+        transport=httpx.MockTransport(answer),
+    )
+    client = TestClient(
+        build_app(container),
+        base_url="http://127.0.0.1:8090",
+        headers={"Origin": "http://127.0.0.1:8090"},
+        raise_server_exceptions=False,
+    )
+    client.post("/api/v1/auth/login", json=ANA)
+    headers = {CSRF_HEADER: client.cookies[CSRF_COOKIE]}
+    url = "/api/v1/speech/synthesis"
+    reply = client.post(url, json={"text": private}, headers=headers)
+    assert reply.status_code == 200 and reply.headers["content-type"] == "audio/wav"
+    state["down"] = True
+    down = client.post(url, json={"text": private}, headers=headers)
+    assert down.status_code == 503 and down.headers["retry-after"] == "30"
+    assert private not in down.text
+    text = (settings.log_dir / LOG_NAME).read_text(encoding="utf-8")
+    assert text.count("\n") > 0
+    assert "tts-key-never-in-a-log" not in text
+    assert private not in text
 
 
 def test_the_audit_trail_names_who_did_what(logged: tuple[TestClient, Path, list[str]]) -> None:

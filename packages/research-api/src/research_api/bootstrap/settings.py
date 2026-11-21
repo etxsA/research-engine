@@ -33,6 +33,14 @@ from ..domain.speech import (
     SpeechLimits,
 )
 from ..domain.speech import DEFAULT_TIMEOUT_S as DEFAULT_SPEECH_TIMEOUT_S
+from ..domain.synthesis import (
+    DEFAULT_MAX_CHARS,
+    DEFAULT_VOICE,
+    MAX_CHARS_LIMIT,
+    SynthesisLimits,
+    Voices,
+)
+from ..domain.synthesis import DEFAULT_TIMEOUT_S as DEFAULT_TTS_TIMEOUT_S
 
 # Tailscale hands out addresses from the CGNAT block (IPv4) and a unique-local block (IPv6).
 _TAILSCALE_NETWORKS = (
@@ -180,35 +188,67 @@ class ModelSetting(BaseModel):
 
 
 class SpeechSettings(BaseModel):
-    """The ``[speech]`` table: the speech-to-text server, and what one clip may be. Without the
-    table speech is unavailable. The key is read from ``stt_api_key_file``, never from here."""
+    """The ``[speech]`` table: the speech-to-text server and what one clip may be, and the
+    text-to-speech server that reads answers aloud. Every key is optional. Speech to text needs
+    ``stt_endpoint`` and ``stt_api_key_file`` together; reading aloud needs ``tts_endpoint`` and
+    ``tts_api_key_file`` together. A half that is missing is unavailable, the other keeps working.
+    Keys are read from the files, never from here."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    stt_endpoint: str = Field(description="The address up to and including /v1.")
+    stt_endpoint: str | None = Field(
+        default=None, description="The address up to and including /v1."
+    )
     stt_model: str = Field(
         default="local-stt", min_length=1, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9._:/-]*$"
     )
-    stt_api_key_file: Path
+    stt_api_key_file: Path | None = None
     max_audio_bytes: StrictInt = Field(
         default=DEFAULT_MAX_AUDIO_BYTES, ge=1024, le=16 * 1024 * 1024
     )
     max_audio_s: StrictInt | StrictFloat = Field(default=DEFAULT_MAX_AUDIO_S, gt=0, le=300)
     timeout_s: StrictInt | StrictFloat = Field(default=DEFAULT_SPEECH_TIMEOUT_S, gt=0, le=600)
     per_member_open: StrictInt = Field(default=DEFAULT_PER_MEMBER_OPEN, ge=1, le=10)
+    tts_endpoint: str | None = Field(
+        default=None, description="The address up to and including /v1."
+    )
+    tts_model: str = Field(
+        default="local-tts", min_length=1, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9._:/-]*$"
+    )
+    tts_api_key_file: Path | None = None
+    tts_voice_es: str = Field(default=DEFAULT_VOICE, min_length=1, max_length=128)
+    tts_voice_en: str = Field(default=DEFAULT_VOICE, min_length=1, max_length=128)
+    max_tts_chars: StrictInt = Field(default=DEFAULT_MAX_CHARS, ge=1, le=MAX_CHARS_LIMIT)
+    tts_timeout_s: StrictInt | StrictFloat = Field(default=DEFAULT_TTS_TIMEOUT_S, gt=0, le=600)
 
     @field_validator("stt_endpoint")
     @classmethod
-    def _endpoint_is_plain(cls, value: str) -> str:
-        return _plain_endpoint(value, what="a person's voice")
+    def _stt_endpoint_is_plain(cls, value: str | None) -> str | None:
+        return None if value is None else _plain_endpoint(value, what="a person's voice")
 
-    @field_validator("stt_api_key_file")
+    @field_validator("tts_endpoint")
     @classmethod
-    def _key_file_is_absolute(cls, value: Path) -> Path:
+    def _tts_endpoint_is_plain(cls, value: str | None) -> str | None:
+        return None if value is None else _plain_endpoint(value, what="a person's answer")
+
+    @field_validator("stt_api_key_file", "tts_api_key_file")
+    @classmethod
+    def _key_file_is_absolute(cls, value: Path | None) -> Path | None:
+        if value is None:
+            return None
         value = value.expanduser()
         if not value.is_absolute():
             raise ValueError("must be an absolute path")
         return value
+
+    @model_validator(mode="after")
+    def _each_server_has_its_key(self) -> Self:
+        for prefix in ("stt", "tts"):
+            has_endpoint = getattr(self, f"{prefix}_endpoint") is not None
+            has_key = getattr(self, f"{prefix}_api_key_file") is not None
+            if has_endpoint != has_key:
+                raise ValueError(f"{prefix}_endpoint and {prefix}_api_key_file go together")
+        return self
 
     def limits(self) -> SpeechLimits:
         return SpeechLimits(
@@ -217,6 +257,16 @@ class SpeechSettings(BaseModel):
             timeout_s=float(self.timeout_s),
             per_member_open=self.per_member_open,
         )
+
+    def synthesis_limits(self) -> SynthesisLimits:
+        return SynthesisLimits(
+            max_chars=self.max_tts_chars,
+            timeout_s=float(self.tts_timeout_s),
+            per_member_open=self.per_member_open,
+        )
+
+    def voices(self) -> Voices:
+        return Voices(es=self.tts_voice_es, en=self.tts_voice_en)
 
 
 class Settings(BaseModel):
@@ -239,7 +289,8 @@ class Settings(BaseModel):
     # The models that benchmark runs may ask (the closed-book arm calls them directly). The
     # harness arm uses the model of the docingest file; its entry here only names it in the run.
     models: tuple[ModelSetting, ...] = ()
-    # The speech-to-text server. Without it speech is unavailable (a 503, and `/status` says so).
+    # The speech-to-text server and the text-to-speech server. A half that is not set is unavailable
+    # (a 503, and `/status` says so).
     speech: SpeechSettings | None = None
     # The built web app (apps/web/dist). When set, the API serves it from its own origin.
     web_dir: Path | None = None

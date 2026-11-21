@@ -28,12 +28,13 @@ from ..adapters.fake import (
     FakeAskEngine,
     FakeDocumentReader,
     FakeModelServer,
+    FakeSynthesizer,
     FakeTranscriber,
     FixedClock,
 )
 from ..adapters.files import BenchFileStore, SetFileStore
 from ..adapters.hashing import ArgonPasswordHasher
-from ..adapters.models import OpenAiModels, OpenAiTranscriber
+from ..adapters.models import OpenAiModels, OpenAiSynthesizer, OpenAiTranscriber
 from ..adapters.persistence import Database
 from ..application.arms import LiveArms
 from ..application.ask import AskDesk
@@ -61,16 +62,18 @@ from ..application.results import RunsDesk, ScoresDesk
 from ..application.sets import SetServices, build_set_services
 from ..application.speech import SpeechDesk
 from ..application.status import ReportStatus
+from ..application.synthesis import SynthesisDesk
 from ..domain.auth import LoginPolicy, SessionPolicy
 from ..domain.speech import SpeechLimits
 from ..domain.status import Mode
+from ..domain.synthesis import SynthesisLimits, Voices
 from ..ports.ask import AskEngine
 from ..ports.auth import PasswordHasher
 from ..ports.clock import Clock
 from ..ports.documents import DocumentReader
 from ..ports.jobs import Arms
 from ..ports.models import ModelEntry, ModelServer
-from ..ports.speech import Transcriber
+from ..ports.speech import Synthesizer, Transcriber
 from .demo_sets import seed_demo_sets
 from .seed import SeedUser, default_seed_users
 from .settings import Settings, SettingsError, is_loopback
@@ -115,7 +118,9 @@ class Container:
     sets: SetServices
     bench: BenchServices
     speech: SpeechDesk | None
-    """None when the settings have no ``[speech]`` table: the routes answer 503."""
+    """None when the settings have no speech-to-text server: the route answers 503."""
+    synthesis: SynthesisDesk | None
+    """None when the settings have no ``tts_endpoint``: the route answers 503."""
     close: Callable[[], None]
     """Release the database. Idempotent; the HTTP app calls it when it shuts down."""
 
@@ -278,7 +283,7 @@ def _speech_desk(
     if transcriber is None:
         if fake:
             transcriber = FakeTranscriber()
-        elif section is None:
+        elif section is None or section.stt_endpoint is None or section.stt_api_key_file is None:
             return None
         else:
             transcriber = OpenAiTranscriber(
@@ -289,6 +294,27 @@ def _speech_desk(
             )
     limits = section.limits() if section is not None else SpeechLimits()
     return SpeechDesk(transcriber=transcriber, limits=limits)
+
+
+def _synthesis_desk(
+    settings: Settings, *, fake: bool, synthesizer: Synthesizer | None
+) -> SynthesisDesk | None:
+    section = settings.speech
+    if synthesizer is None:
+        if fake:
+            synthesizer = FakeSynthesizer()
+        elif section is None or section.tts_endpoint is None or section.tts_api_key_file is None:
+            return None
+        else:
+            synthesizer = OpenAiSynthesizer(
+                section.tts_endpoint,
+                section.tts_model,
+                read_secret(section.tts_api_key_file, what="the reading server key file"),
+                timeout_s=float(section.tts_timeout_s),
+            )
+    limits = section.synthesis_limits() if section is not None else SynthesisLimits()
+    voices = section.voices() if section is not None else Voices()
+    return SynthesisDesk(synthesizer=synthesizer, limits=limits, voices=voices)
 
 
 def build_container(
@@ -306,6 +332,7 @@ def build_container(
     model_server: ModelServer | None = None,
     bench_recheck_s: float | None = None,
     transcriber: Transcriber | None = None,
+    synthesizer: Synthesizer | None = None,
 ) -> Container:
     """Wire the service.
 
@@ -319,7 +346,8 @@ def build_container(
     stand-ins (tests). ``fake_bench_pause_s`` is the time a fake benchmark answer takes;
     ``bench_arms``, ``model_server`` and ``bench_recheck_s`` (how often a run waiting for a model
     server looks again) replace the stand-ins and the default for tests. ``transcriber`` replaces
-    the speech server (fake mode has a stand-in; live mode has none without ``[speech]``).
+    the speech server (fake mode has a stand-in; live mode has none without ``[speech]``), and
+    ``synthesizer`` the server that reads answers aloud in the same way.
     """
     if fake and not is_loopback(settings.bind_host):
         raise SettingsError("fake mode serves test data and may only bind a loopback address")
@@ -408,6 +436,7 @@ def build_container(
             sets=sets,
             bench=bench,
             speech=_speech_desk(settings, fake=fake, transcriber=transcriber),
+            synthesis=_synthesis_desk(settings, fake=fake, synthesizer=synthesizer),
             close=cleanup,
         )
         # A process that exits without a clean shutdown still removes the fake database's folder.

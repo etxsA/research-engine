@@ -130,11 +130,11 @@ def test_without_a_speech_section_the_route_is_a_503_and_status_says_so(
     client = sign_in_as_member(client_for(build_app(off)))
     reply = post(client)
     assert reply.status_code == 503 and reply.headers["content-type"] == PROBLEM
-    assert client.get("/api/v1/status").json()["speech"] == {"stt": "unavailable"}
+    assert client.get("/api/v1/status").json()["speech"] == {"stt": "unavailable", "tts": "ready"}
 
 
 def test_status_says_speech_is_ready(member: TestClient) -> None:
-    assert member.get("/api/v1/status").json()["speech"] == {"stt": "ready"}
+    assert member.get("/api/v1/status").json()["speech"] == {"stt": "ready", "tts": "ready"}
 
 
 class Held:

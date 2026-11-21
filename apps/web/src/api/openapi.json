@@ -3527,10 +3527,21 @@
             ],
             "title": "Stt",
             "type": "string"
+          },
+          "tts": {
+            "description": "`ready` when the settings have a `tts_endpoint`, `unavailable` when they do not (reading aloud is then refused with 503 and the web app uses the browser's voice). The server itself is not probed.",
+            "enum": [
+              "warming_up",
+              "ready",
+              "unavailable"
+            ],
+            "title": "Tts",
+            "type": "string"
           }
         },
         "required": [
-          "stt"
+          "stt",
+          "tts"
         ],
         "title": "SpeechStatus",
         "type": "object"
@@ -3584,6 +3595,38 @@
           "speech"
         ],
         "title": "Status",
+        "type": "object"
+      },
+      "SynthesisRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "language": {
+            "anyOf": [
+              {
+                "enum": [
+                  "es",
+                  "en"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`es` or `en`. Without it the language is guessed from the text.",
+            "title": "Language"
+          },
+          "text": {
+            "description": "A piece of an answer as written. Citations, markdown and formulas are cleaned on the server (a formula is said as \"ecuación\" or \"equation\"); what is left must be 1 to `max_tts_chars` characters (400 by default).",
+            "maxLength": 20000,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "SynthesisRequest",
         "type": "object"
       },
       "TimingsOut": {
@@ -8445,6 +8488,94 @@
         "summary": "Accept, edit or reject an item",
         "tags": [
           "sets"
+        ]
+      }
+    },
+    "/api/v1/speech/synthesis": {
+      "post": {
+        "description": "The body is a piece of an answer, one sentence at a time. Citations, markdown and formulas are cleaned away on the server first (a formula is said as \"ecuación\" or \"equation\"); what is left must be 1 to 400 characters with the default settings. Without `language` it is guessed from the words. The answer is a mono 16-bit PCM WAV with `Cache-Control: no-store`. Neither the text nor the audio is stored or logged. At most two readings per member are open at once (429, see `Retry-After`).",
+        "operationId": "synthesizeSpeech",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SynthesisRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "audio/wav": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The speech."
+          },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The body is over the byte cap."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Nothing to read after the cleanup, more than `max_tts_chars` characters, or a `language` other than `es` or `en`."
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Too many open readings of this member."
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Reading aloud is not set up, or its server is down or slow; see `Retry-After`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem."
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "summary": "Read a piece of an answer aloud",
+        "tags": [
+          "speech"
         ]
       }
     },

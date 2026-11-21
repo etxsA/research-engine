@@ -814,6 +814,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/speech/synthesis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read a piece of an answer aloud
+         * @description The body is a piece of an answer, one sentence at a time. Citations, markdown and formulas are cleaned away on the server first (a formula is said as "ecuación" or "equation"); what is left must be 1 to 400 characters with the default settings. Without `language` it is guessed from the words. The answer is a mono 16-bit PCM WAV with `Cache-Control: no-store`. Neither the text nor the audio is stored or logged. At most two readings per member are open at once (429, see `Retry-After`).
+         */
+        post: operations["synthesizeSpeech"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/speech/transcriptions": {
         parameters: {
             query?: never;
@@ -2272,6 +2292,12 @@ export interface components {
              * @enum {string}
              */
             stt: "warming_up" | "ready" | "unavailable";
+            /**
+             * Tts
+             * @description `ready` when the settings have a `tts_endpoint`, `unavailable` when they do not (reading aloud is then refused with 503 and the web app uses the browser's voice). The server itself is not probed.
+             * @enum {string}
+             */
+            tts: "warming_up" | "ready" | "unavailable";
         };
         /** Status */
         Status: {
@@ -2295,6 +2321,19 @@ export interface components {
             started_at: string;
             /** Uptime S */
             uptime_s: number;
+        };
+        /** SynthesisRequest */
+        SynthesisRequest: {
+            /**
+             * Language
+             * @description `es` or `en`. Without it the language is guessed from the text.
+             */
+            language?: ("es" | "en") | null;
+            /**
+             * Text
+             * @description A piece of an answer as written. Citations, markdown and formulas are cleaned on the server (a formula is said as "ecuación" or "equation"); what is left must be 1 to `max_tts_chars` characters (400 by default).
+             */
+            text: string;
         };
         /** TimingsOut */
         TimingsOut: {
@@ -5439,6 +5478,75 @@ export interface operations {
             };
             /** @description `If-Match` is missing (or is `*`). */
             428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description A problem. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    synthesizeSpeech: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SynthesisRequest"];
+            };
+        };
+        responses: {
+            /** @description The speech. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "audio/wav": string;
+                };
+            };
+            /** @description The body is over the byte cap. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Nothing to read after the cleanup, more than `max_tts_chars` characters, or a `language` other than `es` or `en`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too many open readings of this member. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Reading aloud is not set up, or its server is down or slow; see `Retry-After`. */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

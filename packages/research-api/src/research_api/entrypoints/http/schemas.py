@@ -101,6 +101,11 @@ class SpeechStatus(BaseModel):
         description="`ready` when the settings have a `[speech]` table, `unavailable` when they "
         "do not (transcriptions are then refused with 503). The server itself is not probed."
     )
+    tts: EngineState = Field(
+        description="`ready` when the settings have a `tts_endpoint`, `unavailable` when they do "
+        "not (reading aloud is then refused with 503 and the web app uses the browser's voice). "
+        "The server itself is not probed."
+    )
 
 
 class Status(BaseModel):
@@ -115,7 +120,13 @@ class Status(BaseModel):
 
     @classmethod
     def from_domain(
-        cls, status: ServerStatus, desk: DeskStatus, bench: BenchStatus, *, speech_ready: bool
+        cls,
+        status: ServerStatus,
+        desk: DeskStatus,
+        bench: BenchStatus,
+        *,
+        speech_ready: bool,
+        tts_ready: bool,
     ) -> Status:
         return cls(
             mode=status.mode,
@@ -125,7 +136,10 @@ class Status(BaseModel):
             ready=status.ready,
             ask=AskStatus.from_domain(desk),
             bench=BenchStatusOut.from_domain(bench),
-            speech=SpeechStatus(stt="ready" if speech_ready else "unavailable"),
+            speech=SpeechStatus(
+                stt="ready" if speech_ready else "unavailable",
+                tts="ready" if tts_ready else "unavailable",
+            ),
         )
 
 
@@ -585,3 +599,16 @@ class DocumentPageOut(BaseModel):
             title=page.title,
             markdown=page.markdown,
         )
+
+
+class SynthesisRequest(Request):
+    text: StrictStr = Field(
+        max_length=20_000,
+        description="A piece of an answer as written. Citations, markdown and formulas are "
+        'cleaned on the server (a formula is said as "ecuación" or "equation"); what is '
+        "left must be 1 to `max_tts_chars` characters (400 by default).",
+    )
+    language: Language | None = Field(
+        default=None,
+        description="`es` or `en`. Without it the language is guessed from the text.",
+    )

@@ -7,13 +7,15 @@ from pathlib import Path
 import pytest
 from helpers import live_settings, prepare_live, write_config
 
-from research_api.adapters.models import OpenAiTranscriber
+from research_api.adapters.models import OpenAiSynthesizer, OpenAiTranscriber
 from research_api.bootstrap import Settings, SettingsError, build_container, load_settings
 from research_api.bootstrap.storage import read_secret
 from research_api.domain.speech import SpeechLimits
+from research_api.domain.synthesis import SynthesisLimits, Voices
 
 PACKAGE = Path(__file__).resolve().parents[1]
 ENDPOINT = "http://127.0.0.1:8004/v1"
+TTS = "http://127.0.0.1:8005/v1"
 
 
 def section(tmp_path: Path, extra: str = "") -> Settings:
@@ -51,6 +53,13 @@ def test_the_example_file_documents_the_section() -> None:
         "max_audio_s",
         "timeout_s",
         "per_member_open",
+        "tts_endpoint",
+        "tts_model",
+        "tts_api_key_file",
+        "tts_voice_es",
+        "tts_voice_en",
+        "max_tts_chars",
+        "tts_timeout_s",
     ):
         assert key in text
 
@@ -112,10 +121,15 @@ def test_https_to_another_host_and_a_tailscale_address_are_accepted(tmp_path: Pa
         assert load_settings(write_config(tmp_path / "s.toml", text)).speech is not None
 
 
-def test_the_key_file_and_the_endpoint_are_required_and_the_path_absolute(tmp_path: Path) -> None:
+def test_an_endpoint_and_its_key_file_go_together_and_the_path_is_absolute(
+    tmp_path: Path,
+) -> None:
     for text in (
         '[speech]\nstt_endpoint = "http://127.0.0.1:8004/v1"\n',
         '[speech]\nstt_api_key_file = "/k"\n',
+        '[speech]\ntts_endpoint = "http://127.0.0.1:8005/v1"\n',
+        '[speech]\ntts_api_key_file = "/k"\n',
+        f'[speech]\ntts_endpoint = "{TTS}"\ntts_api_key_file = "relative.key"\n',
         f'[speech]\nstt_endpoint = "{ENDPOINT}"\nstt_api_key_file = "relative.key"\n',
     ):
         with pytest.raises(SettingsError):
@@ -185,6 +199,103 @@ def test_a_live_start_with_a_loose_key_file_stops(tmp_path: Path) -> None:
     key.chmod(0o644)
     settings = prepare_live(
         live_settings(tmp_path, speech={"stt_endpoint": ENDPOINT, "stt_api_key_file": key})
+    )
+    with pytest.raises(SettingsError, match="chmod 600"):
+        build_container(settings, cheap_hashing=True)
+
+
+def test_the_reading_keys_have_their_defaults(tmp_path: Path) -> None:
+    speech = section(tmp_path).speech
+    assert speech is not None
+    assert speech.tts_endpoint is None and speech.tts_api_key_file is None
+    assert speech.tts_model == "local-tts"
+    assert speech.synthesis_limits() == SynthesisLimits(400, 30.0, 2)
+    assert speech.voices() == Voices("default", "default")
+
+
+def test_every_reading_key_can_be_set(tmp_path: Path) -> None:
+    key = tmp_path / "tts.key"
+    key.write_text("k")
+    text = (
+        f'[speech]\ntts_endpoint = "{TTS}"\ntts_api_key_file = "{key}"\ntts_model = "m"\n'
+        'tts_voice_es = "ana"\ntts_voice_en = "bo"\nmax_tts_chars = 900\ntts_timeout_s = 5\n'
+        "per_member_open = 3\n"
+    )
+    speech = load_settings(write_config(tmp_path / "s.toml", text)).speech
+    assert speech is not None and speech.stt_endpoint is None
+    assert speech.tts_model == "m"
+    assert speech.synthesis_limits() == SynthesisLimits(900, 5.0, 3)
+    assert speech.voices() == Voices("ana", "bo")
+
+
+@pytest.mark.parametrize(
+    "line", ["max_tts_chars = 0", "max_tts_chars = 2001", "tts_timeout_s = 0", "tts_voice_es = ''"]
+)
+def test_the_reading_limits_are_bounded(tmp_path: Path, line: str) -> None:
+    key = tmp_path / "tts.key"
+    key.write_text("k")
+    text = f'[speech]\ntts_endpoint = "{TTS}"\ntts_api_key_file = "{key}"\n{line}\n'
+    with pytest.raises(SettingsError):
+        load_settings(write_config(tmp_path / "s.toml", text))
+
+
+def test_a_reading_endpoint_follows_the_rules_of_any_endpoint(tmp_path: Path) -> None:
+    for endpoint in ("http://tts.example.com/v1", "http://127.0.0.1:8005/v1?k=1"):
+        text = f'[speech]\ntts_endpoint = "{endpoint}"\ntts_api_key_file = "/k"\n'
+        with pytest.raises(SettingsError):
+            load_settings(write_config(tmp_path / "s.toml", text))
+
+
+def test_a_live_container_with_only_the_reading_half_has_no_transcription(
+    tmp_path: Path,
+) -> None:
+    key = tmp_path / "tts.key"
+    key.write_text("k-123")
+    key.chmod(0o600)
+    settings = prepare_live(
+        live_settings(
+            tmp_path,
+            speech={
+                "tts_endpoint": TTS,
+                "tts_api_key_file": key,
+                "tts_voice_es": "ana",
+                "max_tts_chars": 100,
+            },
+        )
+    )
+    container = build_container(settings, cheap_hashing=True)
+    try:
+        assert container.speech is None
+        assert container.synthesis is not None
+        assert container.synthesis.limits.max_chars == 100
+        assert container.synthesis.voices.es == "ana"
+        assert isinstance(container.synthesis._synthesizer, OpenAiSynthesizer)
+    finally:
+        container.close()
+
+
+def test_a_live_container_with_only_the_transcription_half_has_no_reading(
+    tmp_path: Path,
+) -> None:
+    key = tmp_path / "stt.key"
+    key.write_text("k-123")
+    key.chmod(0o600)
+    settings = prepare_live(
+        live_settings(tmp_path, speech={"stt_endpoint": ENDPOINT, "stt_api_key_file": key})
+    )
+    container = build_container(settings, cheap_hashing=True)
+    try:
+        assert container.speech is not None and container.synthesis is None
+    finally:
+        container.close()
+
+
+def test_a_live_start_with_a_loose_reading_key_file_stops(tmp_path: Path) -> None:
+    key = tmp_path / "tts.key"
+    key.write_text("k-123")
+    key.chmod(0o644)
+    settings = prepare_live(
+        live_settings(tmp_path, speech={"tts_endpoint": TTS, "tts_api_key_file": key})
     )
     with pytest.raises(SettingsError, match="chmod 600"):
         build_container(settings, cheap_hashing=True)

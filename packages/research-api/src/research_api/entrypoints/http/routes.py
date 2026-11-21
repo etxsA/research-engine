@@ -37,4 +37,5 @@ def status(request: Request) -> Status:
         container.asks.status(),
         container.bench.jobs.status(),
         speech_ready=container.speech is not None,
+        tts_ready=container.synthesis is not None,
     )

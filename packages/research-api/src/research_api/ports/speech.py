@@ -22,3 +22,11 @@ class Transcriber(Protocol):
         the server cannot be reached or is not ready, ``TimeoutError`` when it takes too long,
         ``UpstreamError`` (no body in the message) when it refuses."""
         ...
+
+
+class Synthesizer(Protocol):
+    async def synthesize(self, text: str, *, language: Language, voice: str) -> bytes:
+        """The speech of ``text`` as a mono 16-bit PCM WAV. ``UnavailableError`` when the server
+        cannot be reached or is not ready, ``TimeoutError`` when it takes too long,
+        ``UpstreamError`` (no text in the message) when it refuses."""
+        ...
