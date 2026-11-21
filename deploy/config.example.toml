@@ -90,3 +90,24 @@ login_window_minutes = 15
 # max_audio_s = 60
 # timeout_s = 30
 # per_member_open = 2
+#
+# OPTIONAL: reading answers aloud, in the same table. Without tts_endpoint reading aloud is
+# unavailable: /status says so, the route answers 503 and the web app uses the browser's own
+# voice. Nothing is stored or logged. Each pair (stt_endpoint and stt_api_key_file, tts_endpoint
+# and tts_api_key_file) goes together; the two halves are independent. Restart after a change.
+#   tts_endpoint     the reading server's address up to /v1 (serving/serve.sh tts start listens on
+#                    127.0.0.1:8005). Plain http only for a loopback or Tailscale address, else https.
+#   tts_model        the name the reading server answers to (default local-tts).
+#   tts_api_key_file path of a file that holds only the key, mode 0600, outside the repository
+#                    (by default $SERVING_STATE_DIR/tts.key, the file the reading server reads).
+#   tts_voice_es     the voice for Spanish text (default "default").
+#   tts_voice_en     the voice for English text (default "default").
+#   max_tts_chars    most characters per request after cleanup, 1 to 2000 (default 400).
+#   tts_timeout_s    wait for one sentence, in seconds (default 30).
+# tts_endpoint = "http://127.0.0.1:8005/v1"
+# tts_model = "local-tts"
+# tts_api_key_file = "/path/to/tts.key"
+# tts_voice_es = "default"
+# tts_voice_en = "default"
+# max_tts_chars = 400
+# tts_timeout_s = 30

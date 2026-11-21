@@ -73,4 +73,16 @@ timeout_s = 30             # seconds to wait for one request (answer 422 after i
 # max_audio_bytes = 2097152                   # 2 MiB per clip (answer 413 above it)
 # max_audio_s = 60                            # seconds per clip (answer 422 above it)
 # timeout_s = 30                              # seconds to wait for one clip (answer 503 after it)
-# per_member_open = 2                         # open transcriptions per member (answer 429 above it)
+# per_member_open = 2                         # open transcriptions and readings per member (answer 429 above it)
+# Reading answers aloud (text to speech), with its own server, key and limits. Without tts_endpoint
+# it is unavailable (a 503, /status says so, and the web app uses the browser's voice). The
+# server speaks the OpenAI audio API (POST <tts_endpoint>/audio/speech). Neither the text nor the
+# audio is stored or logged. Each pair (stt_endpoint and stt_api_key_file, tts_endpoint and
+# tts_api_key_file) goes together; the two halves are independent.
+# tts_endpoint = "http://127.0.0.1:8005/v1"   # the address up to /v1
+# tts_model = "local-tts"                     # the name the server serves it as
+# tts_api_key_file = "/path/to/research-api/secrets/tts.key"
+# tts_voice_es = "default"                    # the voice for Spanish text
+# tts_voice_en = "default"                    # the voice for English text
+# max_tts_chars = 400                         # characters per request after cleanup, 1 to 2000 (answer 422 above it)
+# tts_timeout_s = 30                          # seconds to wait for one sentence (answer 503 after it)
