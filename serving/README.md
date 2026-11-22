@@ -1,7 +1,7 @@
 # Model servers
 
-The research engine runs three local [vLLM](https://docs.vllm.ai/) servers with OpenAI-compatible APIs and one CPU
-speech-to-text server. `serve.sh` starts, stops and inspects them; `models.tsv` pins every model to a repository and
+The research engine runs three local [vLLM](https://docs.vllm.ai/) servers with OpenAI-compatible APIs, one CPU
+speech-to-text server and one GPU text-to-speech server. `serve.sh` starts, stops and inspects them; `models.tsv` pins every model to a repository and
 revision.
 
 | Role | Served name | Default model | Default GPU and port | Used for |
@@ -10,6 +10,7 @@ revision.
 | `embed` | `qwen-embed` | Qwen3-Embedding-4B | GPU 1, port 8002 | vectors for chunks and questions (`/v1/embeddings`) |
 | `rerank` | `qwen-rerank` | Qwen3-Reranker-8B | GPU 1, port 8003 | re-scoring retrieved chunks (`/rerank`) |
 | `stt` | `local-stt` | Parakeet-TDT-0.6B-v3 (ONNX) | CPU, port 8004 | speech to text (`/v1/audio/transcriptions`), see [Speech to text](#speech-to-text-stt) |
+| `tts` | `local-tts` | Qwen3-TTS 0.6B CustomVoice | one GPU (`TTS_GPU`, default 0), port 8005 | text to speech (`/v1/audio/speech`), see [Text to speech](#text-to-speech-tts) |
 
 ```bash
 serving/serve.sh llm start            # or: start <GPU> <PORT> <model name from models.tsv>
@@ -109,6 +110,104 @@ uv venv --python 3.12 /tmp/stt-test && uv pip install --python /tmp/stt-test/bin
 (https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx, CC-BY-4.0); changes: the ONNX conversion. If
 `fluid-speech-pro` is used: "Fluid Speech Pro by FluidVoice. Built on NVIDIA Parakeet TDT 0.6B v3 and Moondream
 Parakeet Ultra." (the repository's NOTICE, CC-BY-4.0). Keep this text in the user-facing About page as well.
+
+## Text to speech (tts)
+
+The `tts` role is a small FastAPI wrapper, `tts/tts_server.py` (Apache-2.0, like the rest of the repo), around
+[Qwen3-TTS](https://github.com/QwenLM/Qwen3-TTS) (Apache-2.0, Qwen team). One process loads one model once and
+turns one sentence at a time into a mono 16-bit WAV at the model's rate (24 kHz). It runs on one GPU chosen by
+`TTS_GPU` (default 0, through `CUDA_VISIBLE_DEVICES`) and listens on 127.0.0.1 only. Spanish and English are both
+supported by every model.
+
+| Model name | Repository (pinned in `models.tsv`) | License | What it does |
+|---|---|---|---|
+| `qwen3-tts-0.6b-customvoice` (default) | `Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice` | Apache-2.0 | 9 preset speakers: `aiden`, `dylan`, `eric`, `ono_anna`, `ryan`, `serena`, `sohee`, `uncle_fu`, `vivian` |
+| `qwen3-tts-1.7b-customvoice` | `Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice` | Apache-2.0 | the same speakers, larger |
+| `qwen3-tts-0.6b-base` | `Qwen/Qwen3-TTS-12Hz-0.6B-Base` | Apache-2.0 | clones a voice from a clip of a few seconds: the voices are the `NAME.wav` + `NAME.txt` pairs of `TTS_VOICES_DIR` |
+| `qwen3-tts-1.7b-voicedesign` | `Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign` | Apache-2.0 | designs a voice from a text description; used to make a reference clip, not served |
+
+The preset speakers are Chinese or English natives; they all speak Spanish. A designed voice is cloned to keep it
+stable: VoiceDesign speaks one reference sentence, and the Base model clones that clip, so every sentence has the
+same voice (a new design draw per sentence changes the voice from clip to clip).
+
+**Two backends, same model files.** `TTS_BACKEND=faster` (default) runs the talker and the code predictor as CUDA
+graphs ([faster-qwen3-tts](https://github.com/andimarafioti/faster-qwen3-tts), MIT, on the `qwen-tts-hf` fork of
+`qwen-tts`, Apache-2.0). `TTS_BACKEND=qwen` runs the plain `qwen-tts` loop, which is bound by Python and
+kernel-launch time: it needs about two seconds per second of speech, too slow to read an answer aloud. Each backend
+has its own pinned requirements file (`requirements.txt` for `faster`, `requirements-qwen.txt` for `qwen`).
+
+Measured on one 48 GB workstation GPU of a shared lab machine (GPU 0, CUDA 12.4 wheels on a 535 driver, bf16,
+sampling on, one request at a time, `max_new_tokens` 1024, models in the local cache). Each cell
+is the median of 3 runs after a warm-up call; the real-time factor (RTF) is generation time divided by audio
+length, so below 1 is faster than playback. The 5 Spanish and 2 English sentences of the check are 10 to 125
+characters long and give 4 to 14 s of audio.
+
+| Voice | Load (s) | GPU memory (GB) | Spanish sentence, s to full audio (median) | English sentence, s (median) | RTF (median) | Word error rate through Parakeet, es / en |
+|---|---|---|---|---|---|---|
+| 0.6B CustomVoice `ryan` | 9.1 | 4.3 | 2.5 | 1.8 | 0.29 | 0.095 / 0.038 |
+| 0.6B CustomVoice `aiden` | 9.1 | 4.3 | 2.3 | 1.6 | 0.30 | 0.112 / 0.000 |
+| 0.6B CustomVoice `vivian` | 9.1 | 4.3 | 2.2 | 1.8 | 0.30 | 0.095 / 0.035 |
+| 1.7B CustomVoice `ryan` | 10.9 | 6.5 | 3.6 | 1.6 | 0.33 | 0.540 / 0.000 |
+| 1.7B CustomVoice `aiden` | 10.9 | 6.5 | 2.2 | 1.6 | 0.36 | 0.102 / 0.000 |
+| 1.7B CustomVoice `vivian` | 10.9 | 6.5 | 2.8 | 2.1 | 0.34 | 0.081 / 0.038 |
+| 1.7B VoiceDesign (new draw each time) | 11.0 | 5.7 | 2.1 | 1.6 | 0.34 | 0.135 / 0.000 |
+| designed voice cloned with 0.6B Base | 9.8 | 4.6 | 1.6 | 1.5 | 0.31 | 0.101 / 0.000 |
+
+Load is the time from the call to a ready model, CUDA graph warm-up included. GPU memory is the whole process in
+the benchmark; the server itself holds about 3.3 GB with the 0.6B CustomVoice model once it is ready. The plain
+`qwen` backend gave an RTF of 1.8 to 2.5 for the same voices (0.6B: 11.8 to 12.9 s per sentence, median over
+sentences), so a 5 s sentence took about 10 s; it is not used. The word error rate is a rough check that the
+speech is understandable (the 5 Spanish sentences carry names such as Hamiltoniano and `T2`), not a measure of
+how pleasant a voice is. The 1.7B `ryan` figure comes from one clip that did not stop and ran to 28 s;
+the server stops that case by capping the generated tokens at `24 + 2 x characters`. Whether a voice sounds
+good is for a listener to judge; the clips are not in the repository.
+
+**Install** (any Linux machine with an NVIDIA GPU, Python 3.12 and `uv`; nothing here needs `sudo`):
+
+```bash
+uv venv --python 3.12 /path/to/tts-env
+# torch first, from the CUDA 12.4 index: the default wheel of a newer torch needs a newer driver than 535
+uv pip install --python /path/to/tts-env/bin/python --index-url https://download.pytorch.org/whl/cu124 torch==2.6.0 torchaudio==2.6.0
+uv pip install --python /path/to/tts-env/bin/python -r serving/tts/requirements.txt
+umask 077 && mkdir -p ~/.local/state/research-engine && python3 -c "import secrets; print(secrets.token_urlsafe(32))" > ~/.local/state/research-engine/tts.key
+printf 'TTS_PYTHON=/path/to/tts-env/bin/python\nTTS_GPU=0\n' >> serving/env.local
+```
+
+The key file holds one line and must be mode 0600 (the server refuses to start otherwise). Its default place is
+`$SERVING_STATE_DIR/tts.key`; set `TTS_API_KEY_FILE` for another one. The research API will send the same key.
+`qwen-tts-hf` brings in packages the server does not use (gradio, librosa, the sox bindings); a missing `sox`
+program only prints a warning.
+
+**Start and test:**
+
+```bash
+serving/serve.sh tts start                  # or: start <PORT> <model name from models.tsv>
+serving/serve.sh tts status
+serving/serve.sh tts print-cmd
+serving/serve.sh tts stop
+
+curl -s http://127.0.0.1:8005/health        # {"ok":true} once the model is loaded, 503 while it loads
+curl -s http://127.0.0.1:8005/v1/models -H "Authorization: Bearer $(cat ~/.local/state/research-engine/tts.key)"
+curl -s http://127.0.0.1:8005/v1/audio/speech \
+  -H "Authorization: Bearer $(cat ~/.local/state/research-engine/tts.key)" -H "Content-Type: application/json" \
+  -d '{"model": "local-tts", "input": "Las fuentes están en pantalla.", "voice": "ryan", "response_format": "wav", "language": "es"}' \
+  -o answer.wav
+```
+
+`POST /v1/audio/speech` takes JSON: `model` (`local-tts`), `input` (1 to 1000 characters; the client sends one
+sentence at a time), `voice` (a name from `GET /v1/models`, case-insensitive), `response_format` (`wav` only) and
+`language` (`es`, `en` or `null` for the model to decide). It answers `200 audio/wav` (mono, 16-bit PCM, 24 kHz,
+`Cache-Control: no-store`). Other answers: 401 without the Bearer key (checked before the body), 400 for an unknown
+voice or model, 422 for a body that does not fit the shape above, 503 with `Retry-After` while the model loads.
+`GET /health` needs no key. Text and audio are kept in memory only and never written to disk or to the log; sentences
+are generated one at a time.
+
+The wrapper tests need no model, no torch and no GPU (a stub engine stands in for the model):
+
+```bash
+uv venv --python 3.12 /tmp/tts-test && uv pip install --python /tmp/tts-test/bin/python -r serving/tts/requirements-dev.txt
+/tmp/tts-test/bin/python -m pytest serving/tts
+```
 
 ## Requirements
 
