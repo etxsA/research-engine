@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/shared/ui/button";
 import { Label } from "@/shared/ui/label";
 import { Textarea } from "@/shared/ui/textarea";
+import { useAutoRead } from "./autoRead";
 import { isBlank } from "./flow";
 import { MicButton } from "./MicButton";
 import { SettingsPopover } from "./SettingsPopover";
@@ -31,8 +32,11 @@ export function QuestionForm({
   onSubmit,
 }: QuestionFormProps) {
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "ask" });
+  const { t: tv } = useTranslation(undefined, { keyPrefix: "voice" });
   const question = useAskStore((state) => state.question);
   const setQuestion = useAskStore((state) => state.setQuestion);
+  const speak = useAskStore((state) => state.speak);
+  const [autoRead, setAutoRead] = useAutoRead();
   const id = useId();
   const blank = isBlank(question);
   const canSend = !blank && !blocked;
@@ -52,7 +56,7 @@ export function QuestionForm({
   const addTranscript = (text: string) => {
     const current = useAskStore.getState().question;
     const joined = current.trim() === "" ? text : `${current.trimEnd()} ${text}`;
-    setQuestion(joined.slice(0, MAX_QUESTION_CHARS));
+    speak(joined.slice(0, MAX_QUESTION_CHARS));
     document.getElementById("ask-question")?.focus();
   };
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -104,6 +108,18 @@ export function QuestionForm({
         ) : null}
         <SettingsPopover disabled={busy} />
         <MicButton unavailable={speechUnavailable} onText={addTranscript} />
+        <div className="flex items-center gap-2">
+          <input
+            id={`${id}-auto-read`}
+            type="checkbox"
+            className="size-4 accent-primary"
+            checked={autoRead}
+            onChange={(event) => setAutoRead(event.target.checked)}
+          />
+          <Label htmlFor={`${id}-auto-read`} className="text-xs font-normal">
+            {tv("autoRead")}
+          </Label>
+        </div>
         <p id={`${id}-why`} className="text-xs text-muted-foreground">
           {busy
             ? t("form.busy")

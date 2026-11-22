@@ -1,14 +1,16 @@
+import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { PageHeader } from "@/shared/layout/PageHeader";
 import { Button } from "@/shared/ui/button";
-import { useAskFlow, useEngineStatus } from "./api";
+import { useAskFlow, useEngineStatus, useReadingEngine } from "./api";
+import { getAutoRead } from "./autoRead";
 import { AnswerView } from "./AnswerView";
 import { blocksAsking, EngineNotice, engineView, isStarting } from "./EngineNotice";
 import { FailureView } from "./FailureView";
 import { HistoryList } from "./HistoryList";
 import { ProgressView, useProgressText } from "./ProgressView";
 import { QuestionForm } from "./QuestionForm";
-import { stopReading } from "./reader";
+import { startReading, type Engine, stopReading } from "./reader";
 import { SourcePanel } from "./SourcePanel";
 import { activeEntry, isActive, useAskStore, type AskEntry } from "./store";
 
@@ -28,8 +30,10 @@ export function AskPage() {
   // A new question stops the voice of the answer being read.
   const submit = (question: string) => {
     stopReading();
-    void flow.submit(question, useAskStore.getState().settings);
+    const { settings, spoken } = useAskStore.getState();
+    void flow.submit(question, settings, spoken);
   };
+  useAutoRead(entries[0], useReadingEngine());
 
   return (
     <>
@@ -54,7 +58,7 @@ export function AskPage() {
               onCancel={() => void flow.cancel()}
               onRetry={(entry) => {
                 stopReading();
-                void flow.submit(entry.question, entry.settings);
+                void flow.submit(entry.question, entry.settings, entry.spoken);
               }}
             />
           ) : null}
@@ -64,6 +68,22 @@ export function AskPage() {
       <SourcePanel />
     </>
   );
+}
+
+/**
+ * Reads the answer by itself when the newest question was spoken and has just been answered, if
+ * the person left that on. Only a change seen here counts: an answer that was already on the
+ * screen when the page opened is not read.
+ */
+function useAutoRead(entry: AskEntry | undefined, engine: Engine) {
+  const seen = useRef<{ key: string; status: AskEntry["status"] } | null>(null);
+  useEffect(() => {
+    const before = seen.current;
+    seen.current = entry ? { key: entry.key, status: entry.status } : null;
+    if (entry?.status !== "done" || !entry.response || !entry.spoken) return;
+    if (before?.key !== entry.key || !isActive(before.status)) return;
+    if (getAutoRead()) startReading(entry.key, entry.response.answer, engine);
+  }, [entry, engine]);
 }
 
 /** What a screen reader hears as the newest question moves along. It exists before the first change, so each change is read. */

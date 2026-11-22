@@ -1217,6 +1217,7 @@
         "busy": "Hay demasiadas lecturas en curso. Espera unos segundos e inténtalo de nuevo.",
         "failed": "No se pudo leer la respuesta en voz alta. Inténtalo de nuevo."
       }
-    }
+    },
+    "autoRead": "Leer respuestas tras una pregunta hablada"
   }
 }

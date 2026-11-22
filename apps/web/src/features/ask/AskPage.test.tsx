@@ -7,7 +7,9 @@ import { answerOf, capturedAsk, CAPTURE, docIdOf, problem } from "@/test/ask-api
 import { FakeEventSource, replay } from "@/test/event-source";
 import { renderApp } from "@/test/render";
 import { authMock, server, STATUS_BODY } from "@/test/server";
-import { installFakeAudio } from "@/test/audio";
+import { installFakeAudio, type FakeAudio } from "@/test/audio";
+import { installFakeMic, type FakeMic } from "@/test/mic";
+import { installFakeSpeech, voice } from "@/test/speech";
 import { serveSynthesis } from "@/test/synthesis";
 import { stopReading } from "./reader";
 import { useAskStore } from "./store";
@@ -1162,6 +1164,114 @@ describe("read aloud", () => {
     } finally {
       stopReading();
       audio.restore();
+    }
+  });
+});
+
+describe("reading the answer to a spoken question", () => {
+  let mic: FakeMic;
+  let audio: FakeAudio | undefined;
+  beforeEach(() => {
+    mic = installFakeMic(); // before the page renders, which asks what the browser can record
+    audio = undefined;
+  });
+  afterEach(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    stopReading();
+    mic.restore();
+    audio?.restore();
+  });
+
+  /** Presses Speak, talks, presses Stop: the transcript lands in the box. */
+  async function speakQuestion(user: User, text = "what limits T1") {
+    server.use(
+      http.post("*/api/v1/speech/transcriptions", () =>
+        HttpResponse.json({ text, language: "en", duration_s: 1 }),
+      ),
+    );
+    await user.click(screen.getByRole("button", { name: "Speak" }));
+    await screen.findByRole("button", { name: "Stop" });
+    act(() => mic.emit(new Float32Array(48_000).fill(0.2)));
+    await user.click(screen.getByRole("button", { name: "Stop" }));
+    await waitFor(() => expect(screen.getByLabelText("Your question")).toHaveValue(text));
+    audio = installFakeAudio(); // the recording is over: from here the page plays audio
+  }
+
+  async function sendAndAnswer(user: User) {
+    takeAsks();
+    await user.click(screen.getByRole("button", { name: "Ask" }));
+    await waitFor(() => expect(FakeEventSource.instances.length).toBeGreaterThan(0));
+    serve((source) => replay(source, capturedAsk("transmon").events));
+    await screen.findByRole("heading", { name: "Answer", level: 2 });
+  }
+
+  it("reads the answer by itself, with the toggle on by default", async () => {
+    const synthesis = serveSynthesis();
+    const user = await openAsk();
+    expect(
+      screen.getByRole("checkbox", { name: "Read answers after a spoken question" }),
+    ).toBeChecked();
+    await speakQuestion(user);
+    await sendAndAnswer(user);
+    await waitFor(() => expect(audio?.sources).toHaveLength(1));
+    expect(synthesis.calls[0]?.text).not.toMatch(/[0-9a-f]{16}/);
+    expect(screen.getByRole("button", { name: "Stop reading" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("does not read when the toggle is off, and remembers the choice", async () => {
+    const synthesis = serveSynthesis();
+    const user = await openAsk();
+    await user.click(
+      screen.getByRole("checkbox", { name: "Read answers after a spoken question" }),
+    );
+    expect(window.localStorage.getItem("re.voice.autoRead")).toBe("false");
+    await speakQuestion(user);
+    await sendAndAnswer(user);
+    expect(screen.getByRole("button", { name: "Read aloud" })).toBeInTheDocument();
+    expect(synthesis.calls).toHaveLength(0);
+    expect(audio?.sources).toHaveLength(0);
+  });
+
+  it("does not read the answer to a typed question", async () => {
+    const synthesis = serveSynthesis();
+    const user = await openAsk();
+    audio = installFakeAudio();
+    await answered(user, "transmon", "What limits T1?");
+    await screen.findByRole("button", { name: "Read aloud" });
+    expect(synthesis.calls).toHaveLength(0);
+  });
+
+  it("does not read when the box was emptied and a question typed instead", async () => {
+    const synthesis = serveSynthesis();
+    const user = await openAsk();
+    await speakQuestion(user);
+    await user.clear(screen.getByLabelText("Your question"));
+    await user.type(screen.getByLabelText("Your question"), "typed after all");
+    await sendAndAnswer(user);
+    await screen.findByRole("button", { name: "Read aloud" });
+    expect(synthesis.calls).toHaveLength(0);
+  });
+
+  it("reads with the voice of the browser when the speech server is not ready", async () => {
+    const speech = installFakeSpeech(vi, [voice("Samantha", "en-US", true)]);
+    server.use(
+      http.get("*/api/v1/status", () =>
+        HttpResponse.json({ ...STATUS_BODY, speech: { stt: "ready", tts: "unavailable" } }),
+      ),
+    );
+    const synthesis = serveSynthesis();
+    try {
+      const user = await openAsk();
+      await speakQuestion(user);
+      await sendAndAnswer(user);
+      await waitFor(() => expect(speech.spoken.length).toBeGreaterThan(0));
+      expect(synthesis.calls).toHaveLength(0);
+    } finally {
+      stopReading();
+      speech.restore();
     }
   });
 });

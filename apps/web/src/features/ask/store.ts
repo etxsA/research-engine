@@ -52,6 +52,8 @@ export interface AskEntry {
   position: number | null;
   response: AskResponse | null;
   failure: Failure | null;
+  /** The question came from the Speak button, so its answer is read aloud when that is on. */
+  spoken: boolean;
 }
 
 /** A paper page open in the side panel. */
@@ -67,6 +69,8 @@ export interface SourceTarget {
 
 interface AskState {
   question: string;
+  /** The question box holds words from the Speak button (maybe edited). Emptying the box clears it. */
+  spoken: boolean;
   settings: AskSettings;
   /** Newest first, at most MAX_ENTRIES. */
   entries: AskEntry[];
@@ -76,9 +80,11 @@ interface AskState {
 
 interface AskActions {
   setQuestion: (question: string) => void;
+  /** Adds dictated words to the box. */
+  speak: (question: string) => void;
   setSettings: (settings: Partial<AskSettings>) => void;
   resetSettings: () => void;
-  begin: (question: string, settings: AskSettings) => string;
+  begin: (question: string, settings: AskSettings, spoken?: boolean) => string;
   accepted: (key: string, askId: string, position: number) => void;
   advance: (key: string, progress: Progress, position?: number) => void;
   succeed: (key: string, response: AskResponse) => void;
@@ -93,6 +99,7 @@ interface AskActions {
 
 const initialState: AskState = {
   question: "",
+  spoken: false,
   settings: DEFAULT_SETTINGS,
   entries: [],
   selectedKey: null,
@@ -126,10 +133,12 @@ function stillActive(entries: AskEntry[], key: string): AskEntry | undefined {
 
 export const useAskStore = create<AskState & AskActions>()((set) => ({
   ...initialState,
-  setQuestion: (question) => set({ question }),
+  setQuestion: (question) =>
+    set((state) => ({ question, spoken: question.trim() === "" ? false : state.spoken })),
+  speak: (question) => set({ question, spoken: question.trim() !== "" }),
   setSettings: (settings) => set((state) => ({ settings: { ...state.settings, ...settings } })),
   resetSettings: () => set({ settings: DEFAULT_SETTINGS }),
-  begin: (question, settings) => {
+  begin: (question, settings, spoken = false) => {
     counter += 1;
     const key = `q${counter}`;
     const entry: AskEntry = {
@@ -141,6 +150,7 @@ export const useAskStore = create<AskState & AskActions>()((set) => ({
       position: null,
       response: null,
       failure: null,
+      spoken,
     };
     set((state) => ({
       entries: [entry, ...state.entries].slice(0, MAX_ENTRIES),

@@ -30,7 +30,7 @@ export interface FlowDeps {
 
 export interface AskFlow {
   /** Sends the question with its options and follows it to the end. Returns the entry's key, or null when nothing was sent. */
-  submit: (question: string, settings: AskSettings) => Promise<string | null>;
+  submit: (question: string, settings: AskSettings, spoken?: boolean) => Promise<string | null>;
   /** Stops waiting for the active question; the API drops or forgets it. */
   cancel: () => Promise<void>;
 }
@@ -178,9 +178,9 @@ export function createAskFlow(deps: FlowDeps): AskFlow {
   }
 
   return {
-    async submit(question, settings) {
+    async submit(question, settings, spoken = false) {
       if (isBlank(question) || activeEntry(store.getState().entries)) return null;
-      const key = store.getState().begin(question.trim(), settings);
+      const key = store.getState().begin(question.trim(), settings, spoken);
       try {
         const accepted = await deps.create(requestFor(question, settings));
         // Signed out while the request was on its way: there is nothing left to show it in.

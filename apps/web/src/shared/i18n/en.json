@@ -1217,6 +1217,7 @@
         "busy": "Too many readings are running. Wait a few seconds and try again.",
         "failed": "The answer could not be read aloud. Try again."
       }
-    }
+    },
+    "autoRead": "Read answers after a spoken question"
   }
 }
