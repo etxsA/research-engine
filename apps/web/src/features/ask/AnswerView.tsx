@@ -16,7 +16,7 @@ import type { AskResponse } from "./types";
 /** The answer to one question: its text with clickable citations, the sources, what the model read. */
 export function AnswerView({ entry, response }: { entry: AskEntry; response: AskResponse }) {
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "ask" });
-  const setQuestion = useAskStore((state) => state.setQuestion);
+  const restore = useAskStore((state) => state.restore);
   const setSettings = useAskStore((state) => state.setSettings);
   const text = useMemo(
     () => linkCitations(response.answer, response.citations),
@@ -105,7 +105,7 @@ export function AnswerView({ entry, response }: { entry: AskEntry; response: Ask
               variant="outline"
               size="sm"
               onClick={() => {
-                setQuestion(entry.question);
+                restore(entry.question, entry.spoken);
                 setSettings(entry.settings);
                 document.getElementById("ask-question")?.focus();
               }}

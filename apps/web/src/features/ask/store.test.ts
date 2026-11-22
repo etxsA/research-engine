@@ -168,3 +168,15 @@ describe("forgetting everything", () => {
     expect(second.close).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("putting a sent question back in the box", () => {
+  it("counts as spoken only when it was, and never when empty", () => {
+    store.getState().speak("dictated words");
+    store.getState().restore("a typed question", false);
+    expect(store.getState()).toMatchObject({ question: "a typed question", spoken: false });
+    store.getState().restore("dictated again", true);
+    expect(store.getState()).toMatchObject({ question: "dictated again", spoken: true });
+    store.getState().restore("  ", true);
+    expect(store.getState().spoken).toBe(false);
+  });
+});

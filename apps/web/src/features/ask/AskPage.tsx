@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { PageHeader } from "@/shared/layout/PageHeader";
 import { Button } from "@/shared/ui/button";
-import { useAskFlow, useEngineStatus, useReadingEngine } from "./api";
+import { useAskFlow, useEngineStatus, useReadingEngine, useReadSessionGuard } from "./api";
 import { getAutoRead } from "./autoRead";
 import { AnswerView } from "./AnswerView";
 import { blocksAsking, EngineNotice, engineView, isStarting } from "./EngineNotice";
@@ -33,7 +33,10 @@ export function AskPage() {
     const { settings, spoken } = useAskStore.getState();
     void flow.submit(question, settings, spoken);
   };
-  useAutoRead(entries[0], useReadingEngine());
+  useReadSessionGuard();
+  useReadWhenAnswered(selected, useReadingEngine());
+  // Leaving the screen stops whatever is being read, whichever answer it is.
+  useEffect(() => stopReading, []);
 
   return (
     <>
@@ -71,11 +74,12 @@ export function AskPage() {
 }
 
 /**
- * Reads the answer by itself when the newest question was spoken and has just been answered, if
- * the person left that on. Only a change seen here counts: an answer that was already on the
- * screen when the page opened is not read.
+ * Reads the answer by itself when the question on screen was spoken and has just been answered,
+ * if the person left that on. Only a change seen here counts: an answer that was already on the
+ * screen when the page opened is not read, nor is one that finishes while another is shown (it
+ * would play with no Stop button next to it).
  */
-function useAutoRead(entry: AskEntry | undefined, engine: Engine) {
+function useReadWhenAnswered(entry: AskEntry | undefined, engine: Engine) {
   const seen = useRef<{ key: string; status: AskEntry["status"] } | null>(null);
   useEffect(() => {
     const before = seen.current;
@@ -114,11 +118,11 @@ function EntryView({
   onRetry: (entry: AskEntry) => void;
 }) {
   const { t } = useTranslation(undefined, { keyPrefix: "ask" });
-  const setQuestion = useAskStore((state) => state.setQuestion);
+  const restore = useAskStore((state) => state.restore);
   const setSettings = useAskStore((state) => state.setSettings);
   // Puts the question and its options back in the box, to change them before asking again.
   const edit = () => {
-    setQuestion(entry.question);
+    restore(entry.question, entry.spoken);
     setSettings(entry.settings);
     document.getElementById("ask-question")?.focus();
   };

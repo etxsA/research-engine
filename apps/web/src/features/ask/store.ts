@@ -82,6 +82,8 @@ interface AskActions {
   setQuestion: (question: string) => void;
   /** Adds dictated words to the box. */
   speak: (question: string) => void;
+  /** Puts a sent question back in the box; it counts as spoken only if it was. */
+  restore: (question: string, spoken: boolean) => void;
   setSettings: (settings: Partial<AskSettings>) => void;
   resetSettings: () => void;
   begin: (question: string, settings: AskSettings, spoken?: boolean) => string;
@@ -136,6 +138,7 @@ export const useAskStore = create<AskState & AskActions>()((set) => ({
   setQuestion: (question) =>
     set((state) => ({ question, spoken: question.trim() === "" ? false : state.spoken })),
   speak: (question) => set({ question, spoken: question.trim() !== "" }),
+  restore: (question, spoken) => set({ question, spoken: spoken && question.trim() !== "" }),
   setSettings: (settings) => set((state) => ({ settings: { ...state.settings, ...settings } })),
   resetSettings: () => set({ settings: DEFAULT_SETTINGS }),
   begin: (question, settings, spoken = false) => {

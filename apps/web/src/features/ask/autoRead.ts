@@ -20,6 +20,6 @@ function subscribe(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
-export function useAutoRead(): [boolean, (on: boolean) => void] {
+export function useAutoReadSetting(): [boolean, (on: boolean) => void] {
   return [useSyncExternalStore(subscribe, getAutoRead), setAutoRead];
 }

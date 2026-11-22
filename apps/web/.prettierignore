@@ -6,5 +6,5 @@ node_modules
 pnpm-lock.yaml
 src/shared/api/schema.d.ts
 src/api/openapi.json
-# Fixed text shared with the pet branch, single quotes included
+# The shared playback contract is kept byte for byte as agreed between the web changes.
 src/shared/voice/playback.ts

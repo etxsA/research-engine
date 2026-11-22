@@ -11,7 +11,7 @@ import { installFakeAudio, type FakeAudio } from "@/test/audio";
 import { installFakeMic, type FakeMic } from "@/test/mic";
 import { installFakeSpeech, voice } from "@/test/speech";
 import { serveSynthesis } from "@/test/synthesis";
-import { stopReading } from "./reader";
+import { startReading, stopReading } from "./reader";
 import { useAskStore } from "./store";
 import type { AskResponse } from "./types";
 
@@ -1166,6 +1166,59 @@ describe("read aloud", () => {
       audio.restore();
     }
   });
+
+  it("sends the person to sign in when the session ended during a reading", async () => {
+    const audio = installFakeAudio();
+    serveSynthesis({ failAt: { index: 0, status: 401 } });
+    try {
+      const user = await openAsk();
+      takeAsks();
+      await ask(user, "What limits T1?");
+      serve((source) => replay(source, capturedAsk("transmon").events));
+      const read = await screen.findByRole("button", { name: "Read aloud" });
+      // The session ends on the server; the next request, the reading, finds out.
+      authMock.handle({ method: "POST", path: "/api/v1/auth/logout", csrfHeader: "x" });
+      await user.click(read);
+      await screen.findByRole("heading", { name: "Sign in" });
+      expect(audio.sources).toHaveLength(0);
+    } finally {
+      stopReading();
+      audio.restore();
+    }
+  });
+
+  it("stops by itself when a question is sent, even when no button owns the voice", async () => {
+    const audio = installFakeAudio();
+    serveSynthesis();
+    try {
+      const user = await openAsk();
+      startReading("elsewhere", "Something that is being read.", "server");
+      await waitFor(() => expect(audio.sources).toHaveLength(1));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      takeAsks();
+      await ask(user, "Another one");
+      expect(audio.sources[0]?.stopped).toBe(true);
+    } finally {
+      stopReading();
+      audio.restore();
+    }
+  });
+
+  it("stops the voice when the screen is left, even when no button owns it", async () => {
+    const audio = installFakeAudio();
+    serveSynthesis();
+    try {
+      const user = await openAsk();
+      startReading("elsewhere", "Something that is being read.", "server");
+      await waitFor(() => expect(audio.sources).toHaveLength(1));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      await user.click(screen.getByRole("link", { name: /Benchmarks/ }));
+      await waitFor(() => expect(audio.sources[0]?.stopped).toBe(true));
+    } finally {
+      stopReading();
+      audio.restore();
+    }
+  });
 });
 
 describe("reading the answer to a spoken question", () => {
@@ -1253,6 +1306,51 @@ describe("reading the answer to a spoken question", () => {
     await sendAndAnswer(user);
     await screen.findByRole("button", { name: "Read aloud" });
     expect(synthesis.calls).toHaveLength(0);
+  });
+
+  it("does not read an answer that arrives while another one is on screen", async () => {
+    const synthesis = serveSynthesis();
+    const user = await openAsk();
+    await answered(user, "teleportation", "The typed one");
+    await screen.findByRole("heading", { name: "Answer", level: 2 });
+    await speakQuestion(user);
+    takeAsks({ ask_id: "a2", position: 0 });
+    await user.click(screen.getByRole("button", { name: "Ask" }));
+    await waitFor(() => expect(FakeEventSource.instances).toHaveLength(2));
+    await user.click(screen.getByRole("button", { name: /The typed one/ }));
+    serve((source) => replay(source, capturedAsk("transmon").events));
+    await waitFor(() => expect(useAskStore.getState().entries[0]?.status).toBe("done"));
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(synthesis.calls).toHaveLength(0);
+    expect(audio?.sources).toHaveLength(0);
+  });
+
+  it("does not read a typed question put back in the box while dictated words were there", async () => {
+    const synthesis = serveSynthesis();
+    const user = await openAsk();
+    await answered(user, "teleportation", "The typed one");
+    await screen.findByRole("heading", { name: "Answer", level: 2 });
+    await speakQuestion(user);
+    await user.click(screen.getByRole("button", { name: "Edit and ask again" }));
+    expect(screen.getByLabelText("Your question")).toHaveValue("The typed one");
+    expect(useAskStore.getState().spoken).toBe(false);
+    await sendAndAnswer(user);
+    await waitFor(() => expect(useAskStore.getState().entries[0]?.status).toBe("done"));
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(synthesis.calls).toHaveLength(0);
+  });
+
+  it("hides the switch when voice input is not set up", async () => {
+    server.use(
+      http.get("*/api/v1/status", () =>
+        HttpResponse.json({ ...STATUS_BODY, speech: { stt: "unavailable", tts: "ready" } }),
+      ),
+    );
+    await openAsk();
+    await screen.findByText("Voice input is not set up on this server.");
+    expect(
+      screen.queryByRole("checkbox", { name: "Read answers after a spoken question" }),
+    ).not.toBeInTheDocument();
   });
 
   it("reads with the voice of the browser when the speech server is not ready", async () => {
