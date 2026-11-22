@@ -23,6 +23,8 @@ export interface FakeAudio {
   sources: FakeSource[];
   /** The loudness the analyser reports (amplitude of a constant signal). */
   amplitude: { value: number };
+  /** New contexts stay suspended and never start, as in a browser that wants a click first. */
+  needsClick: { value: boolean };
   closed: () => boolean;
   /** The source that is playing now ends. */
   endCurrent: () => void;
@@ -32,11 +34,14 @@ export interface FakeAudio {
 export function installFakeAudio(): FakeAudio {
   const sources: FakeSource[] = [];
   const amplitude = { value: 0.1 };
+  const needsClick = { value: false };
   let closed = false;
   class FakeContext {
     destination = {};
-    state = "running";
-    resume = vi.fn(() => Promise.resolve());
+    state = needsClick.value ? "suspended" : "running";
+    resume = vi.fn(() =>
+      needsClick.value ? new Promise<void>(() => undefined) : Promise.resolve(),
+    );
     close = vi.fn(() => {
       closed = true;
       return Promise.resolve();
@@ -74,6 +79,7 @@ export function installFakeAudio(): FakeAudio {
   return {
     sources,
     amplitude,
+    needsClick,
     closed: () => closed,
     endCurrent: () => {
       const playing = [...sources].reverse().find((s) => s.started && !s.stopped);

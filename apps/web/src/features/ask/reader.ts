@@ -16,7 +16,8 @@ import {
  * synthesized by `POST /speech/synthesis` and played with Web Audio, the next one being fetched
  * while one plays; without it, or when the server is down, the browser's own voices speak
  * (`speechSynthesis`). One answer speaks at a time: starting another stops the first. Nothing is
- * stored, and the text goes only to our own API.
+ * stored. The speech server is our own API; the voices of the browser are the browser's, and some
+ * of them (a network voice) send the text to the browser vendor, which this code cannot see.
  */
 
 export type Engine = "server" | "browser";
@@ -44,6 +45,8 @@ const IDLE: ReaderState = {
   failed: null,
 };
 const VOICES_WAIT_MS = 1500;
+/** A context that is not running this soon after `resume()` is waiting for a click (Safari). */
+const RESUME_WAIT_MS = 500;
 /** The RMS of speech is about 0.05 to 0.2; the bar of the pet wants 0 to 1. */
 const LEVEL_GAIN = 4;
 
@@ -60,6 +63,13 @@ interface Session {
   browser: boolean;
 }
 let session: Session | null = null;
+
+/** Told of an error that means the session ended, so the app can send the person to sign in. */
+let sessionEnded: ((error: unknown) => void) | null = null;
+
+export function onReadSessionEnded(handler: ((error: unknown) => void) | null): void {
+  sessionEnded = handler;
+}
 
 export function serverSupported(): boolean {
   return typeof AudioContext !== "undefined";
@@ -252,6 +262,17 @@ function measure(held: Session, analyser: AnalyserNode) {
   held.frame = requestAnimationFrame(tick);
 }
 
+/** Starts the context and waits a moment for it to run; a context that needs a click never does. */
+async function resumed(context: AudioContext): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const wait = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, RESUME_WAIT_MS);
+  });
+  await Promise.race([context.resume().catch(() => undefined), wait]);
+  clearTimeout(timer);
+  return context.state === "running";
+}
+
 async function readWithServer(
   mine: number,
   owner: string,
@@ -263,7 +284,6 @@ async function readWithServer(
   const sentences = splitSentences(text);
   const context = new AudioContext();
   held.context = context;
-  void context.resume().catch(() => undefined);
   const analyser = context.createAnalyser();
   analyser.fftSize = 1024;
   analyser.connect(context.destination);
@@ -283,12 +303,31 @@ async function readWithServer(
     return pending;
   };
 
+  void request(0); // fetched while the context starts
+  if (!(await resumed(context))) {
+    // Started outside a click (an answer read by itself), the browser may keep it silent.
+    if (mine !== run) return;
+    return breakOff(mine, owner, "failed");
+  }
+  if (mine !== run) return;
+
+  let played = 0;
+  let skipped = 0;
   for (let index = 0; index < sentences.length; index++) {
     let buffer: AudioBuffer;
     try {
       buffer = await request(index)!;
     } catch (error) {
       if (mine !== run) return;
+      if (isApiError(error, 401)) {
+        sessionEnded?.(error);
+        return finish(mine);
+      }
+      // Our cleaning and the server's are not the same: a sentence it refuses is left out.
+      if (isApiError(error, 422)) {
+        skipped++;
+        continue;
+      }
       if (isApiError(error, 429)) return breakOff(mine, owner, "busy");
       if (isApiError(error, 503) && browserSupported()) {
         // The speech server is down: the browser's voice goes on from this sentence, once.
@@ -306,15 +345,17 @@ async function readWithServer(
       return breakOff(mine, owner, "failed");
     }
     if (mine !== run) return;
-    if (index === 0) {
+    if (played === 0) {
       setState({ owner, engine: "server", loading: false, fellBack: false, failed: null });
       setPlayback("speaking");
       measure(held, analyser);
     }
     void request(index + 1); // fetched while this one plays
+    played++;
     await play(held, context, analyser, buffer);
     if (mine !== run) return;
   }
+  if (played === 0 && skipped > 0) return breakOff(mine, owner, "failed");
   finish(mine);
 }
 

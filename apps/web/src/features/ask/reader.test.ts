@@ -3,7 +3,7 @@ import { playbackLevel, usePlayback } from "@/shared/voice/playback";
 import { installFakeAudio, type FakeAudio } from "@/test/audio";
 import { installFakeSpeech, voice, type FakeSpeech } from "@/test/speech";
 import { serveSynthesis } from "@/test/synthesis";
-import { getReaderState, startReading, stopReading } from "./reader";
+import { getReaderState, onReadSessionEnded, startReading, stopReading } from "./reader";
 
 const THREE = "The first sentence is here. The second one follows it. The third closes it.";
 const SENTENCES = [
@@ -141,6 +141,56 @@ describe("reading with the speech server", () => {
       expect(getReaderState().failed).toEqual({ owner: "a", problem: "failed" }),
     );
     expect(audio.sources).toHaveLength(1);
+    expect(usePlayback.getState().state).toBe("idle");
+  });
+
+  it("leaves out a sentence the server refuses (422) and reads the others", async () => {
+    const synthesis = serveSynthesis({ failAt: { index: 1, status: 422 } });
+    startReading("a", THREE, "server");
+    await vi.waitFor(() => expect(audio.sources).toHaveLength(1));
+    audio.endCurrent();
+    await vi.waitFor(() => expect(audio.sources).toHaveLength(2));
+    audio.endCurrent();
+    await vi.waitFor(() => expect(getReaderState().owner).toBeNull());
+    expect(played()).toEqual([SENTENCES[0], SENTENCES[2]]);
+    expect(synthesis.calls).toHaveLength(3);
+    expect(getReaderState().failed).toBeNull();
+  });
+
+  it("says it failed when the server refuses every sentence", async () => {
+    serveSynthesis({ failAt: { index: 0, status: 422, from: true } });
+    startReading("a", THREE, "server");
+    await vi.waitFor(() =>
+      expect(getReaderState().failed).toEqual({ owner: "a", problem: "failed" }),
+    );
+    expect(audio.sources).toHaveLength(0);
+  });
+
+  it("hands a 401 to the session handler and stops quietly", async () => {
+    const ended = vi.fn();
+    onReadSessionEnded(ended);
+    try {
+      serveSynthesis({ failAt: { index: 0, status: 401 } });
+      startReading("a", THREE, "server");
+      await vi.waitFor(() => expect(ended).toHaveBeenCalledTimes(1));
+      expect(ended.mock.calls[0]?.[0]).toMatchObject({ status: 401 });
+      expect(getReaderState()).toMatchObject({ owner: null, failed: null });
+      expect(usePlayback.getState().state).toBe("idle");
+    } finally {
+      onReadSessionEnded(null);
+    }
+  });
+
+  it("says it failed, and plays nothing, when the browser keeps the audio suspended", async () => {
+    audio.needsClick.value = true;
+    serveSynthesis();
+    startReading("a", THREE, "server");
+    await vi.waitFor(
+      () => expect(getReaderState().failed).toEqual({ owner: "a", problem: "failed" }),
+      { timeout: 2000 },
+    );
+    expect(audio.sources).toHaveLength(0);
+    expect(audio.closed()).toBe(true);
     expect(usePlayback.getState().state).toBe("idle");
   });
 

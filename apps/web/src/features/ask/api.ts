@@ -1,8 +1,8 @@
 import { keepPreviousData, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { $api, fetchClient } from "@/shared/api/client";
 import { createAskFlow, type AskFlow } from "./flow";
-import type { Engine } from "./reader";
+import { onReadSessionEnded, type Engine } from "./reader";
 import type { EventSourceFactory } from "./stream";
 import type { AskRequest } from "./types";
 
@@ -35,6 +35,25 @@ export function useEngineStatus() {
 export function useReadingEngine(): Engine {
   const status = useEngineStatus();
   return status.data?.speech?.tts === "ready" ? "server" : "browser";
+}
+
+/**
+ * The reader calls the API on its own, outside any query. When that call finds the session ended
+ * (401), the error goes through the mutation cache, where the app's one handler for it sits, so
+ * the person lands on the sign-in page as after any other request.
+ */
+export function useReadSessionGuard(): void {
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    onReadSessionEnded((error) => {
+      const mutation = queryClient.getMutationCache().build(queryClient, {
+        mutationFn: () =>
+          Promise.reject(error instanceof Error ? error : new Error("Session ended")),
+      });
+      void mutation.execute(undefined).catch(() => undefined);
+    });
+    return () => onReadSessionEnded(null);
+  }, [queryClient]);
 }
 
 /** A paper's title, authors and pages. A paper does not change within an index generation. */
