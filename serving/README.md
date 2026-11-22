@@ -264,7 +264,7 @@ VLLM_BIN=/path/to/vllm-env/bin/vllm
 SERVING_EXTRA_PATH=/path/to/vllm-env/bin     # puts ninja on PATH
 ```
 
-An existing vLLM install can be reused instead. Set the same three lines to its Python 3.12, its `vllm` and the folder that holds `ninja`, or activate its environment before running `serve.sh` and leave them unset, so that `vllm` is found on `PATH`. `VLLM_SITE_PACKAGES` is for a Python that should load the packages of another environment through `PYTHONPATH`.
+An existing vLLM install can be reused instead. Set the same three lines to its Python 3.12, its `vllm` and the folder that holds `ninja`, or activate its environment before running `serve.sh` and leave them unset, so that `vllm` is found on `PATH`. `VLLM_SITE_PACKAGES` is for a Python that should load the packages of another environment through `PYTHONPATH`; it is set for the vLLM roles only, so the stt and tts servers keep their own packages.
 
 ## First start
 

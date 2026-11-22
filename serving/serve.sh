@@ -110,7 +110,8 @@ start | print-cmd)
   if [ "$ACTION" = print-cmd ]; then printf 'CUDA_VISIBLE_DEVICES=%s' "$GPU"; printf ' %q' "${CMD[@]}"; echo; exit 0; fi
   if running; then echo "already running (pid $(cat "$PIDF"), $(cat "$STATE/$SERVED.model"))"; exit 0; fi
   mkdir -p "$STATE" "$CACHE"
-  [ -n "${VLLM_SITE_PACKAGES:-}" ] && export PYTHONPATH=$VLLM_SITE_PACKAGES
+  # vLLM site-packages only for the vLLM roles: stt and tts run in their own environments.
+  if [ "$ROLE" != stt ] && [ "$ROLE" != tts ] && [ -n "${VLLM_SITE_PACKAGES:-}" ]; then export PYTHONPATH=$VLLM_SITE_PACKAGES; fi
   [ -n "${SERVING_EXTRA_PATH:-}" ] && export PATH=$SERVING_EXTRA_PATH:$PATH
   export VLLM_USE_FLASHINFER_SAMPLER=${VLLM_USE_FLASHINFER_SAMPLER:-0}   # avoids a CUDA compile at start-up
   export XDG_CACHE_HOME=$CACHE VLLM_CACHE_ROOT=$CACHE/vllm TRITON_CACHE_DIR=$CACHE/triton
