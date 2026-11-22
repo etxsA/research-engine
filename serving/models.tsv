@@ -1,5 +1,5 @@
 # role	name	repo	revision	vllm_overrides	chat_template
-# Pinned models for serve.sh. Roles: llm, embed, rerank (vLLM), stt (CPU, onnx-asr) and stt-vad (the Silero VAD of stt). One line per model, tab-separated; "-" means none.
+# Pinned models for serve.sh. Roles: llm, embed, rerank (vLLM), stt (CPU, onnx-asr), stt-vad (the Silero VAD of stt) and tts (one GPU, qwen-tts). One line per model, tab-separated; "-" means none.
 # vllm_overrides is a JSON object passed to --hf-overrides; chat_template is relative to serving/templates/.
 llm	qwen3.8-27b-awq	cyankiwi/Qwen3.8-27B-AWQ-INT4	6e134bae811fb5adac50ee042ae5f029ac6779aa	-	-
 embed	qwen3-embedding-4b	Qwen/Qwen3-Embedding-4B	5cf2132abc99cad020ac570b19d031efec650f2b	-	-
@@ -12,3 +12,7 @@ rerank	mxbai-rerank-large-v2	mixedbread-ai/mxbai-rerank-large-v2	ca7e1ee484c37c0
 stt	parakeet-tdt-0.6b-v3	istupakov/parakeet-tdt-0.6b-v3-onnx	8f23f0c03c8761650bdb5b40aaf3e40d2c15f1ce	-	-
 stt	fluid-speech-pro	FluidVoice-Labs/fluid-speech-pro-onnx	fa588e9f87f1b9ad0ca2e2d8f7eaf84dc3803581	-	-
 stt-vad	silero-vad	istupakov/silero-vad-onnx	b3e3ee3cce4c11ceb63b1a0b229d916069c1ddf6	-	-
+tts	qwen3-tts-0.6b-customvoice	Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice	85e237c12c027371202489a0ec509ded67b5e4b5	-	-
+tts	qwen3-tts-1.7b-customvoice	Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice	0c0e3051f131929182e2c023b9537f8b1c68adfe	-	-
+tts	qwen3-tts-0.6b-base	Qwen/Qwen3-TTS-12Hz-0.6B-Base	5d83992436eae1d760afd27aff78a71d676296fc	-	-
+tts	qwen3-tts-1.7b-voicedesign	Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign	5ecdb67327fd37bb2e042aab12ff7391903235d3	-	-
