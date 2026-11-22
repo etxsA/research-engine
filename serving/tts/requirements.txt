@@ -1,0 +1,18 @@
+# Wrapper environment of the tts role (backend "faster", the default). Every package is pinned; install with:
+#   uv venv --python 3.12 <env>
+#   uv pip install --python <env>/bin/python --index-url https://download.pytorch.org/whl/cu124 torch==2.6.0 torchaudio==2.6.0
+#   uv pip install --python <env>/bin/python -r serving/tts/requirements.txt
+# The torch line comes first and from the CUDA 12.4 index: the default wheel of a newer torch needs a newer
+# driver than 535. transformers stays at 5.15.1: faster-qwen3-tts 0.5.4 does not load with 5.24.
+# qwen-tts-hf pulls in sox bindings, gradio and librosa that the server never uses.
+faster-qwen3-tts==0.5.4
+qwen-tts-hf==0.1.1.post1
+transformers==5.15.1
+accelerate==1.12.0
+huggingface-hub==1.33.0
+numpy==2.5.5
+fastapi==0.165.0
+starlette==1.10.0
+uvicorn==0.54.0
+pydantic==2.14.4
+anyio==4.16.0

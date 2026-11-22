@@ -1,0 +1,12 @@
+# Environment of the plain qwen-tts loop (TTS_BACKEND=qwen): the reference implementation, about six times slower
+# than the default backend. Install like requirements.txt, with this file in its place.
+qwen-tts==0.1.1
+transformers==4.57.3
+accelerate==1.12.0
+huggingface-hub==0.36.2
+numpy==2.5.5
+fastapi==0.165.0
+starlette==1.10.0
+uvicorn==0.54.0
+pydantic==2.14.4
+anyio==4.16.0
