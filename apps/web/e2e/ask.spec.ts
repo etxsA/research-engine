@@ -482,6 +482,182 @@ test.describe("voice input", () => {
   });
 });
 
+/** What the page did with Web Audio and the browser voice, counted by stand-ins set before it loads. */
+interface Probe {
+  started: number;
+  stopped: number;
+  spoken: string[];
+  cancels: number;
+}
+
+const probe = (page: Page) =>
+  page.evaluate(() => (window as unknown as { __probe: Probe }).__probe);
+
+/** Counts what real Web Audio starts and stops, and records what the browser voice is asked to say. */
+async function installProbe(page: Page) {
+  await page.addInitScript(() => {
+    const seen: Probe = { started: 0, stopped: 0, spoken: [], cancels: 0 };
+    Object.assign(window, { __probe: seen });
+    const Native = window.AudioContext;
+    class Counting extends Native {
+      override createBufferSource() {
+        const source = super.createBufferSource();
+        const start = source.start.bind(source);
+        const stop = source.stop.bind(source);
+        source.start = (...args: Parameters<typeof start>) => {
+          seen.started++;
+          return start(...args);
+        };
+        source.stop = (...args: Parameters<typeof stop>) => {
+          seen.stopped++;
+          return stop(...args);
+        };
+        return source;
+      }
+    }
+    window.AudioContext = Counting;
+    Object.defineProperty(window, "speechSynthesis", {
+      configurable: true,
+      value: {
+        speak: (utterance: SpeechSynthesisUtterance) => void seen.spoken.push(utterance.text),
+        cancel: () => void seen.cancels++,
+        getVoices: () => [],
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+      },
+    });
+  });
+}
+
+function speechStatus(page: Page, tts: "ready" | "unavailable") {
+  return page.route("**/api/v1/status", (route) =>
+    route.fulfill({
+      status: 200,
+      json: {
+        mode: "fake",
+        api_version: "0.1.0",
+        started_at: "2026-01-01T00:00:00Z",
+        uptime_s: 12.5,
+        ready: true,
+        ask: { state: "ready", reason: null, index_generation: null, queued: 0, busy: false },
+        bench: { running_job: null, queued_runs: 0, scoring: false, queued_scores: 0 },
+        speech: { stt: "ready", tts },
+      },
+    }),
+  );
+}
+
+for (const colorScheme of ["light", "dark"] as const) {
+  test.describe(`read aloud with the speech server, ${colorScheme} theme`, () => {
+    test.use({ colorScheme });
+    test.beforeEach(async ({ page }) => {
+      await installProbe(page);
+      await speechStatus(page, "ready");
+    });
+
+    test("shows the button on a finished answer, plays it and stops", async ({ page }) => {
+      await openAsk(page);
+      await askAndWait(page, "What limits T1 in transmons?");
+      const read = page.getByRole("button", { name: "Read aloud" });
+      await expect(read).toHaveAttribute("aria-pressed", "false");
+      await expectNoAxeViolations(page);
+
+      // The fake speech server answers every sentence with a real WAV of a quiet tone.
+      const synthesis = page.waitForResponse("**/api/v1/speech/synthesis");
+      await read.click();
+      const answer = await synthesis;
+      expect(answer.status()).toBe(200);
+      expect(answer.headers()["content-type"]).toBe("audio/wav");
+      expect(answer.headers()["cache-control"]).toBe("no-store");
+      const stop = page.getByRole("button", { name: "Stop reading" });
+      await expect(stop).toHaveAttribute("aria-pressed", "true");
+      await expect.poll(async () => (await probe(page)).started).toBeGreaterThan(0);
+      await expect(
+        page.getByRole("status").filter({ hasText: /Reading the answer/ }),
+      ).toBeVisible();
+      expect((await probe(page)).spoken).toEqual([]);
+      await expectNoAxeViolations(page);
+
+      await stop.click();
+      await expect(page.getByRole("button", { name: "Read aloud" })).toHaveAttribute(
+        "aria-pressed",
+        "false",
+      );
+      await expect.poll(async () => (await probe(page)).stopped).toBeGreaterThan(0);
+      await expectNoAxeViolations(page);
+    });
+  });
+}
+
+test.describe("read aloud after a spoken question", () => {
+  test.beforeEach(async ({ page, context }) => {
+    await context.grantPermissions(["microphone"]);
+    await installProbe(page);
+    await speechStatus(page, "ready");
+  });
+
+  async function speakQuestion(page: Page) {
+    await page.getByRole("button", { name: "Speak" }).click();
+    await expect(page.getByRole("button", { name: "Stop", exact: true })).toBeVisible();
+    await page.waitForTimeout(1000);
+    await page.getByRole("button", { name: "Stop", exact: true }).click();
+    await expect(page.getByLabel("Your question")).toHaveValue(/tiempo T2 de un transmon/);
+  }
+
+  test("reads the answer by itself", async ({ page }) => {
+    await openAsk(page);
+    const toggle = page.getByRole("checkbox", { name: "Read answers after a spoken question" });
+    await expect(toggle).toBeChecked();
+    await speakQuestion(page);
+    await page.getByRole("button", { name: "Ask", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Answer", level: 2 })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Stop reading" })).toBeVisible();
+    await expect.poll(async () => (await probe(page)).started).toBeGreaterThan(0);
+    await expectNoAxeViolations(page);
+  });
+
+  test("stays quiet when the toggle is off or the question was typed", async ({ page }) => {
+    await openAsk(page);
+    await page.getByRole("checkbox", { name: "Read answers after a spoken question" }).uncheck();
+    await speakQuestion(page);
+    await page.getByRole("button", { name: "Ask", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Answer", level: 2 })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Read aloud" })).toBeVisible();
+    await page.getByRole("checkbox", { name: "Read answers after a spoken question" }).check();
+    await askAndWait(page, "What limits T1 in transmons?");
+    await expect(page.getByRole("button", { name: "Read aloud" })).toBeVisible();
+    expect((await probe(page)).started).toBe(0);
+    await expectNoAxeViolations(page);
+  });
+});
+
+test.describe("read aloud with the voice of the browser", () => {
+  test("is used when the speech server is not ready", async ({ page }) => {
+    await installProbe(page);
+    await speechStatus(page, "unavailable");
+    await openAsk(page);
+    await askAndWait(page, "What limits T1 in transmons?");
+    const requests: string[] = [];
+    page.on("request", (request) => {
+      if (request.url().includes("/speech/synthesis")) requests.push(request.url());
+    });
+    await page.getByRole("button", { name: "Read aloud" }).click();
+    const stop = page.getByRole("button", { name: "Stop reading" });
+    await expect(stop).toHaveAttribute("aria-pressed", "true");
+    // With no voices the page waits a moment for them before it speaks.
+    await expect.poll(async () => (await probe(page)).spoken.length).toBeGreaterThan(0);
+    expect((await probe(page)).spoken.join(" ")).not.toMatch(/[0-9a-f]{16}/);
+    expect(requests).toEqual([]);
+    await expectNoAxeViolations(page);
+    await stop.click();
+    await expect(page.getByRole("button", { name: "Read aloud" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    expect((await probe(page)).cancels).toBeGreaterThan(0);
+  });
+});
+
 test.describe("a narrow screen", () => {
   test.use({ viewport: { width: 375, height: 760 } });
 
