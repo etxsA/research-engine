@@ -75,6 +75,21 @@ jobs:
       - run: .venv/bin/ruff format --check .
       - run: .venv/bin/python -m pytest -q
 
+  tts:
+    # The text-to-speech wrapper of serving/tts: lint, format and its tests. No model, no torch and no GPU:
+    # the tests run a stub engine. The wrapper has its own pinned requirements, outside the uv workspace.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: serving/tts
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.2.0
+      - run: uv venv --python 3.12 .venv && uv pip install -r requirements-dev.txt ruff==0.17.6
+      - run: .venv/bin/ruff check .
+      - run: .venv/bin/ruff format --check .
+      - run: .venv/bin/python -m pytest -q
+
   web:
     # The web app: lint, format, types, unit tests, build, bundle budget, dependency audit.
     runs-on: ubuntu-latest
