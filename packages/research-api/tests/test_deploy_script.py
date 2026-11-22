@@ -676,15 +676,90 @@ def dead_lock(deploy: Deploy, owner: int | None = None) -> Path:
     return lock
 
 
-def test_a_takeover_guard_left_behind_is_waited_for_not_spun_on(deploy: Deploy) -> None:
-    """A start killed inside the takeover leaves the guard; later starts must not burn their tries."""
+REAL_MKDIR = shutil.which("mkdir") or "/bin/mkdir"
+
+# A mkdir that exits 0 for a folder that is already there. The uutils mkdir of Ubuntu 26.04
+# (coreutils 0.8) does that when another process makes the folder at the same moment, and two
+# starts at once then both took the lock. This one always does it, so no test depends on timing.
+MKDIR_THAT_SAYS_IT_MADE_IT = """#!/usr/bin/env bash
+for last in "$@"; do :; done
+[ -d "$last" ] && exit 0
+exec {real_mkdir} "$@"
+"""
+
+
+def lying_mkdir_path(deploy: Deploy) -> str:
+    """A PATH whose mkdir claims to make a folder that already exists."""
+    shim = deploy.fake_dir / "mkdir-shim"
+    shim.mkdir()
+    (shim / "mkdir").write_text(
+        MKDIR_THAT_SAYS_IT_MADE_IT.format(real_mkdir=shlex.quote(REAL_MKDIR)), encoding="utf-8"
+    )
+    (shim / "mkdir").chmod(0o755)
+    return f"{shim}{os.pathsep}{os.environ['PATH']}"
+
+
+def test_a_mkdir_that_claims_a_held_lock_does_not_let_a_second_start_in(deploy: Deploy) -> None:
+    """The lock must not trust the mkdir command: it may say it made a folder another start made."""
+    deploy.write_config()
+    holder = sleeper("research-api.sh", "start")
+    start = None
+    try:
+        lock = dead_lock(deploy, owner=holder.pid)
+        record_stamp(deploy, lock, holder.pid)
+        start = run_in_background(deploy, "start", PATH=lying_mkdir_path(deploy))
+        try:
+            assert is_waiting_for_the_lock(start), "the start went past a lock a live start holds"
+            time.sleep(1)
+            assert start.poll() is None, "the start went past a lock a live start holds"
+            assert (lock / "pid").read_text(encoding="utf-8").strip() == str(holder.pid)
+            assert deploy.calls() == []  # no database step while the other start holds the lock
+        finally:
+            holder.kill()
+            holder.wait()
+        out, err = start.communicate(timeout=60)
+    finally:
+        if start is not None and start.poll() is None:
+            start.kill()
+    assert start.returncode == 0, err
+    assert b"ready after" in out
+    assert deploy.run("stop").returncode == 0
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root can write in any folder")
+def test_a_lock_that_cannot_be_made_is_an_error_at_once(deploy: Deploy) -> None:
+    """Only a lock that is there means wait; any other failure to make it is said and ends start."""
+    deploy.write_config()
+    run = deploy.home / "run"
+    run.mkdir(mode=0o700)
+    run.chmod(0o500)
+    try:
+        began = time.monotonic()
+        done = deploy.run("start")
+        took = time.monotonic() - began
+    finally:
+        run.chmod(0o700)
+    assert done.returncode == 1
+    assert f"cannot make {run / 'start.lock'}" in done.stderr
+    assert "cannot make the lock" in done.stderr
+    assert took < 20  # not the wait for a lock held by someone else
+    assert deploy.calls() == []
+
+
+@pytest.mark.parametrize("mkdir_lies", [False, True], ids=["mkdir", "mkdir-that-lies"])
+def test_a_takeover_guard_left_behind_is_waited_for_not_spun_on(
+    deploy: Deploy, mkdir_lies: bool
+) -> None:
+    """A start killed inside the takeover leaves the guard; later starts must not burn their tries.
+
+    The guard must hold even when the mkdir command says it made the folder that is there."""
     deploy.write_config()
     lock = dead_lock(deploy)
     guard = deploy.home / "run" / "start.lock.takeover"
     guard.mkdir(mode=0o700)
     start = subprocess.Popen(
         ["bash", str(SCRIPT), "start"],
-        env=deploy.env(),
+        env=deploy.env(**({"PATH": lying_mkdir_path(deploy)} if mkdir_lies else {})),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,

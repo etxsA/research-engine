@@ -265,18 +265,39 @@ cmd_print_cmd() {
   echo
 }
 
+# Make a folder that must not exist yet with mkdir(2) itself: status 0 when this call made it, 3 when
+# it is already there, anything else is an error (said on stderr). The lock needs that answer to be
+# true, and the mkdir command does not always give it: the uutils mkdir of Ubuntu 26.04 (coreutils
+# 0.8) can exit 0 when another process made the folder at the same moment, and two starts then both
+# held the lock. Python's os.mkdir reports what the system call did.
+make_folder_alone() {   # make_folder_alone PATH
+  "$PY" -c '
+import os, sys
+try:
+    os.mkdir(sys.argv[1], 0o700)
+except FileExistsError:
+    sys.exit(3)
+except OSError as error:
+    sys.exit(f"research-api: cannot make {sys.argv[1]}: {error.strerror}")
+' "$1"
+}
+
 # One start or stop at a time: the @reboot line and a manual start must not both launch, and a stop
-# must not run between a start's launch and its pid file. mkdir is atomic and exists everywhere
-# (flock does not on macOS). The folder holds the pid of its owner and that process's command line,
-# so a lock left by a process that was killed (or whose pid another program now has) is taken over.
-# Other processes make, remove and take over the lock at any moment, so no step assumes what the
-# previous one saw: a lock that is gone, or has another owner, only sends the loop round again.
+# must not run between a start's launch and its pid file. The lock is a folder made by
+# make_folder_alone (flock does not exist on macOS). It holds the pid of its owner and that
+# process's start time, so a lock left by a process that was killed (or whose pid another program
+# now has) is taken over. Other processes make, remove and take over the lock at any moment, so no
+# step assumes what the previous one saw: a lock that is gone, or has another owner, only sends the
+# loop round again.
 lock_start() {
   umask 077
-  local i owner me told=0
+  local i owner me told=0 made
   me=$(proc_stamp $$)
   for ((i = 0; i < (START_WAIT + 30) * 2; i++)); do
-    if mkdir -m 700 -- "$LOCKD" 2> /dev/null; then
+    made=0
+    make_folder_alone "$LOCKD" || made=$?
+    [ "$made" = 0 ] || [ "$made" = 3 ] || die "cannot make the lock $LOCKD with $PY."
+    if [ "$made" = 0 ]; then
       # started first: a lock with a pid is complete. If the writes fail because the lock was
       # removed right after the mkdir, the loop makes it again; a lock that is still there is a
       # real error.
@@ -327,7 +348,7 @@ lock_owner_stale() {   # lock_owner_stale PID; status 0 when the owner is gone
 # each other's new lock, so only one at a time may do it, and it looks again once it is the one: the
 # lock must still hold the same owner, and that owner must still be dead.
 take_over_lock() {   # take_over_lock STALE_OWNER_PID; status 0 when the lock is gone, 1 when it is not
-  mkdir -m 700 -- "$LOCKD.takeover" 2> /dev/null || return 1   # another start or stop is on it
+  make_folder_alone "$LOCKD.takeover" 2> /dev/null || return 1   # another start or stop is on it
   local removed=1
   if [ ! -d "$LOCKD" ]; then
     removed=0   # another takeover was first
