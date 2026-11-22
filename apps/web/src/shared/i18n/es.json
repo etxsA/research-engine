@@ -1205,6 +1205,18 @@
       "overloaded": "Hay demasiadas transcripciones en curso. Espera unos segundos e inténtalo de nuevo.",
       "serverDown": "El servidor de voz está ocupado o no responde. Inténtalo en un momento o escribe la pregunta.",
       "failed": "No se pudo convertir la grabación en texto. Inténtalo de nuevo o escribe la pregunta."
+    },
+    "read": {
+      "start": "Leer en voz alta",
+      "stop": "Detener lectura",
+      "loading": "Preparando la voz.",
+      "status": "Leyendo la respuesta en voz alta. Pulsa el botón otra vez para detener.",
+      "statusBrowser": "Leyendo la respuesta en voz alta con la voz de tu navegador. Pulsa el botón otra vez para detener.",
+      "fellBack": "El servidor de voz no está disponible, así que lee la voz de tu navegador. Pulsa el botón otra vez para detener.",
+      "problem": {
+        "busy": "Hay demasiadas lecturas en curso. Espera unos segundos e inténtalo de nuevo.",
+        "failed": "No se pudo leer la respuesta en voz alta. Inténtalo de nuevo."
+      }
     }
   }
 }

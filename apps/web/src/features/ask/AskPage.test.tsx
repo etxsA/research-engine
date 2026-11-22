@@ -7,6 +7,9 @@ import { answerOf, capturedAsk, CAPTURE, docIdOf, problem } from "@/test/ask-api
 import { FakeEventSource, replay } from "@/test/event-source";
 import { renderApp } from "@/test/render";
 import { authMock, server, STATUS_BODY } from "@/test/server";
+import { installFakeAudio } from "@/test/audio";
+import { serveSynthesis } from "@/test/synthesis";
+import { stopReading } from "./reader";
 import { useAskStore } from "./store";
 import type { AskResponse } from "./types";
 
@@ -1133,5 +1136,32 @@ describe("in Spanish", () => {
     expect(screen.getByRole("button", { name: /Opciones de esta pregunta/ })).toHaveTextContent(
       "1 cambiada",
     );
+  });
+});
+
+describe("read aloud", () => {
+  it("shows the button on a finished answer only and a new question stops the voice", async () => {
+    const audio = installFakeAudio();
+    serveSynthesis();
+    try {
+      const user = await openAsk();
+      takeAsks();
+      await ask(user, "What limits T1?");
+      expect(screen.queryByRole("button", { name: "Read aloud" })).not.toBeInTheDocument();
+      serve((source) => replay(source, capturedAsk("transmon").events));
+      await user.click(await screen.findByRole("button", { name: "Read aloud" }));
+      await screen.findByRole("button", { name: "Stop reading" });
+      await waitFor(() => expect(audio.sources).toHaveLength(1));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+
+      FakeEventSource.reset();
+      await user.type(screen.getByLabelText("Your question"), "Another one");
+      await user.click(screen.getByRole("button", { name: "Ask" }));
+      await waitFor(() => expect(audio.sources[0]?.stopped).toBe(true));
+      expect(screen.queryByRole("button", { name: "Stop reading" })).not.toBeInTheDocument();
+    } finally {
+      stopReading();
+      audio.restore();
+    }
   });
 });

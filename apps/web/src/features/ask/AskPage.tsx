@@ -8,6 +8,7 @@ import { FailureView } from "./FailureView";
 import { HistoryList } from "./HistoryList";
 import { ProgressView, useProgressText } from "./ProgressView";
 import { QuestionForm } from "./QuestionForm";
+import { stopReading } from "./reader";
 import { SourcePanel } from "./SourcePanel";
 import { activeEntry, isActive, useAskStore, type AskEntry } from "./store";
 
@@ -24,7 +25,11 @@ export function AskPage() {
   const blocked = blocksAsking(view) || active !== undefined;
   // A retry is an explicit second try, so only a starting engine (or a question in flight) stops it.
   const retryBlocked = isStarting(view) || active !== undefined;
-  const submit = (question: string) => void flow.submit(question, useAskStore.getState().settings);
+  // A new question stops the voice of the answer being read.
+  const submit = (question: string) => {
+    stopReading();
+    void flow.submit(question, useAskStore.getState().settings);
+  };
 
   return (
     <>
@@ -47,7 +52,10 @@ export function AskPage() {
               entry={selected}
               retryDisabled={retryBlocked}
               onCancel={() => void flow.cancel()}
-              onRetry={(entry) => void flow.submit(entry.question, entry.settings)}
+              onRetry={(entry) => {
+                stopReading();
+                void flow.submit(entry.question, entry.settings);
+              }}
             />
           ) : null}
         </div>

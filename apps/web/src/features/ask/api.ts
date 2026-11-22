@@ -2,6 +2,7 @@ import { keepPreviousData, useMutation, useQueryClient } from "@tanstack/react-q
 import { useMemo } from "react";
 import { $api, fetchClient } from "@/shared/api/client";
 import { createAskFlow, type AskFlow } from "./flow";
+import type { Engine } from "./reader";
 import type { EventSourceFactory } from "./stream";
 import type { AskRequest } from "./types";
 
@@ -28,6 +29,12 @@ export function useEngineStatus() {
         query.state.data?.ask.state === "warming_up" ? WARMING_REFRESH_MS : NORMAL_REFRESH_MS,
     },
   );
+}
+
+/** Which voice reads an answer: the speech server when `/status` says it is ready, else the browser's. */
+export function useReadingEngine(): Engine {
+  const status = useEngineStatus();
+  return status.data?.speech?.tts === "ready" ? "server" : "browser";
 }
 
 /** A paper's title, authors and pages. A paper does not change within an index generation. */

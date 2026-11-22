@@ -21,7 +21,7 @@ export const STATUS_BODY = {
   ready: true,
   ask: { state: "ready", reason: null, index_generation: null, queued: 0, busy: false },
   bench: { running_job: null, queued_runs: 0, scoring: false, queued_scores: 0 },
-  speech: { stt: "ready" },
+  speech: { stt: "ready", tts: "ready" },
 } as const;
 
 export const server = setupServer(

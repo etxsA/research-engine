@@ -9,6 +9,7 @@ import { citationIndex, linkCitations } from "./citations";
 import { CitationChip, CitationTitle, InlineCitation, openerName } from "./CitationButtons";
 import { ContextsPanel } from "./ContextsPanel";
 import { formatSeconds } from "./format";
+import { ReadAloudButton } from "./ReadAloudButton";
 import { useAskStore, type AskEntry } from "./store";
 import type { AskResponse } from "./types";
 
@@ -97,18 +98,21 @@ export function AnswerView({ entry, response }: { entry: AskEntry; response: Ask
                 })
               : t("answer.timingsNoSearch", { answer: formatSeconds(timings.answer_s, language) })}
           </p>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setQuestion(entry.question);
-              setSettings(entry.settings);
-              document.getElementById("ask-question")?.focus();
-            }}
-          >
-            {t("answer.again")}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <ReadAloudButton entryKey={entry.key} answer={response.answer} />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setQuestion(entry.question);
+                setSettings(entry.settings);
+                document.getElementById("ask-question")?.focus();
+              }}
+            >
+              {t("answer.again")}
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>

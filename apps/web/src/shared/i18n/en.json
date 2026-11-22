@@ -1205,6 +1205,18 @@
       "overloaded": "Too many transcriptions are running. Wait a few seconds and try again.",
       "serverDown": "The speech server is busy or not reachable. Try again in a moment or type the question.",
       "failed": "The recording could not be turned into text. Try again or type the question."
+    },
+    "read": {
+      "start": "Read aloud",
+      "stop": "Stop reading",
+      "loading": "Getting the voice ready.",
+      "status": "Reading the answer aloud. Press the button again to stop.",
+      "statusBrowser": "Reading the answer aloud with the voice of your browser. Press the button again to stop.",
+      "fellBack": "The speech server is not available, so the voice of your browser is reading. Press the button again to stop.",
+      "problem": {
+        "busy": "Too many readings are running. Wait a few seconds and try again.",
+        "failed": "The answer could not be read aloud. Try again."
+      }
     }
   }
 }
