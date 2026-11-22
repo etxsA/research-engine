@@ -24,6 +24,7 @@ from .security import container_of, member
 Member = Annotated[Authenticated, Depends(member)]
 
 BODY_CAP = MAX_RAW_CHARS * 6 + 1024
+NOT_SET_UP_RETRY_S = 30
 WAV = {"audio/wav": {"schema": {"type": "string", "format": "binary"}}}
 
 
@@ -44,7 +45,9 @@ class SynthesisRoute(APIRoute):
             container: Container = request.app.state.container
             await run_in_threadpool(check_caller, request)
             if container.synthesis is None:
-                raise UnavailableError("Reading aloud is not set up on this service.")
+                raise UnavailableError(
+                    "Reading aloud is not set up on this service.", retry_after_s=NOT_SET_UP_RETRY_S
+                )
             bounded = TextRequest(request.scope, request.receive)
             await bounded.body()
             return await original(bounded)

@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import contextlib
+import time
+
 import pytest
 
 from research_api.domain.errors import InvalidInputError
 from research_api.domain.speech import Language
-from research_api.domain.synthesis import guess_language, speakable, utterance
+from research_api.domain.synthesis import MAX_RAW_CHARS, guess_language, speakable, utterance
 
 CASES = [
     ("a citation is dropped", "Es corto (40a228002007ca7f pages 3-3).", "es", "Es corto."),
@@ -110,3 +113,27 @@ def test_the_guess_ignores_formulas_and_decides_the_word_for_them() -> None:
 
 def test_a_given_language_wins_over_the_guess() -> None:
     assert utterance("El tiempo es corto", "en", max_chars=400).language == "en"
+
+
+def test_a_raw_text_is_capped_by_the_character_limit() -> None:
+    with pytest.raises(InvalidInputError):
+        utterance("**a " * 500, "en", max_chars=400)
+
+
+def test_money_before_a_formula_is_not_a_formula() -> None:
+    said = utterance("It costs $5, and $x$ more", "en", max_chars=400).text
+    assert said == "It costs $5, and equation more"
+
+
+def test_a_number_in_parentheses_is_not_a_citation() -> None:
+    said = utterance("Seen in (12345678 participants) overall", "en", max_chars=400).text
+    assert said == "Seen in (12345678 participants) overall"
+
+
+def test_a_pathological_text_within_the_cap_is_cleaned_fast() -> None:
+    started = time.monotonic()
+    for unit in ("**a ", "[a ", "![a ", "<a ", "\\(", "\\[", "~~a ", "$a ", "$$a "):
+        text = unit * (MAX_RAW_CHARS // len(unit))
+        with contextlib.suppress(InvalidInputError):
+            utterance(text, None, max_chars=2000)
+    assert time.monotonic() - started < 1.0

@@ -31,13 +31,15 @@ class SynthesisDesk:
     async def synthesize(
         self, member: str, text: str, *, language: Language | None = None
     ) -> bytes:
-        said = utterance(text, language, max_chars=self.limits.max_chars)
         if self._open[member] >= self.limits.per_member_open:
             raise RateLimitedError(
                 "Wait for your open readings to finish.", retry_after_s=RETRY_AFTER_S
             )
         self._open[member] += 1
         try:
+            said = await asyncio.to_thread(
+                utterance, text, language, max_chars=self.limits.max_chars
+            )
             async with asyncio.timeout(self.limits.timeout_s):
                 return await self._synthesizer.synthesize(
                     said.text, language=said.language, voice=self.voices.of(said.language)

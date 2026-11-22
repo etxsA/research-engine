@@ -42,6 +42,7 @@ from ...domain.documents import (
 )
 from ...domain.speech import Transcript
 from ...domain.status import Mode, ServerStatus
+from ...domain.synthesis import MAX_RAW_CHARS
 from ...ports.ask import EngineState
 from ...ports.circuits import GateListReading
 
@@ -603,7 +604,7 @@ class DocumentPageOut(BaseModel):
 
 class SynthesisRequest(Request):
     text: StrictStr = Field(
-        max_length=20_000,
+        max_length=MAX_RAW_CHARS,
         description="A piece of an answer as written. Citations, markdown and formulas are "
         'cleaned on the server (a formula is said as "ecuación" or "equation"); what is '
         "left must be 1 to `max_tts_chars` characters (400 by default).",

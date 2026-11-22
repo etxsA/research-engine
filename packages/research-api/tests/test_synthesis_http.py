@@ -7,6 +7,7 @@ import dataclasses
 import io
 import json
 import threading
+import time
 import wave
 from collections.abc import Callable
 from typing import Any
@@ -70,7 +71,7 @@ def test_markdown_citations_and_formulas_are_cleaned_before_the_length_is_measur
         {"text": 5},
         {},
         {"text": "hi", "extra": 1},
-        {"text": "x" * 20_001},
+        {"text": "x" * 8_001},
     ],
 )
 def test_a_text_that_cannot_be_read_is_a_422(member: TestClient, body: dict[str, Any]) -> None:
@@ -121,6 +122,7 @@ def test_without_a_reading_server_the_route_is_a_503_and_status_says_so(
     client = sign_in_as_member(client_for(build_app(off)))
     reply = post(client)
     assert reply.status_code == 503 and reply.headers["content-type"] == PROBLEM
+    assert reply.headers["retry-after"] == "30"
     assert client.get("/api/v1/status").json()["speech"] == {"stt": "ready", "tts": "unavailable"}
 
 
@@ -184,3 +186,11 @@ def test_the_contract_describes_the_route() -> None:
     schemas = document["components"]["schemas"]
     assert set(schemas["SynthesisRequest"]["properties"]) == {"text", "language"}
     assert "tts" in schemas["SpeechStatus"]["properties"]
+
+
+def test_a_pathological_text_is_refused_or_cleaned_fast(member: TestClient) -> None:
+    started = time.monotonic()
+    for text in ("**a " * 5000, "[a " * 5000, "<a " * 5000, "\\(" * 4000):
+        reply = post(member, {"text": text})
+        assert reply.status_code == 422
+    assert time.monotonic() - started < 1.0

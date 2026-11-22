@@ -19,34 +19,41 @@ DEFAULT_MAX_CHARS: Final = 400
 MAX_CHARS_LIMIT: Final = 2000
 DEFAULT_TIMEOUT_S: Final = 30.0
 DEFAULT_VOICE: Final = "default"
-MAX_RAW_CHARS: Final = 20_000
+RAW_PER_CHAR: Final = 4
+MAX_RAW_CHARS: Final = MAX_CHARS_LIMIT * RAW_PER_CHAR
 
 EQUATION: Final[dict[Language, str]] = {"es": "ecuación", "en": "equation"}
 NOTHING_TO_SAY: Final = "There is nothing to read aloud in this text."
 
 _HOLE = "\x00"
 
+# A pair of marks that has no partner must not be searched to the end of the text from every
+# opener, which is quadratic: a span is at most this long.
+SPAN = 400
+MATH_SPAN = 1000
+
 # A citation is a parenthesis that opens with a hexadecimal document id (at least one digit, so a
-# word such as "decade" is not one) and says where: "(40a228002007ca7f pages 3-3)".
-_CITATION = re.compile(r"\(\s*(?=[0-9a-f]*\d)[0-9a-f]{8,}\b[^()]*\)", re.IGNORECASE)
+# word such as "decade" is not one) and says the page: "(40a228002007ca7f pages 3-3)".
+_CITATION = re.compile(r"\(\s*(?=[0-9a-f]*\d)[0-9a-f]{8,}\s+pages?\b[^()]*\)", re.IGNORECASE)
 _MATH = re.compile(
-    r"\$\$.+?\$\$"
-    r"|\\\[.+?\\\]"
-    r"|\\\(.+?\\\)"
-    r"|(?<!\\)\$(?=[^\s$])(?:[^$\n]|\\\$)+?(?<=[^\s$])\$(?!\d)",
+    rf"\$\$.{{1,{MATH_SPAN}}}?\$\$"
+    rf"|\\\[.{{1,{MATH_SPAN}}}?\\\]"
+    rf"|\\\(.{{1,{MATH_SPAN}}}?\\\)"
+    rf"|(?<!\\)\$(?!\d+(?:[.,]\d+)*(?:[\s,.;:!?)]|$))(?=[^\s$])"
+    rf"(?:[^$\n]|\\\$){{1,{SPAN}}}?(?<=[^\s$])\$(?!\d)",
     re.DOTALL,
 )
 _FENCE = re.compile(r"^[ \t]*(```|~~~).*?^[ \t]*\1[ \t]*$|^[ \t]*(```|~~~).*\Z", re.DOTALL | re.M)
-_IMAGE = re.compile(r"!\[([^\]]*)\]\([^)]*\)")
-_LINK = re.compile(r"\[([^\]]+)\]\([^)]*\)")
+_IMAGE = re.compile(rf"!\[([^\]]{{0,{SPAN}}})\]\([^)]{{0,{SPAN}}}\)")
+_LINK = re.compile(rf"\[([^\]]{{1,{SPAN}}})\]\([^)]{{0,{SPAN}}}\)")
 _AUTOLINK = re.compile(r"<(?:https?://|mailto:)[^>\s]+>")
 _URL = re.compile(r"https?://\S+")
-_TAG = re.compile(r"</?[A-Za-z][^>\n]*>")
+_TAG = re.compile(rf"</?[A-Za-z][^>\n]{{0,{SPAN}}}>")
 _INLINE_CODE = re.compile(r"`+([^`\n]*)`+")
-_BOLD = re.compile(r"(\*\*|__)(?=\S)(.+?)(?<=\S)\1", re.DOTALL)
-_ITALIC_STAR = re.compile(r"(?<![\w*])\*(?=[^\s*])([^*\n]+?)(?<=[^\s*])\*(?![\w*])")
-_ITALIC_UNDERSCORE = re.compile(r"(?<![\w_])_(?=[^\s_])([^_\n]+?)(?<=[^\s_])_(?![\w_])")
-_STRIKE = re.compile(r"~~(?=\S)(.+?)(?<=\S)~~")
+_BOLD = re.compile(rf"(\*\*|__)(?=\S)(.{{1,{SPAN}}}?)(?<=\S)\1", re.DOTALL)
+_ITALIC_STAR = re.compile(rf"(?<![\w*])\*(?=[^\s*])([^*\n]{{1,{SPAN}}}?)(?<=[^\s*])\*(?![\w*])")
+_ITALIC_UNDERSCORE = re.compile(rf"(?<![\w_])_(?=[^\s_])([^_\n]{{1,{SPAN}}}?)(?<=[^\s_])_(?![\w_])")
+_STRIKE = re.compile(rf"~~(?=\S)(.{{1,{SPAN}}}?)(?<=\S)~~")
 _LINE_MARK = re.compile(r"^[ \t]*(?:#{1,6}[ \t]+|>[ \t]?|[-*+][ \t]+|\d{1,3}[.)][ \t]+)", re.M)
 _RULE = re.compile(r"^[ \t]*(?:[-*_=][ \t]*){3,}$", re.M)
 _TABLE_BAR = re.compile(r"^[ \t]*\|?(?:[ \t]*:?-{2,}:?[ \t]*\|)+[ \t]*:?-*:?[ \t]*$", re.M)
@@ -197,8 +204,9 @@ def speakable(text: str, language: Language) -> str:
 def utterance(text: str, language: Language | None, *, max_chars: int) -> Utterance:
     """What to say for ``text``: ``language`` or a guess from its words (formulas do not count),
     cleaned. ``InvalidInputError`` when nothing is left or more than ``max_chars`` remain."""
-    if len(text) > MAX_RAW_CHARS:
-        raise InvalidInputError(f"The text is over {MAX_RAW_CHARS} characters.")
+    raw_cap = min(MAX_RAW_CHARS, max_chars * RAW_PER_CHAR)
+    if len(text) > raw_cap:
+        raise InvalidInputError(f"The text is over {raw_cap} characters; send less.")
     said = language or guess_language(_clean(text, ""))
     spoken = speakable(text, said)
     if not spoken:
