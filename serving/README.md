@@ -124,7 +124,7 @@ supported by every model.
 | `qwen3-tts-0.6b-customvoice` (default) | `Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice` | Apache-2.0 | 9 preset speakers: `aiden`, `dylan`, `eric`, `ono_anna`, `ryan`, `serena`, `sohee`, `uncle_fu`, `vivian` |
 | `qwen3-tts-1.7b-customvoice` | `Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice` | Apache-2.0 | the same speakers, larger |
 | `qwen3-tts-0.6b-base` | `Qwen/Qwen3-TTS-12Hz-0.6B-Base` | Apache-2.0 | clones a voice from a clip of a few seconds: the voices are the `NAME.wav` + `NAME.txt` pairs of `TTS_VOICES_DIR` |
-| `qwen3-tts-1.7b-voicedesign` | `Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign` | Apache-2.0 | designs a voice from a text description; used to make a reference clip, not served |
+| `qwen3-tts-1.7b-voicedesign` | `Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign` | Apache-2.0 | designs a voice from a text description; used to make a reference clip; the server refuses to load it |
 
 The preset speakers are Chinese or English natives; they all speak Spanish. A designed voice is cloned to keep it
 stable: VoiceDesign speaks one reference sentence, and the Base model clones that clip, so every sentence has the
@@ -139,8 +139,8 @@ has its own pinned requirements file (`requirements.txt` for `faster`, `requirem
 Measured on one 48 GB workstation GPU of a shared lab machine (GPU 0, CUDA 12.4 wheels on a 535 driver, bf16,
 sampling on, one request at a time, `max_new_tokens` 1024, models in the local cache). Each cell
 is the median of 3 runs after a warm-up call; the real-time factor (RTF) is generation time divided by audio
-length, so below 1 is faster than playback. The 5 Spanish and 2 English sentences of the check are 10 to 125
-characters long and give 4 to 14 s of audio.
+length, so below 1 is faster than playback. The 5 Spanish and 2 English sentences of the check are 75 to 126
+characters long and give 4 to 18 s of audio.
 
 | Voice | Load (s) | GPU memory (GB) | Spanish sentence, s to full audio (median) | English sentence, s (median) | RTF (median) | Word error rate through Parakeet, es / en |
 |---|---|---|---|---|---|---|
@@ -194,10 +194,10 @@ curl -s http://127.0.0.1:8005/v1/audio/speech \
   -o answer.wav
 ```
 
-`POST /v1/audio/speech` takes JSON: `model` (`local-tts`), `input` (1 to 1000 characters; the client sends one
-sentence at a time), `voice` (a name from `GET /v1/models`, case-insensitive), `response_format` (`wav` only) and
+`POST /v1/audio/speech` takes JSON: `model` (`local-tts`), `input` (1 to 500 characters, a sentence: longer text would hit the 1024-token cap and be cut; the client sends
+one sentence at a time), `voice` (a name from `GET /v1/models`, case-insensitive), `response_format` (`wav` only) and
 `language` (`es`, `en` or `null` for the model to decide). It answers `200 audio/wav` (mono, 16-bit PCM, 24 kHz,
-`Cache-Control: no-store`). Other answers: 401 without the Bearer key (checked before the body), 400 for an unknown
+`Cache-Control: no-store`). Other answers: 401 without the Bearer key (a JSON body that does not parse can still get 422 first), 400 for an unknown
 voice or model, 422 for a body that does not fit the shape above, 503 with `Retry-After` while the model loads.
 `GET /health` needs no key. Text and audio are kept in memory only and never written to disk or to the log; sentences
 are generated one at a time.

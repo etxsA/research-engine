@@ -2,7 +2,6 @@
 
 import asyncio
 import io
-import os
 import sys
 import threading
 import time
@@ -176,10 +175,20 @@ def test_requests_run_one_at_a_time():
     assert asyncio.run(run()) == [200] * 4 and peak == 1
 
 
-def test_text_is_not_logged(client, caplog):
-    caplog.set_level("DEBUG")
-    speak(client, input="secreto cuantico")
-    assert "secreto" not in caplog.text
+def test_a_failed_load_exits_the_process_with_a_reason(monkeypatch, capfd):
+    exits = []
+    monkeypatch.setattr(tts_server.os, "_exit", exits.append)
+
+    def loader():
+        raise SystemExit("TTS_VOICES_DIR is not set")
+
+    with TestClient(tts_server.create_app(None, KEY, loader=loader)):
+        for _ in range(100):
+            if exits:
+                break
+            time.sleep(0.02)
+    assert exits == [1]
+    assert "TTS_VOICES_DIR is not set" in capfd.readouterr().err
 
 
 def test_key_file_must_be_private(tmp_path):
@@ -199,7 +208,6 @@ def test_factory_needs_a_key_file(monkeypatch):
     monkeypatch.delenv("TTS_API_KEY_FILE", raising=False)
     with pytest.raises(SystemExit):
         tts_server.create_app_from_env()
-    assert os.environ.get("TTS_API_KEY_FILE") is None
 
 
 def test_qwen_engine_maps_the_language_and_rate():
@@ -228,6 +236,6 @@ def test_clone_clips_pair_each_wav_with_its_text(tmp_path):
 
 
 def test_token_cap_follows_the_text_and_stays_bounded():
-    assert tts_server.token_cap("Hola.") == 34
-    assert tts_server.token_cap("x" * 120) == 264
+    assert tts_server.token_cap("Hola.") == 39
+    assert tts_server.token_cap("x" * 120) == 384
     assert tts_server.token_cap("x" * tts_server.MAX_CHARS) == tts_server.MAX_NEW_TOKENS

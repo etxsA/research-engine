@@ -17,7 +17,9 @@ import hmac
 import io
 import os
 import stat
+import sys
 import threading
+import traceback
 import wave
 from collections.abc import Callable
 from contextlib import asynccontextmanager
@@ -30,8 +32,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 SERVED_NAME = "local-tts"
-LANGUAGES = ("es", "en")
-MAX_CHARS = 1000
+MAX_CHARS = 500  # a sentence: above it the token cap below would cut the speech short
 MAX_NEW_TOKENS = (
     1024  # the 12 Hz codec makes about 12 tokens per second: a cap of about 85 s of audio
 )
@@ -89,7 +90,13 @@ def create_app(
 
     def load() -> None:
         assert loader is not None
-        state["engine"] = loader()  # a failure prints its traceback and /health stays 503
+        try:
+            state["engine"] = loader()
+        except BaseException as exc:  # SystemExit too: a thread would swallow it without a word
+            print(f"tts: the model failed to load: {type(exc).__name__}: {exc}", file=sys.stderr)
+            traceback.print_exc()
+            sys.stderr.flush()
+            os._exit(1)  # exit so serve.sh reports it instead of waiting on a 503 forever
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
@@ -171,9 +178,10 @@ class QwenEngine:
 
 
 def token_cap(text: str) -> int:
-    """Most codec tokens worth generating for a text: speech takes about 1.2 per character, so 2 per
-    character plus two seconds stops a sampled run that never ends (one took 28 s of audio)."""
-    return min(MAX_NEW_TOKENS, 24 + 2 * len(text))
+    """Most codec tokens worth generating for a text: measured speech takes 1.4 to 1.8 per
+    character, so 3 per character plus two seconds leaves room for digits and stops a sampled run
+    that never ends (one took 28 s of audio)."""
+    return min(MAX_NEW_TOKENS, 24 + 3 * len(text))
 
 
 def _clone_clips(folder: str) -> dict[str, tuple[str, str]]:
@@ -221,7 +229,10 @@ def build_engine(env: Callable[[str, str | None], str | None] = os.environ.get) 
         fast = None
         wrapper = Qwen3TTSModel.from_pretrained(path, device_map="cuda:0", dtype=torch.bfloat16)
 
-    if wrapper.model.tts_model_type != "base":
+    kind = wrapper.model.tts_model_type
+    if kind not in ("base", "custom_voice"):
+        raise SystemExit(f"model type {kind} is not served (use a CustomVoice or Base model)")
+    if kind == "custom_voice":
         speakers = tuple(wrapper.get_supported_speakers() or ())
         target = fast or wrapper
 
