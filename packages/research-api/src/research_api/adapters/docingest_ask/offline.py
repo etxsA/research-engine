@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 
 from ...domain.ask import AskAnswer, AskQuestion, GoldPassage, Phase
-from ...domain.documents import DocumentDetail, DocumentList, DocumentPage
+from ...domain.documents import DocumentDetail, DocumentList, DocumentPage, DocumentText
 from ...domain.errors import NotFoundError, UnavailableError
 from ...domain.runs import ModelFacts
 from ...ports.ask import EngineHealth
@@ -43,4 +43,7 @@ class OfflineDocumentReader:
         raise NotFoundError("No such document.")
 
     def page(self, doc_id: str, page: int) -> DocumentPage:
+        raise NotFoundError("No such document.")
+
+    def text(self, doc_id: str) -> DocumentText:
         raise NotFoundError("No such document.")

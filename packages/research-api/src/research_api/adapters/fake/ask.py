@@ -29,6 +29,7 @@ from ...domain.documents import (
     DocumentList,
     DocumentPage,
     DocumentSummary,
+    DocumentText,
     PageInfo,
     page_kind_of,
     resolve_doc_id,
@@ -228,4 +229,14 @@ class FakeDocumentReader:
             kind=page_kind_of(paper.source_kind),
             title=chosen.title,
             markdown=chosen.markdown,
+        )
+
+    def text(self, doc_id: str) -> DocumentText:
+        """The pages joined by a blank line, as the fake engine's contexts join them (the
+        invented papers have no page markers)."""
+        paper = self._paper(doc_id)
+        return DocumentText(
+            doc_id=paper.doc_id,
+            source_name=paper.source_name,
+            markdown="\n\n".join(page.markdown for page in paper.pages),
         )
