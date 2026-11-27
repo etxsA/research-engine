@@ -198,10 +198,10 @@ function latexSource(pre: HastNode | undefined): string | null {
   return textOf(code).replace(/\n$/, "");
 }
 
-/** The attribute that carries a latex block's number from the rehype step to `CodeBlock`. */
 /**
  * Numbers the fenced `latex` blocks of the text from 1, in reading order, so the action under
  * each can tell them apart (two links with one name are one entry in a screen reader's list).
+ * The number travels in `data-latex-block`, from this rehype step to `CodeBlock`.
  */
 function rehypeNumberLatexBlocks() {
   return (tree: HastNode) => {
