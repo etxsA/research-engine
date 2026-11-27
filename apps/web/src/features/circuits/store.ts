@@ -103,6 +103,8 @@ export function makePaperExport(exported: PaperExport): PaperExportOutcome {
 
 export interface CircuitState {
   inputKind: InputKind;
+  /** The Paper tab is open. The circuit read stays the one of `inputKind`: Simulate, Check and Export use it. */
+  showPaper: boolean;
   latexText: string;
   jsonText: string;
   reading: Reading | null;
@@ -140,6 +142,9 @@ export interface CircuitState {
 
 interface CircuitActions {
   setInputKind: (kind: InputKind) => void;
+  setShowPaper: (show: boolean) => void;
+  /** Put LaTeX from elsewhere (a paper's block, a link) in the LaTeX tab and open that tab. */
+  loadLatex: (text: string) => void;
   setText: (text: string) => void;
   loadExample: (kind: InputKind, text: string) => void;
   selectCircuit: (index: number) => void;
@@ -156,6 +161,7 @@ interface CircuitActions {
 
 export const initialCircuitState: CircuitState = {
   inputKind: "latex",
+  showPaper: false,
   latexText: "",
   jsonText: "",
   reading: null,
@@ -198,7 +204,10 @@ const staleText = (state: CircuitState) => ({
 /** Client-only state of the circuit screen: what was typed, what was read, the last answer. Memory only. */
 export const useCircuitStore = create<CircuitState & CircuitActions>()((set) => ({
   ...initialCircuitState,
-  setInputKind: (inputKind) => set((s) => ({ inputKind, ...staleText(s) })),
+  setInputKind: (inputKind) => set((s) => ({ inputKind, showPaper: false, ...staleText(s) })),
+  setShowPaper: (showPaper) => set({ showPaper }),
+  loadLatex: (text) =>
+    set((s) => ({ inputKind: "latex", showPaper: false, latexText: text, ...staleText(s) })),
   setText: (text) =>
     set((s) => ({
       ...(s.inputKind === "latex" ? { latexText: text } : { jsonText: text }),

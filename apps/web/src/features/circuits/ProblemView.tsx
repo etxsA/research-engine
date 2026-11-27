@@ -10,6 +10,8 @@ function apiTitle(status: number, t: Translate): string {
   switch (status) {
     case 400:
       return t("circuits.problem.badRequest");
+    case 404:
+      return t("circuits.problem.notFound");
     case 413:
       return t("circuits.problem.tooLarge");
     case 422:

@@ -24,9 +24,9 @@ import { addMissingNames } from "./values";
 export const QASM_TYPE = "text/plain;charset=utf-8";
 
 /** One program: its file name, the part of the drawing it is, its text, Copy and Download. */
-export function ProgramView({ program, level = 3 }: { program: QasmProgram; level?: 3 | 4 }) {
+export function ProgramView({ program, level = 3 }: { program: QasmProgram; level?: 3 | 4 | 5 }) {
   const { t } = useTranslation();
-  const Heading = level === 3 ? "h3" : "h4";
+  const Heading = `h${level}` as const;
   const code = useRef<HTMLPreElement>(null);
   const [copied, setCopied] = useState<CopyOutcome | null>(null);
   const announceCopy = useCircuitStore((state) => state.announceCopy);
@@ -87,11 +87,14 @@ export function ProgramView({ program, level = 3 }: { program: QasmProgram; leve
   );
 }
 
-/** The export turned the circuit down: its reasons, word for word, and no program. */
-export function ExportRefusal({ reasons }: { reasons: string[] }) {
+/**
+ * The export turned the circuit down: its reasons, word for word, and no program. A `quiet` one is
+ * a note: a paper's export can refuse several circuits, and its summary is announced once.
+ */
+export function ExportRefusal({ reasons, quiet = false }: { reasons: string[]; quiet?: boolean }) {
   const { t } = useTranslation();
   return (
-    <Alert variant="destructive" data-testid="export-refusal">
+    <Alert variant="destructive" data-testid="export-refusal" {...(quiet ? { role: "note" } : {})}>
       <Ban aria-hidden="true" />
       <AlertTitle>{t("circuits.export.refusedTitle")}</AlertTitle>
       <AlertDescription className="grid gap-1">

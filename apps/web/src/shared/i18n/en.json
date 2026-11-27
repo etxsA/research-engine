@@ -939,7 +939,8 @@
       "reading": "Reading",
       "clear": "Clear",
       "example": "Try an example",
-      "examplePick": "Choose one"
+      "examplePick": "Choose one",
+      "paper": "Paper"
     },
     "examples": {
       "bell": "Bell pair (quantikz)",
@@ -1080,6 +1081,31 @@
       "live": "Export finished. Programs: {{programs}}."
     },
     "paper": {
+      "description": "Find a stored paper, list its circuit blocks, read one of them here, or export every circuit of the paper as OpenQASM 3.",
+      "searchLabel": "Find a stored paper",
+      "query": "Title or id",
+      "queryHint": "Part of a title, or the start of a paper's id. Leave it empty to list the first papers.",
+      "search": "Find papers",
+      "searching": "Finding",
+      "found": "Papers found",
+      "showing": "Showing {{shown}} of {{total}}. Write more of the title to narrow the search.",
+      "none": "No stored paper matches.",
+      "loading": "Reading the paper's circuit blocks",
+      "id": "Id: {{id}}",
+      "blocks": "Circuit blocks ({{count}})",
+      "noBlocks": "This paper has no circuit blocks: its text has no fenced latex block.",
+      "block": "Block {{block}}",
+      "circuitsRead": "Circuits read: {{count}}",
+      "latex": "LaTeX of block {{block}}",
+      "read": "Read this block",
+      "readBlock": "Read this block: block {{block}}",
+      "exportHint": "Exports every circuit of the paper with the values below, under the file names docingest circuits export --doc writes. Nothing is written on the server.",
+      "export": "Export this paper",
+      "exporting": "Exporting the paper",
+      "exportTitle": "Programs of {{source}}",
+      "exportSummary": "Programs: {{programs}}. Refused circuits: {{refused}}.",
+      "warnings": "Warnings",
+      "circuit": "Block {{block}}, circuit {{circuit}}",
       "live": {
         "circuits": "Circuit blocks of the paper: {{blocks}}.",
         "export": "Export of the paper finished. Programs: {{programs}}. Refused circuits: {{refused}}."
@@ -1173,6 +1199,7 @@
       "notAllowed": "You are not allowed to do this",
       "failed": "The request failed",
       "malformed": "The server's answer could not be read",
+      "notFound": "Not found",
       "retry": "Try again in {{seconds}} seconds."
     },
     "local": {

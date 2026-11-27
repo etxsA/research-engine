@@ -2568,6 +2568,188 @@
     }
   },
   {
+    "name": "parse paper block 1",
+    "path": "/circuits/parse",
+    "request": {
+      "latex": "\\begin{quantikz}\n\\lstick{$|\\psi\\rangle$} & \\ctrl{1} & \\gate{H} & \\meter{} & \\cw & \\cwbend{2} \\\\\n\\lstick{$|0\\rangle$} & \\targ{} & \\ctrl{1} & \\qw & \\meter{} & \\cwbend{1} \\\\\n\\lstick{$|0\\rangle$} & \\qw & \\targ{} & \\qw & \\qw & \\gate{X^{m_2} Z^{m_1}}\n\\end{quantikz}"
+    },
+    "status": 200,
+    "response": {
+      "status": "partial",
+      "text": "Gate list (from the circuit code above; wires numbered top to bottom; one step per drawn column, left to right):\nWires: 1 = |\\psi\\rangle; 2 = |0\\rangle; 3 = |0\\rangle\nStep 1: CNOT: control wire 1, target wire 2\nStep 2: H on wire 1; CNOT: control wire 2, target wire 3\nStep 3: measure wire 1\nStep 4: measure wire 2\nStep 5: X^{m_2} Z^{m_1} on wire 3; unparsed on wire 1: \\cwbend{2}; unparsed on wire 2: \\cwbend{1}",
+      "circuits": [
+        {
+          "format": "circuit/1",
+          "kind": "quantikz",
+          "status": "partial",
+          "label": "",
+          "wires": 3,
+          "wire_labels": ["1 = |\\psi\\rangle", "2 = |0\\rangle", "3 = |0\\rangle"],
+          "parts": [
+            [
+              [
+                {
+                  "kind": "x",
+                  "label": "X",
+                  "targets": [2],
+                  "controls": [1],
+                  "open_controls": [],
+                  "classical": false,
+                  "source": ""
+                }
+              ],
+              [
+                {
+                  "kind": "gate",
+                  "label": "H",
+                  "targets": [1],
+                  "controls": [],
+                  "open_controls": [],
+                  "classical": false,
+                  "source": ""
+                },
+                {
+                  "kind": "x",
+                  "label": "X",
+                  "targets": [3],
+                  "controls": [2],
+                  "open_controls": [],
+                  "classical": false,
+                  "source": ""
+                }
+              ],
+              [
+                {
+                  "kind": "measure",
+                  "label": "",
+                  "targets": [1],
+                  "controls": [],
+                  "open_controls": [],
+                  "classical": false,
+                  "source": ""
+                }
+              ],
+              [
+                {
+                  "kind": "measure",
+                  "label": "",
+                  "targets": [2],
+                  "controls": [],
+                  "open_controls": [],
+                  "classical": false,
+                  "source": ""
+                }
+              ],
+              [
+                {
+                  "kind": "gate",
+                  "label": "X^{m_2} Z^{m_1}",
+                  "targets": [3],
+                  "controls": [],
+                  "open_controls": [],
+                  "classical": false,
+                  "source": ""
+                },
+                {
+                  "kind": "unparsed",
+                  "label": "",
+                  "targets": [1],
+                  "controls": [],
+                  "open_controls": [],
+                  "classical": false,
+                  "source": "\\cwbend{2}"
+                },
+                {
+                  "kind": "unparsed",
+                  "label": "",
+                  "targets": [2],
+                  "controls": [],
+                  "open_controls": [],
+                  "classical": false,
+                  "source": "\\cwbend{1}"
+                }
+              ]
+            ]
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "parse paper block 2",
+    "path": "/circuits/parse",
+    "request": {
+      "latex": "\\begin{quantikz}\n\\lstick{$|0\\rangle$} & \\gate{H} & \\ctrl{1} & \\qw \\\\\n\\lstick{$|0\\rangle$} & \\qw & \\targ{} & \\qw\n\\end{quantikz}"
+    },
+    "status": 200,
+    "response": {
+      "status": "parsed",
+      "text": "Gate list (from the circuit code above; wires numbered top to bottom; one step per drawn column, left to right):\nWires: 1 = |0\\rangle; 2 = |0\\rangle\nStep 1: H on wire 1\nStep 2: CNOT: control wire 1, target wire 2",
+      "circuits": [
+        {
+          "format": "circuit/1",
+          "kind": "quantikz",
+          "status": "parsed",
+          "label": "",
+          "wires": 2,
+          "wire_labels": ["1 = |0\\rangle", "2 = |0\\rangle"],
+          "parts": [
+            [
+              [
+                {
+                  "kind": "gate",
+                  "label": "H",
+                  "targets": [1],
+                  "controls": [],
+                  "open_controls": [],
+                  "classical": false,
+                  "source": ""
+                }
+              ],
+              [
+                {
+                  "kind": "x",
+                  "label": "X",
+                  "targets": [2],
+                  "controls": [1],
+                  "open_controls": [],
+                  "classical": false,
+                  "source": ""
+                }
+              ]
+            ]
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "qasm paper block 2",
+    "path": "/circuits/qasm",
+    "request": {
+      "circuit_json": "{\"format\":\"circuit/1\",\"kind\":\"quantikz\",\"status\":\"parsed\",\"label\":\"\",\"wires\":2,\"wire_labels\":[\"1 = |0\\\\rangle\",\"2 = |0\\\\rangle\"],\"parts\":[[[{\"kind\":\"gate\",\"label\":\"H\",\"targets\":[1],\"controls\":[],\"open_controls\":[],\"classical\":false,\"source\":\"\"}],[{\"kind\":\"x\",\"label\":\"X\",\"targets\":[2],\"controls\":[1],\"open_controls\":[],\"classical\":false,\"source\":\"\"}]]]}"
+    },
+    "status": 200,
+    "response": {
+      "status": "ok",
+      "programs": [
+        {
+          "filename": "circuit-p01.qasm",
+          "part": 1,
+          "sign": null,
+          "text": "// Generated by research-api (qasm format 1)\n// wire 1 (top) = q[0]; the simulator reads it as the most significant bit\n// wires: 1 = |0\\rangle; 2 = |0\\rangle\nOPENQASM 3.0;\ninclude \"stdgates.inc\";\nqubit[2] q;\n\nh q[0];\ncx q[0], q[1];\n",
+          "n_qubits": 2,
+          "n_clbits": 0
+        }
+      ],
+      "reasons": [],
+      "notes": [],
+      "symbols": [],
+      "unmatched": [],
+      "unbound": []
+    }
+  },
+  {
     "name": "conventions",
     "path": "/circuits/conventions",
     "request": null,

@@ -233,6 +233,18 @@ await addPaper("paper qasm stray key", teleportation, "qasm", { values: { theta:
 await addPaper("paper qasm bad key", teleportation, "qasm", { values: { pi: 1 } });
 await addPaper("paper qasm unknown", unknown, "qasm", {});
 
+// "Read this block" sends a block of the paper to the reader as LaTeX, and the cards then work on
+// the circuit read: the blocks of the teleportation paper are recorded as readings too, with the
+// export of the block that exports.
+const { blocks } = cases.find((item) => item.name === "paper circuits teleportation").response;
+for (const block of blocks) {
+  await add(`parse paper block ${block.block}`, "parse", { latex: block.latex });
+}
+const bellPair = await post("/circuits/parse", { latex: blocks[1].latex });
+await add("qasm paper block 2", "qasm", {
+  circuit_json: JSON.stringify(bellPair.response.circuits[0]),
+});
+
 const conventions = await get("/circuits/conventions");
 cases.push({ name: "conventions", path: "/circuits/conventions", request: null, ...conventions });
 

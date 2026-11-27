@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { fetchClient } from "@/shared/api/client";
+import { $api, fetchClient } from "@/shared/api/client";
 import {
   readConventions,
   readPaperCircuits,
@@ -22,6 +22,10 @@ const QASM = "/api/v1/circuits/qasm";
 const CONVENTIONS = "/api/v1/circuits/conventions";
 const PAPER_CIRCUITS = "/api/v1/documents/{doc_id}/circuits";
 const PAPER_QASM = "/api/v1/documents/{doc_id}/qasm";
+const DOCUMENTS = "/api/v1/documents";
+
+/** How many papers a search lists; the answer says how many more match. */
+export const PAPER_SEARCH_LIMIT = 20;
 
 type Values = Record<string, string | number> | undefined;
 
@@ -148,4 +152,17 @@ export function useConventions() {
     staleTime: Infinity,
     retry: false,
   });
+}
+
+/**
+ * The stored papers whose title holds `query`, or whose id starts with it (the API's own search).
+ * Nothing is asked before the first search (`query` null); an empty search lists the first papers.
+ */
+export function usePaperSearch(query: string | null) {
+  return $api.useQuery(
+    "get",
+    DOCUMENTS,
+    { params: { query: { query: query ?? "", limit: PAPER_SEARCH_LIMIT } } },
+    { enabled: query !== null, retry: false, staleTime: 30_000 },
+  );
 }
