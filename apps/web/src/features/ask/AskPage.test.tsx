@@ -342,10 +342,10 @@ describe("sending a question (A1)", () => {
 
   it("announces each step to a screen reader", async () => {
     const user = await openAsk();
-    // Qubi has its own live line; this one is the screen's.
+    // Qupi has its own live line; this one is the screen's.
     const live = screen
       .getAllByRole("status")
-      .find((node) => node.className.includes("sr-only") && !node.textContent.startsWith("Qubi"))!;
+      .find((node) => node.className.includes("sr-only") && !node.textContent.startsWith("Qupi"))!;
     takeAsks();
     await ask(user, "Q");
     expect(live).toHaveTextContent("Waiting for the model servers");

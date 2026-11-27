@@ -1221,17 +1221,17 @@
     "autoRead": "Leer respuestas tras una pregunta hablada"
   },
   "pet": {
-    "hide": "Ocultar a Qubi",
-    "show": "Mostrar a Qubi",
+    "hide": "Ocultar a Qupi",
+    "show": "Mostrar a Qupi",
     "state": {
-      "idle": "Qubi descansa.",
-      "listening": "Qubi está escuchando.",
-      "transcribing": "Qubi está anotando lo que dijiste.",
-      "waiting": "Qubi espera su turno.",
-      "thinking": "Qubi está pensando.",
-      "speaking": "Qubi está leyendo la respuesta en voz alta.",
-      "error": "Qubi tuvo un problema.",
-      "unavailable": "Qubi descansa, el motor no está disponible."
+      "idle": "Qupi descansa.",
+      "listening": "Qupi está escuchando.",
+      "transcribing": "Qupi está anotando lo que dijiste.",
+      "waiting": "Qupi espera su turno.",
+      "thinking": "Qupi está pensando.",
+      "speaking": "Qupi está leyendo la respuesta en voz alta.",
+      "error": "Qupi tuvo un problema.",
+      "unavailable": "Qupi descansa, el motor no está disponible."
     }
   }
 }

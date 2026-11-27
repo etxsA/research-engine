@@ -29,13 +29,13 @@ async function openAsk() {
   await screen.findByRole("heading", { name: "Ask", level: 1 });
   return userEvent.setup();
 }
-const qubi = () => document.querySelector<HTMLElement>("[data-pet]")!;
+const qupi = () => document.querySelector<HTMLElement>("[data-pet]")!;
 
-describe("Qubi on the Ask screen", () => {
+describe("Qupi on the Ask screen", () => {
   it("sits beside the question box and rests at first", async () => {
     await openAsk();
-    expect(qubi()).toHaveAttribute("data-state", "idle");
-    expect(qubi().closest("form")).toBeNull();
+    expect(qupi()).toHaveAttribute("data-state", "idle");
+    expect(qupi().closest("form")).toBeNull();
   });
 
   it("listens while the Speak button records, and writes down while it transcribes", async () => {
@@ -50,26 +50,26 @@ describe("Qubi on the Ask screen", () => {
     await user.click(screen.getByRole("button", { name: "Speak" }));
     await screen.findByRole("button", { name: "Stop" });
     act(() => mic!.emit(new Float32Array(48_000).fill(0.2)));
-    await waitFor(() => expect(qubi()).toHaveAttribute("data-state", "listening"));
+    await waitFor(() => expect(qupi()).toHaveAttribute("data-state", "listening"));
     await user.click(screen.getByRole("button", { name: "Stop" }));
-    await waitFor(() => expect(qubi()).toHaveAttribute("data-state", "transcribing"));
-    await waitFor(() => expect(qubi()).toHaveAttribute("data-state", "idle"));
+    await waitFor(() => expect(qupi()).toHaveAttribute("data-state", "transcribing"));
+    await waitFor(() => expect(qupi()).toHaveAttribute("data-state", "idle"));
   });
 
   it("shows the microphone error", async () => {
     mic = installFakeMic({ failWith: "NotAllowedError" });
     const user = await openAsk();
     await user.click(screen.getByRole("button", { name: "Speak" }));
-    await waitFor(() => expect(qubi()).toHaveAttribute("data-state", "error"));
+    await waitFor(() => expect(qupi()).toHaveAttribute("data-state", "error"));
   });
 
   it("speaks when the reader speaks, and can be hidden", async () => {
     const user = await openAsk();
     act(() => usePlayback.getState().setState("speaking"));
-    expect(qubi()).toHaveAttribute("data-state", "speaking");
-    await user.click(screen.getByRole("button", { name: "Hide Qubi" }));
+    expect(qupi()).toHaveAttribute("data-state", "speaking");
+    await user.click(screen.getByRole("button", { name: "Hide Qupi" }));
     expect(document.querySelector("[data-pet]")).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Show Qubi" }));
-    expect(qubi()).toHaveAttribute("data-state", "speaking");
+    await user.click(screen.getByRole("button", { name: "Show Qupi" }));
+    expect(qupi()).toHaveAttribute("data-state", "speaking");
   });
 });

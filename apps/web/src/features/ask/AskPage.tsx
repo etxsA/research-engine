@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { QubiPet } from "@/shared/pet/QubiPet";
+import { QupiPet } from "@/shared/pet/QupiPet";
 import { PageHeader } from "@/shared/layout/PageHeader";
 import { Button } from "@/shared/ui/button";
 import { useAskFlow, useEngineStatus, useReadingEngine, useReadSessionGuard } from "./api";
@@ -34,7 +34,7 @@ export function AskPage() {
   // A new question stops the voice of the answer being read.
   const submit = (question: string) => {
     stopReading();
-    // A microphone problem is old news once the person asks: Qubi follows the question now.
+    // A microphone problem is old news once the person asks: Qupi follows the question now.
     setVoice((now) => (now.phase === "error" ? { phase: "idle", level: 0, problem: null } : now));
     const { settings, spoken } = useAskStore.getState();
     void flow.submit(question, settings, spoken);
@@ -53,7 +53,7 @@ export function AskPage() {
         <div className="grid grid-cols-[minmax(0,1fr)] content-start gap-4">
           <EngineNotice view={view} />
           <div className="flex items-start gap-3">
-            <QubiPet
+            <QupiPet
               mic={voice.phase}
               micLevel={voice.level}
               ask={newest?.status ?? null}
