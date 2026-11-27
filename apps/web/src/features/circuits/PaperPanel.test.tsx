@@ -3,9 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { ANA } from "@/test/auth-mock";
 import { capturedAnswer } from "@/test/circuits-api";
-import { renderApp } from "@/test/render";
+import { preloadScreens, renderApp } from "@/test/render";
 import { authMock, server } from "@/test/server";
 import { initialCircuitState, useCircuitStore } from "./store";
+
+preloadScreens(() => import("./CircuitsPage"));
 
 type User = ReturnType<typeof userEvent.setup>;
 
