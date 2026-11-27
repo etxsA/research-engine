@@ -126,7 +126,7 @@ src/
     layout/       page heading
     markdown/     Markdown with math for answers and papers
     forms/        labelled text field
-    lib/          storage, theme, class-name helper, microphone recorder and WAV encoder
+    lib/          storage, theme, class-name helper, microphone recorder and WAV encoder, copy and download
     stores/       Zustand store for the client-only choices (theme, language)
     ui/           shadcn/ui components (generated)
   api/openapi.json   the committed contract

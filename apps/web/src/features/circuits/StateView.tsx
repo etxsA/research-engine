@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { downloadText } from "@/shared/lib/download";
 import { Button } from "@/shared/ui/button";
 import {
   Table,
@@ -18,13 +19,12 @@ import {
   NEGLIGIBLE,
   squaredMagnitude,
 } from "./format";
-import type { Complex, SimulatedPart } from "./types";
+import type { SimulatedPart } from "./types";
 
 const FIRST_ROWS = 64;
 const MORE_ROWS = 256;
 /** A unitary of 8 wires has 65,536 entries: the page shows a corner and offers the whole matrix. */
 export const MATRIX_PREVIEW = 16;
-const REVOKE_AFTER_MS = 10_000;
 
 function useRowLimit(total: number) {
   const [limit, setLimit] = useState(FIRST_ROWS);
@@ -148,17 +148,6 @@ export function ProbabilityBars({ part, level = 3 }: { part: SimulatedPart; leve
   );
 }
 
-function download(rows: readonly (readonly Complex[])[], name: string) {
-  const blob = new Blob([JSON.stringify(rows)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = name;
-  link.click();
-  // Some browsers start the download after the click returns: keep the URL alive a little longer
-  setTimeout(() => URL.revokeObjectURL(url), REVOKE_AFTER_MS);
-}
-
 /** The unitary matrix; a corner of it when it is large, with the whole matrix as a download. */
 export function UnitaryMatrix({ part }: { part: SimulatedPart }) {
   const { t, i18n } = useTranslation();
@@ -203,7 +192,11 @@ export function UnitaryMatrix({ part }: { part: SimulatedPart }) {
       </Table>
       <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
         {shown < size ? <span>{t("circuits.result.corner", { shown, size })}</span> : null}
-        <Button variant="outline" size="sm" onClick={() => download(unitary, "unitary.json")}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => downloadText("unitary.json", JSON.stringify(unitary), "application/json")}
+        >
           {t("circuits.result.downloadUnitary")}
         </Button>
       </div>
