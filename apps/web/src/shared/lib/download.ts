@@ -7,7 +7,7 @@
 export const REVOKE_AFTER_MS = 10_000;
 
 /** Download `blob` as a file named `name`. */
-export function downloadBlob(name: string, blob: Blob): void {
+function downloadBlob(name: string, blob: Blob): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
