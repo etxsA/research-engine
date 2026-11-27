@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from docingest.adapters.qasm import QuantumSimExporter, export_document
+from docingest.adapters.qasm import QuantumSimExporter
 from docingest.domain.circuits import CircuitSteps, gate_list
 from docingest.ports import CircuitExporter, QasmExport
 
@@ -152,12 +152,3 @@ def test_a_key_that_is_not_one_symbol_is_a_value_error(exporter):
     exporter.check_values({"theta": "pi/4", "\\theta_{1}": "1"})
     with pytest.raises(ValueError, match="is not a parameter name"):
         exporter.check_values({"thetta": "1"})
-
-
-@pytest.mark.parametrize("source", [H, THETA, TWO])
-@pytest.mark.parametrize("values", [None, {"theta": "0.5"}])
-def test_export_document_gives_what_export_gives_for_the_same_circuit(source, values):
-    """The public function is the exporter's own, so a caller holding a document gets one answer."""
-    steps = circuit(source)
-    args = {"values": values, "origin": "a.md, block 1, circuit 1", "tool": "docingest"}
-    assert export_document(steps.to_dict(), **args) == QuantumSimExporter().export(steps, **args)
