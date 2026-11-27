@@ -1204,6 +1204,7 @@
       "failed": "The request failed",
       "malformed": "The server's answer could not be read",
       "notFound": "Not found",
+      "ambiguous": "More than one paper matches",
       "retry": "Try again in {{seconds}} seconds."
     },
     "local": {

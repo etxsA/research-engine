@@ -1204,6 +1204,7 @@
       "failed": "La solicitud falló",
       "malformed": "No se pudo leer la respuesta del servidor",
       "notFound": "No se encontró",
+      "ambiguous": "Más de un artículo coincide",
       "retry": "Intenta de nuevo en {{seconds}} segundos."
     },
     "local": {

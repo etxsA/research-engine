@@ -923,6 +923,27 @@ describe("a circuit sent by another screen", () => {
     }
   });
 
+  it("names a 409 as an id prefix that more than one paper starts with, in both languages", async () => {
+    const detail = "More than one document starts with that id; give more characters.";
+    server.use(
+      http.get("*/api/v1/documents/:docId/circuits", ({ request }) =>
+        HttpResponse.json(
+          { type: "about:blank", title: "Conflict", status: 409, detail, instance: request.url },
+          { status: 409, headers: { "content-type": "application/problem+json" } },
+        ),
+      ),
+    );
+    const { user } = await arrive("?doc=abcdef0123456789", null);
+    const problem = await screen.findByTestId("problem");
+    expect(within(problem).getByText("More than one paper matches")).toBeInTheDocument();
+    expect(within(problem).getByText(detail)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Language: English" }));
+    await user.click(screen.getByRole("menuitemradio", { name: "Español" }));
+    expect(
+      await within(screen.getByTestId("problem")).findByText("Más de un artículo coincide"),
+    ).toBeInTheDocument();
+  });
+
   it("reads the LaTeX rather than the paper when both come", async () => {
     const { app } = await arrive("?doc=ffffffffffffffff", { latex: BELL });
     expect(await screen.findByText("Read in full")).toBeInTheDocument();
