@@ -323,7 +323,7 @@ def test_the_circuits_of_a_text_are_exported_in_one_job_as_blocks_and_qasm_expor
 def test_a_job_its_admission_refuses_exports_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
     exported: list[object] = []
     monkeypatch.setattr(
-        "research_api.adapters.circuits.to_qasm", lambda *a, **k: exported.append(a)
+        "research_api.adapters.circuits.export_document", lambda *a, **k: exported.append(a)
     )
 
     def refuse(documents: Any) -> None:
@@ -383,7 +383,7 @@ def blocking(release: threading.Event) -> Any:
 
 
 EXPORT_CALLS = {
-    "qasm": ("to_qasm", lambda a: a.qasm({}, tool="x")),
+    "qasm": ("export_document", lambda a: a.qasm({}, tool="x")),
     "blocks": ("circuit_code_blocks", lambda a: a.blocks("text")),
     "qasm_blocks": (
         "circuit_code_blocks",

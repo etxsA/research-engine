@@ -7,6 +7,7 @@ from collections.abc import Callable, Iterator
 from typing import Any
 
 import pytest
+from docingest.adapters.qasm import export_document
 from fastapi.testclient import TestClient
 from helpers import BELL, SEED_FILE, sign_in_as_member
 from quantum_sim.qasm import to_qasm
@@ -803,7 +804,7 @@ def test_a_slow_export_is_a_422_and_then_the_lane_says_busy(
 ) -> None:
     release = threading.Event()
     monkeypatch.setattr(
-        "research_api.adapters.circuits.to_qasm", lambda *a, **k: release.wait(10) and {}
+        "research_api.adapters.circuits.export_document", lambda *a, **k: release.wait(10) and {}
     )
     client = client_with(client_for, timeout_s=0.2)
     body = {"circuit_json": text(BELL)}
@@ -826,7 +827,7 @@ def test_a_bad_key_is_a_422_even_when_the_lane_is_busy(
 ) -> None:
     release = threading.Event()
     monkeypatch.setattr(
-        "research_api.adapters.circuits.to_qasm", lambda *a, **k: release.wait(10) and {}
+        "research_api.adapters.circuits.export_document", lambda *a, **k: release.wait(10) and {}
     )
     client = client_with(client_for, timeout_s=0.2)
     body = {"circuit_json": text(BELL)}
@@ -1078,9 +1079,9 @@ def test_a_slow_paper_times_out_as_a_whole_and_points_to_the_docingest_command(
     # each circuit alone is within the time limit; the two together are not
     def slow(*args: Any, **kwargs: Any) -> Any:
         time.sleep(0.3)
-        return to_qasm(*args, **kwargs)
+        return export_document(*args, **kwargs)
 
-    monkeypatch.setattr("research_api.adapters.circuits.to_qasm", slow)
+    monkeypatch.setattr("research_api.adapters.circuits.export_document", slow)
     client = client_over(client_for, CIRCUIT_PAPER, timeout_s=0.5)
     response = client.post(paper_url(CIRCUIT_PAPER, "qasm"), json={"values": {"theta": 1}})
     assert response.status_code == 422
