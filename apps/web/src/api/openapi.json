@@ -491,7 +491,7 @@
                 "type": "null"
               }
             ],
-            "description": "A value for each symbol of the circuit, a number or an angle as text such as `\\pi/2`.",
+            "description": "A value for each symbol of the circuit, a number or an angle as text such as `\\pi/2` or `pi/2` (a `pi` that stands alone is `\\pi`). A key is one symbol: `theta`, `\\theta` or `\\theta_{1}`.",
             "title": "Values"
           }
         },
@@ -1687,6 +1687,209 @@
         "title": "PairOut",
         "type": "object"
       },
+      "PaperBlockOut": {
+        "properties": {
+          "block": {
+            "description": "The fenced `latex` block, from 1 over the whole paper, as docingest's export numbers it.",
+            "title": "Block",
+            "type": "integer"
+          },
+          "circuits": {
+            "description": "Each circuit as a `circuit/1` document, numbered from 1 in the block.",
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Circuits",
+            "type": "array"
+          },
+          "latex": {
+            "description": "The body of the block.",
+            "title": "Latex",
+            "type": "string"
+          },
+          "status": {
+            "description": "`parsed` when every circuit was fully read, `unparsed` when none was.",
+            "enum": [
+              "parsed",
+              "partial",
+              "unparsed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "block",
+          "latex",
+          "status",
+          "circuits"
+        ],
+        "title": "PaperBlockOut",
+        "type": "object"
+      },
+      "PaperCircuitQasmOut": {
+        "properties": {
+          "block": {
+            "title": "Block",
+            "type": "integer"
+          },
+          "circuit": {
+            "description": "The circuit in its block, from 1.",
+            "title": "Circuit",
+            "type": "integer"
+          },
+          "notes": {
+            "description": "The reader's notes about the drawing.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "programs": {
+            "items": {
+              "$ref": "#/components/schemas/QasmProgramOut"
+            },
+            "title": "Programs",
+            "type": "array"
+          },
+          "reasons": {
+            "description": "Why the circuit was refused, in the emitter's words; empty when `ok`.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "status": {
+            "description": "`ok`, or `refused` with the reasons: a drawing with one part the export cannot express has no programs at all.",
+            "enum": [
+              "ok",
+              "refused"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "unbound": {
+            "description": "For a refused circuit: the symbols with no value, as `values` keys (`theta_{12}`), listed only when values for them alone would export it.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Unbound",
+            "type": "array"
+          }
+        },
+        "required": [
+          "block",
+          "circuit",
+          "status",
+          "programs",
+          "reasons",
+          "notes",
+          "unbound"
+        ],
+        "title": "PaperCircuitQasmOut",
+        "type": "object"
+      },
+      "PaperCircuitsResponse": {
+        "description": "The circuit blocks of a paper. A paper with none has an empty `blocks`.",
+        "properties": {
+          "blocks": {
+            "items": {
+              "$ref": "#/components/schemas/PaperBlockOut"
+            },
+            "title": "Blocks",
+            "type": "array"
+          },
+          "doc_id": {
+            "description": "The full document id.",
+            "title": "Doc Id",
+            "type": "string"
+          },
+          "source_name": {
+            "title": "Source Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "doc_id",
+          "source_name",
+          "blocks"
+        ],
+        "title": "PaperCircuitsResponse",
+        "type": "object"
+      },
+      "PaperQasmRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "values": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A value for each symbol of the circuit, a number or an angle as text such as `\\pi/2` or `pi/2` (a `pi` that stands alone is `\\pi`). A key is one symbol: `theta`, `\\theta` or `\\theta_{1}`. A key that is not one symbol, or a value the export cannot use, is a 422 that points to `/values/<key>`, before any circuit is exported. The same values go to every circuit of the paper, as `--set` does.",
+            "title": "Values"
+          }
+        },
+        "title": "PaperQasmRequest",
+        "type": "object"
+      },
+      "PaperQasmResponse": {
+        "description": "Every circuit of a paper, exported; nothing is written on the server.",
+        "properties": {
+          "circuits": {
+            "description": "Every circuit of every block, in order, refused ones included.",
+            "items": {
+              "$ref": "#/components/schemas/PaperCircuitQasmOut"
+            },
+            "title": "Circuits",
+            "type": "array"
+          },
+          "doc_id": {
+            "description": "The full document id.",
+            "title": "Doc Id",
+            "type": "string"
+          },
+          "source_name": {
+            "title": "Source Name",
+            "type": "string"
+          },
+          "warnings": {
+            "description": "The notes `docingest circuits export` gives for the paper: each circuit's notes after `<source_name>, block b, circuit c: `, `<source_name>: no circuits found`, and each `values` key that matches no symbol of any exported circuit.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "doc_id",
+          "source_name",
+          "circuits",
+          "warnings"
+        ],
+        "title": "PaperQasmResponse",
+        "type": "object"
+      },
       "ParseRequest": {
         "additionalProperties": false,
         "properties": {
@@ -1876,6 +2079,170 @@
           "created"
         ],
         "title": "QSetHeader",
+        "type": "object"
+      },
+      "QasmProgramOut": {
+        "description": "One OpenQASM 3 program, ready to save under `filename`.",
+        "properties": {
+          "filename": {
+            "description": "`circuit-pNN.qasm` for a pasted circuit; for a paper, the name `docingest circuits export` writes: `<doc_id[:16]>-bNN-cNN-pNN.qasm`.",
+            "title": "Filename",
+            "type": "string"
+          },
+          "n_clbits": {
+            "description": "0 when the program measures nothing.",
+            "title": "N Clbits",
+            "type": "integer"
+          },
+          "n_qubits": {
+            "title": "N Qubits",
+            "type": "integer"
+          },
+          "part": {
+            "description": "The side of a drawn equality, from 1.",
+            "title": "Part",
+            "type": "integer"
+          },
+          "sign": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The sign drawn before this part (`=`, `\\approx`, ...); null for part 1.",
+            "title": "Sign"
+          },
+          "text": {
+            "description": "The program: UTF-8 text with LF line ends, ending in a LF.",
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "filename",
+          "part",
+          "sign",
+          "text",
+          "n_qubits",
+          "n_clbits"
+        ],
+        "title": "QasmProgramOut",
+        "type": "object"
+      },
+      "QasmRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "circuit_json": {
+            "description": "A `circuit/1` document as JSON text. It is text, not an object, so that a key written twice is seen and refused (answer 400) instead of the last one winning.",
+            "title": "Circuit Json",
+            "type": "string"
+          },
+          "values": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A value for each symbol of the circuit, a number or an angle as text such as `\\pi/2` or `pi/2` (a `pi` that stands alone is `\\pi`). A key is one symbol: `theta`, `\\theta` or `\\theta_{1}`. A key that is not one symbol, or a value the export cannot use, is a 422 that points to `/values/<key>`, before any circuit is exported.",
+            "title": "Values"
+          }
+        },
+        "required": [
+          "circuit_json"
+        ],
+        "title": "QasmRequest",
+        "type": "object"
+      },
+      "QasmResponse": {
+        "description": "The export of a pasted circuit. A refused circuit is a 200 with `status: refused`.",
+        "properties": {
+          "notes": {
+            "description": "The reader's notes about the drawing.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "programs": {
+            "description": "One program per part, in order.",
+            "items": {
+              "$ref": "#/components/schemas/QasmProgramOut"
+            },
+            "title": "Programs",
+            "type": "array"
+          },
+          "reasons": {
+            "description": "Why the circuit was refused, in the emitter's words; empty when `ok`.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "status": {
+            "description": "`ok`, or `refused` with the reasons: a drawing with one part the export cannot express has no programs at all.",
+            "enum": [
+              "ok",
+              "refused"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "symbols": {
+            "description": "The free parameters the circuit mentions, by the reader's name (`theta_1` for `\\theta_{1}`), bound or not.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Symbols",
+            "type": "array"
+          },
+          "unbound": {
+            "description": "For a refused circuit: the symbols with no value, as `values` keys (`theta_{12}`), listed only when values for them alone would export it.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Unbound",
+            "type": "array"
+          },
+          "unmatched": {
+            "description": "The keys of `values`, as sent, that name no symbol of the circuit.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Unmatched",
+            "type": "array"
+          }
+        },
+        "required": [
+          "status",
+          "programs",
+          "reasons",
+          "notes",
+          "symbols",
+          "unmatched",
+          "unbound"
+        ],
+        "title": "QasmResponse",
         "type": "object"
       },
       "ReviewLine": {
@@ -2400,7 +2767,7 @@
                 "type": "null"
               }
             ],
-            "description": "A value for each symbol of the circuit, a number or an angle as text such as `\\pi/2`.",
+            "description": "A value for each symbol of the circuit, a number or an angle as text such as `\\pi/2` or `pi/2` (a `pi` that stands alone is `\\pi`). A key is one symbol: `theta`, `\\theta` or `\\theta_{1}`.",
             "title": "Values"
           }
         },
@@ -4750,6 +5117,93 @@
         ]
       }
     },
+    "/api/v1/circuits/qasm": {
+      "post": {
+        "description": "The OpenQASM 3 program of each part of a `circuit/1` document, named `circuit-pNN.qasm`, with `research-api` in the generated-by line and no source line. Each program is OpenQASM 3 with `stdgates.inc` only: wire `i` (1 at the top) is `q[i-1]` and a measurement writes `c[i-1]`. A drawn equality gives one program per side. A circuit the export cannot express is a 200 with `status: refused` and the reasons, word for word. No wire cap; the operation cap and the time limit apply.",
+        "operationId": "exportQasm",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QasmRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QasmResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The body is not valid JSON, or a JSON key is written twice (in the body or in a `circuit_json`)."
+          },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The body is over the cap."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The request is not valid, or the circuit is over the synchronous caps (wires, operations, time); `detail` points to the `quantum-sim` command."
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Circuit jobs are all busy; see `Retry-After`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem."
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "summary": "Export a circuit as OpenQASM 3",
+        "tags": [
+          "circuits"
+        ]
+      }
+    },
     "/api/v1/circuits/run": {
       "post": {
         "description": "The state and the outcome probabilities of a circuit, and its unitary on request. Up to 12 wires, or 8 with the unitary, and up to the configured number of operations; a bigger one is a 422 that points to the `quantum-sim` command. The body is quantum-sim's `quantum-sim-result/1` document as it is: `status` (`ok`, `symbolic` or `refused`), `conventions`, `input`, `circuits`, `comparisons`, `notes` and `refused`. A circuit the simulator refuses is a 200 with `status: refused`.",
@@ -5032,6 +5486,117 @@
         ]
       }
     },
+    "/api/v1/documents/{doc_id}/circuits": {
+      "get": {
+        "description": "Every fenced `latex` block of the paper, numbered from 1 over its whole text as `docingest circuits export` numbers them, with what docingest read in it and each circuit as a `circuit/1` document.",
+        "operationId": "listDocumentCircuits",
+        "parameters": [
+          {
+            "description": "A document id, or the first 16 or more hex characters of one.",
+            "in": "path",
+            "name": "doc_id",
+            "required": true,
+            "schema": {
+              "description": "A document id, or the first 16 or more hex characters of one.",
+              "pattern": "^[0-9a-f]{16,64}$",
+              "title": "Doc Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaperCircuitsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The body is not valid JSON, or a JSON key is written twice (in the body or in a `circuit_json`)."
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "No such document, or its text cannot be read."
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The id prefix names more than one paper."
+          },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The body is over the cap."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The request is not valid, or the paper's circuits are over the operation cap or the time; `detail` points to `docingest circuits export --doc`."
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Circuit jobs are all busy; see `Retry-After`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem."
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "summary": "The circuit blocks of a paper",
+        "tags": [
+          "circuits"
+        ]
+      }
+    },
     "/api/v1/documents/{doc_id}/pages/{page}": {
       "get": {
         "description": "For a LaTeX source the markers number sections, not printed pages; `kind` says which.",
@@ -5142,6 +5707,127 @@
         "summary": "One page of a paper as Markdown",
         "tags": [
           "documents"
+        ]
+      }
+    },
+    "/api/v1/documents/{doc_id}/qasm": {
+      "post": {
+        "description": "The files `docingest circuits export --doc` would write for the paper, byte for byte and under the same names, returned instead of written: nothing changes on the server. All the circuits of the paper share one operation cap. Each program is OpenQASM 3 with `stdgates.inc` only: wire `i` (1 at the top) is `q[i-1]` and a measurement writes `c[i-1]`. A drawn equality gives one program per side. A circuit the export cannot express is a 200 with `status: refused` and the reasons, word for word. No wire cap; the operation cap and the time limit apply.",
+        "operationId": "exportDocumentQasm",
+        "parameters": [
+          {
+            "description": "A document id, or the first 16 or more hex characters of one.",
+            "in": "path",
+            "name": "doc_id",
+            "required": true,
+            "schema": {
+              "description": "A document id, or the first 16 or more hex characters of one.",
+              "pattern": "^[0-9a-f]{16,64}$",
+              "title": "Doc Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaperQasmRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaperQasmResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The body is not valid JSON, or a JSON key is written twice (in the body or in a `circuit_json`)."
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "No such document, or its text cannot be read."
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The id prefix names more than one paper."
+          },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The body is over the cap."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The request is not valid, or the paper's circuits are over the operation cap or the time; `detail` points to `docingest circuits export --doc`."
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Circuit jobs are all busy; see `Retry-After`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem."
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "summary": "Export every circuit of a paper as OpenQASM 3",
+        "tags": [
+          "circuits"
         ]
       }
     },
