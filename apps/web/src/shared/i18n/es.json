@@ -1158,6 +1158,10 @@
         "title": "Un valor de parámetro no es válido",
         "detail": "Línea {{line}} ({{name}}): escribe nombre = valor, una vez por nombre."
       },
+      "badName": {
+        "title": "Un nombre de parámetro no es válido",
+        "detail": "Línea {{line}}: \"{{name}}\" no es un nombre de parámetro. Escribe un solo símbolo, como theta, \\theta o \\theta_{1}."
+      },
       "badState": {
         "title": "El estado no es válido",
         "detail": "Escribe una etiqueta de base como 010, o una lista de amplitudes como [0, 1]."

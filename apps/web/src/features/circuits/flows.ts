@@ -52,6 +52,10 @@ function requestOptions() {
   const state = useCircuitStore.getState();
   const values = parseValues(state.valuesText);
   const firstError = values.errors[0];
+  if (firstError?.code === "notName") {
+    // the API refuses it too (a 422 at /values/<key>), in the same words
+    return { problem: local("badName", { line: firstError.line, name: firstError.name }) };
+  }
   if (firstError) {
     return {
       problem: local("badValues", {

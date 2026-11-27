@@ -14,6 +14,7 @@ export type LocalCode =
   | "notACircuit"
   | "notRead"
   | "badValues"
+  | "badName"
   | "badState"
   | "badUnitary"
   | "emptyTarget"

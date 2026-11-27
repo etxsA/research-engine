@@ -1,6 +1,6 @@
 /** Parameter values typed as lines, `theta = \pi/2`, and the input state typed as a label or a list. */
 
-export type ValueErrorCode = "format" | "noName" | "noValue" | "duplicate";
+export type ValueErrorCode = "format" | "noName" | "notName" | "noValue" | "duplicate";
 
 export interface ValueError {
   line: number;
@@ -15,13 +15,69 @@ export interface ParsedValues {
 
 const NUMBER = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
 
+// A copy of quantum-sim's binding-name rule (`quantum_sim/angles.py`: `symbol_name`, `GREEK`,
+// `MAX_CHARS`, `_BINDING_KEY`); `values.test.ts` holds the cases of its tests, `test_angles.py`.
+const MAX_CHARS = 500;
+const GREEK = new Set(
+  (
+    "alpha beta gamma delta epsilon varepsilon zeta eta theta vartheta iota kappa lambda mu nu " +
+    "xi rho varrho sigma varsigma tau upsilon phi varphi chi psi omega " +
+    "Gamma Delta Theta Lambda Xi Sigma Upsilon Phi Psi Omega"
+  ).split(" "),
+);
+const CONSTANT_LETTERS = new Set(["e", "E", "i", "j"]);
+const BINDING_KEY = /^(\\?)([A-Za-z]+)(?:_(?:([A-Za-z0-9])|\{([A-Za-z0-9]{1,8})\}))?$/;
+// What Python's `str.strip()` strips (`str.isspace`), which is not quite what `trim()` strips.
+const SPACE =
+  "\\t\\n\\v\\f\\r\\x1c-\\x20\\x85\\xa0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000";
+const OUTER_SPACE = new RegExp(`^[${SPACE}]+|[${SPACE}]+$`, "g");
+
+/** More than `max` characters, counted as Python counts them (code points). */
+function longerThan(text: string, max: number): boolean {
+  if (text.length <= max) return false;
+  let count = 0;
+  for (let i = 0; i < text.length; i += text.codePointAt(i)! > 0xffff ? 2 : 1) {
+    if (++count > max) return true;
+  }
+  return false;
+}
+
 /**
- * A loose form of the name quantum-sim compares, to catch a name given twice before the request:
- * `theta`, `\theta` and `{theta}` are one symbol. quantum-sim's `symbol_name` is the rule; it
- * also refuses a key that is not one symbol (`thetta`, `pi`).
+ * The name of the free parameter that a key of the values spells, or null when the key is not
+ * one symbol: quantum-sim's `symbol_name`, the rule the API applies to every key. `theta`,
+ * `\theta`, `{\theta}` and ` theta ` are `theta`, `\theta_{1}` is `theta_1`; `thetta`, `pi`,
+ * `e`, `the{ta}` and `theta_12` (a digit after the subscript) are not names. Two keys with the
+ * same name bind one symbol twice.
  */
-export function symbolKey(name: string): string {
-  return name.replace(/[\\{}\s]/g, "");
+export function symbolKey(key: string): string | null {
+  if (longerThan(key, MAX_CHARS)) return null; // no symbol is this long
+  let text = key.replace(OUTER_SPACE, "");
+  while (text.length >= 2 && text.startsWith("{") && text.endsWith("}")) {
+    text = text.slice(1, -1).replace(OUTER_SPACE, "");
+  }
+  const match = BINDING_KEY.exec(text);
+  if (!match) return null;
+  const [, backslash, word = "", letter, braced] = match;
+  if (!GREEK.has(word) && (backslash || word.length > 1 || CONSTANT_LETTERS.has(word))) {
+    return null;
+  }
+  const subscript = letter ?? braced;
+  return subscript ? `${word}_${subscript}` : word;
+}
+
+/**
+ * The key to write for a symbol: a key as it is (the export's `unbound` lists keys, such as
+ * `theta_{12}`), or a reader's name made a key (the simulator's `unbound` lists names, and
+ * `theta_12` is written `theta_{12}`, as the binding rule reads `theta_12` as no name).
+ */
+export function bindingKey(name: string): string {
+  if (symbolKey(name) !== null) return name.replace(OUTER_SPACE, "");
+  const at = name.indexOf("_");
+  if (at > 0) {
+    const key = `${name.slice(0, at)}_{${name.slice(at + 1)}}`;
+    if (symbolKey(key) === name) return key;
+  }
+  return name;
 }
 
 /** Lines of `name = value`. A number stays a number; anything else is an angle written as text. */
@@ -43,11 +99,15 @@ export function parseValues(text: string): ParsedValues {
       errors.push({ line: index + 1, code: "noName", name });
       return;
     }
+    const key = symbolKey(name);
+    if (key === null) {
+      errors.push({ line: index + 1, code: "notName", name });
+      return;
+    }
     if (value === "") {
       errors.push({ line: index + 1, code: "noValue", name });
       return;
     }
-    const key = symbolKey(name);
     if (seen.has(key)) {
       errors.push({ line: index + 1, code: "duplicate", name });
       return;
@@ -58,18 +118,28 @@ export function parseValues(text: string): ParsedValues {
   return { values, errors };
 }
 
-/** Appends an empty line for each name that has no line yet. */
+/**
+ * Appends an empty line for each symbol that has no line yet. `names` may be a reader's names or
+ * keys (see `bindingKey`); each line is written as a key the binding rule takes.
+ */
 export function addMissingNames(text: string, names: readonly string[]): string {
   const have = new Set(
     text
       .split(/\r?\n/)
       .map((line) => symbolKey(line.split("=")[0] ?? ""))
-      .filter(Boolean),
+      .filter((key) => key !== null),
   );
-  const missing = names.filter((name) => !have.has(symbolKey(name)));
+  const missing: string[] = [];
+  for (const name of names) {
+    const key = bindingKey(name);
+    const symbol = symbolKey(key) ?? key;
+    if (have.has(symbol)) continue;
+    have.add(symbol);
+    missing.push(key);
+  }
   if (missing.length === 0) return text;
   const base = text === "" || text.endsWith("\n") ? text : `${text}\n`;
-  return base + missing.map((name) => `${name} = `).join("\n");
+  return base + missing.map((key) => `${key} = `).join("\n");
 }
 
 export type StateInput =

@@ -287,6 +287,26 @@ describe("the circuit check screen", () => {
       ).toBeInTheDocument();
     });
 
+    it("refuses a key that is not one symbol before sending anything", async () => {
+      const user = await openPage();
+      await readExample(user, "rotation");
+      await screen.findByText("Read in full");
+      const sent: string[] = [];
+      server.events.on("request:start", ({ request }) => void sent.push(request.url));
+      try {
+        await user.type(screen.getByLabelText("Parameter values"), "thetta = 1");
+        await user.click(screen.getByRole("button", { name: "Simulate" }));
+        expect(
+          await screen.findByText(
+            'Line 1: "thetta" is not a parameter name. Write one symbol, such as theta, \\theta or \\theta_{1}.',
+          ),
+        ).toBeInTheDocument();
+        expect(sent.filter((url) => url.includes("/circuits/run"))).toEqual([]);
+      } finally {
+        server.events.removeAllListeners();
+      }
+    });
+
     it("refuses an input state that is not a label or a list", async () => {
       const user = await openPage();
       await readExample(user, "bell");

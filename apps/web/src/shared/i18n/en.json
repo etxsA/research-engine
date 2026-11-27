@@ -1158,6 +1158,10 @@
         "title": "A parameter value is not valid",
         "detail": "Line {{line}} ({{name}}): write name = value, once per name."
       },
+      "badName": {
+        "title": "A parameter name is not valid",
+        "detail": "Line {{line}}: \"{{name}}\" is not a parameter name. Write one symbol, such as theta, \\theta or \\theta_{1}."
+      },
       "badState": {
         "title": "The state is not valid",
         "detail": "Write a basis label such as 010, or a list of amplitudes such as [0, 1]."
