@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router";
 import { isApiError } from "@/shared/api/errors";
 import { TextField } from "@/shared/forms/TextField";
 import { Button } from "@/shared/ui/button";
@@ -42,6 +43,7 @@ function PaperSearch({ flows }: { flows: CircuitFlows }) {
   const busy = useCircuitStore((state) => state.busy);
   const paperId = useCircuitStore((state) => state.paperId);
   const setPaper = useCircuitStore((state) => state.setPaper);
+  const [, setParams] = useSearchParams();
   const items = search.data?.items ?? [];
   return (
     <>
@@ -104,6 +106,15 @@ function PaperSearch({ flows }: { flows: CircuitFlows }) {
                       disabled={busy !== null}
                       onClick={() => {
                         setPaper(item.doc_id);
+                        // the address names the paper shown, so a reload or a shared link opens it
+                        setParams(
+                          (previous) => {
+                            const next = new URLSearchParams(previous);
+                            next.set("doc", item.doc_id);
+                            return next;
+                          },
+                          { replace: true },
+                        );
                         void flows.listPaperCircuits();
                       }}
                     >

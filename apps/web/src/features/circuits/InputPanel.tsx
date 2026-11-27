@@ -1,6 +1,7 @@
 import { useId, useRef } from "react";
 import { flushSync } from "react-dom";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router";
 import { Button } from "@/shared/ui/button";
 import { Label } from "@/shared/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/tabs";
@@ -29,11 +30,26 @@ export function InputPanel({ flows }: { flows: CircuitFlows }) {
   const exampleId = useId();
   const hintId = useId();
   const latexBox = useRef<HTMLTextAreaElement>(null);
+  const [params, setParams] = useSearchParams();
+
+  /** Leaving the Paper tab: the address no longer names a paper, so a reload does not open one. */
+  const forgetPaper = () => {
+    if (!params.has("doc")) return;
+    setParams(
+      (previous) => {
+        const next = new URLSearchParams(previous);
+        next.delete("doc");
+        return next;
+      },
+      { replace: true },
+    );
+  };
 
   /** A block of a paper goes to the LaTeX tab and is read there, so every card works on it. */
   const readBlock = (latex: string) => {
     // Draw the LaTeX tab now, so focus can move to its box: the button pressed is gone with the tab.
     flushSync(() => loadLatex(latex));
+    forgetPaper();
     latexBox.current?.focus();
     void flows.read();
   };
@@ -65,6 +81,7 @@ export function InputPanel({ flows }: { flows: CircuitFlows }) {
         value={showPaper ? "paper" : kind}
         onValueChange={(value) => {
           if (value === "paper") return setShowPaper(true);
+          forgetPaper();
           const next = value === "json" ? "json" : "latex";
           // Back from the Paper tab to the kind already in use keeps what was read
           if (next === kind) setShowPaper(false);

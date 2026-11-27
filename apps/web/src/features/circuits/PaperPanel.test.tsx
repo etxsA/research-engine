@@ -269,6 +269,22 @@ describe("the ?doc= link", () => {
     expect(screen.queryByTestId("paper-blocks")).not.toBeInTheDocument();
   });
 
+  it("is rewritten to the paper chosen, and dropped when the Paper tab is left", async () => {
+    const user = userEvent.setup();
+    const app = renderApp(`/circuits?doc=${TELEPORTATION}`);
+    await screen.findByTestId("paper-blocks");
+    await user.type(screen.getByLabelText("Title or id"), "transmon");
+    await user.click(screen.getByRole("button", { name: "Find papers" }));
+    const results = await screen.findByRole("list", { name: "Papers found" });
+    await user.click(within(results).getByRole("button", { name: TRANSMON_TITLE }));
+    await screen.findByRole("heading", { name: "synthetic-transmon-coherence.pdf" });
+    const search = () => new URLSearchParams(app.router.state.location.search);
+    expect(search().get("doc")).toMatch(/^[0-9a-f]{64}$/);
+    expect(search().get("doc")).not.toBe(TELEPORTATION);
+    await user.click(screen.getByRole("tab", { name: "LaTeX" }));
+    expect(app.router.state.location.search).toBe("");
+  });
+
   it("is not applied again when another paper is chosen", async () => {
     const user = await openPage(`/circuits?doc=${TELEPORTATION}`);
     await screen.findByTestId("paper-blocks");

@@ -46,17 +46,21 @@ export function CircuitsPage() {
   //   (navigate with replace), so a reload, or coming back to this entry, does not read it again.
   //   It does not survive a reload either way: the screen's store is in memory only.
   // - `?doc=<id>` ("Circuits of this paper") opens the Paper tab on that paper. It stays in the
-  //   address, so a reload opens the same paper; choosing another paper is not undone.
+  //   address, so a reload opens the same paper. Choosing another paper writes its id there, and
+  //   leaving the Paper tab removes it.
   // One request runs at a time, so when both come, the LaTeX wins. A request of an earlier visit
   // may still be running (the store outlives the screen): then what was sent waits until the
   // screen is idle, instead of being dropped by the one-request rule.
   useEffect(() => {
     if (incoming.current === undefined) {
       const latex = latexOf(location.state);
-      const docId = params.get("doc")?.trim();
+      const docId = params.get("doc")?.trim().toLowerCase();
       incoming.current = latex !== null ? { latex } : docId ? { docId } : null;
       if (latex !== null) {
-        void navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+        void navigate(`${location.pathname}${location.search}${location.hash}`, {
+          replace: true,
+          state: null,
+        });
       }
     }
     const next = incoming.current;
