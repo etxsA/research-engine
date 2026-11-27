@@ -436,7 +436,7 @@ The text of a `text_layer` page is Markdown: paragraphs separated by a blank lin
 | `ocr_model` | `repo_id` and `revision` of the OCR model, when any page used OCR |
 | `title`, `metadata` | title and `SourceMetadata` (title, authors, year, abstract, doi, arxiv_id, version, url, license, categories) |
 | `created_at`, `total_seconds` | timing |
-| `artifacts` | the display equations and tables found in `document.md`, in order: `kind` (`equation`, `table`; `figure` and `region` are reserved for layout readers), `page` (0-based, like `PageRecord.index`, so the marker `page N` is `N - 1`), `latex` (an equation, without its delimiters) or `text` (a table, as Markdown), and optional `confidence` (0 to 1) and `bbox`. Inline `$x$` math and code blocks are not listed. Not part of the cache key: manifests written before the field existed load with `[]`, and `--force` fills it for an old document |
+| `artifacts` | the display equations and tables found in `document.md`, in order: `kind` (`equation`, `table`; `figure` and `region` are reserved for layout readers), `page` (0-based, like `PageRecord.index`, so the marker `page N` is `N - 1`), `latex` (an equation, without its delimiters) or `text` (a table, as Markdown), and optional `confidence` (0 to 1) and `bbox`. Inline `$x$` math and code blocks are not listed. Not part of the cache key: manifests written before the field existed load with `[]`, and `--force` fills it for an old document, at the price of re-running OCR on a scanned one (hours of GPU time) |
 
 `data/normalized/index.json` maps each canonical `doc_id` to its source name, title, kind, page count, OCR page count, directory and citation.
 

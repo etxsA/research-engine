@@ -98,6 +98,14 @@ def test_the_page_follows_the_marker_number_not_the_position_of_the_marker():
     assert [a.page for a in extract_artifacts(page(5, EQUATION))[0]] == [4]
 
 
+def test_an_unclosed_display_block_does_not_reach_into_the_next_page():
+    """A truncated OCR page leaves a lone ``$$``: it must not pair with one of page 2."""
+    md = page(1, "Text $$\nE = m c^2") + "\n" + page(2, "$$F = ma$$\n\nAfter.\n\n$$g = 9.8$$")
+    artifacts, _ = extract_artifacts(md)
+    assert [(a.page, a.latex) for a in artifacts if a.page == 1] == [(1, "F = ma"), (1, "g = 9.8")]
+    assert not any("<!-- page" in (a.latex or a.text or "") for a in artifacts)
+
+
 # ------------------------------------------------------------------------------- confidence
 
 

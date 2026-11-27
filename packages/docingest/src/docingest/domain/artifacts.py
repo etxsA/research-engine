@@ -9,11 +9,10 @@ formulas, and the manifest is read on every query. Pure functions; no I/O.
 from __future__ import annotations
 
 import re
-from bisect import bisect_right
 
 from .blocks import find_blocks
 from .models import ArtifactKind, LayoutArtifact
-from .text import PAGE_MARKER
+from .text import PAGE_MARKER, split_pages
 
 _DELIMITED = (("$$", "$$"), ("\\[", "\\]"))
 _ENVIRONMENT = re.compile(r"\\begin\{")
@@ -60,24 +59,28 @@ def display_latex(block_text: str) -> str:
 def extract_artifacts(markdown: str) -> tuple[list[LayoutArtifact], list[str]]:
     """The display equations and tables of ``markdown``, in order, with warnings.
 
-    ``page`` is 0-based, from the ``<!-- page N | ... -->`` marker above the block (N - 1, as
-    ``PageRecord.index``); a block above the first marker is on page 0.
+    Each page is searched on its own, so an unclosed ``$$`` on a truncated page cannot pair
+    with one of a later page and shift every block after it. ``page`` is 0-based, from the
+    ``<!-- page N | ... -->`` marker above the block (N - 1, as ``PageRecord.index``); text
+    above the first marker is page 0.
     """
-    starts = [m.start() for m in PAGE_MARKER.finditer(markdown)]
-    numbers = [int(m.group(1)) - 1 for m in PAGE_MARKER.finditer(markdown)]
+    first = PAGE_MARKER.search(markdown)
+    sections = [(0, markdown[: first.start()] if first else markdown)]
+    if first:
+        sections += [(max(n - 1, 0), body) for n, body in split_pages(markdown).items()]
     artifacts: list[LayoutArtifact] = []
     warnings: list[str] = []
-    for block in find_blocks(markdown):
-        if block.kind not in ("display", "table"):
-            continue
-        at = bisect_right(starts, block.start) - 1
-        page = max(numbers[at], 0) if at >= 0 else 0
-        piece = markdown[block.start : block.end]
-        if block.kind == "display":
-            latex = display_latex(piece)
-            artifact, notes = build_artifact(ArtifactKind.EQUATION, page, latex=latex)
-        else:
-            artifact, notes = build_artifact(ArtifactKind.TABLE, page, text=piece.strip())
-        artifacts.append(artifact)
-        warnings.extend(notes)
+    for page, body in sections:
+        for block in find_blocks(body):
+            if block.kind not in ("display", "table"):
+                continue
+            piece = body[block.start : block.end]
+            if block.kind == "display":
+                artifact, notes = build_artifact(
+                    ArtifactKind.EQUATION, page, latex=display_latex(piece)
+                )
+            else:
+                artifact, notes = build_artifact(ArtifactKind.TABLE, page, text=piece.strip())
+            artifacts.append(artifact)
+            warnings.extend(notes)
     return artifacts, warnings

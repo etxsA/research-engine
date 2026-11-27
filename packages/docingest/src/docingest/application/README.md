@@ -659,7 +659,7 @@ calls the converter again.
 Changing it re-processes every document on its next ingest. The manifest's `artifacts`
 did not change it: they are a field with a default, written next to the same
 `document.md`, and a manifest stored before them loads with an empty list (`--force`
-fills it). Change it when a change in
+fills it, at the price of re-running OCR on a scanned document: hours of GPU time). Change it when a change in
 the application or domain layer changes what `ingest` writes for the same input and the
 same adapters, for example routing, text-layer cleaning, Markdown rendering or manifest
 content. A change inside one adapter belongs in that adapter's `fingerprint` instead (the

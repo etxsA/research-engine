@@ -31,6 +31,16 @@ def test_mixed_pdf_routes_each_page(src):
     assert doc.manifest.ocr_model is not None and doc.canonical
 
 
+def test_a_layout_artifact_warning_is_logged(src, monkeypatch):
+    monkeypatch.setattr(
+        "docingest.application.ingest.extract_artifacts", lambda _md: ([], ["confidence 9 bad"])
+    )
+    lines: list[str] = []
+    svc = make_service({"a.pdf": [digital(TEXT)]}, log=lines.append)
+    svc.ingest(src("a.pdf"))
+    assert "  warning: layout artifact: confidence 9 bad" in lines
+
+
 def test_second_run_is_served_from_cache(src):
     svc = make_service({"a.pdf": [scanned()]})
     path = src("a.pdf")

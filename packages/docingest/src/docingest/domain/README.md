@@ -27,10 +27,10 @@ Related reading: [package map](../README.md), [ports](../ports/README.md), [appl
 | Module | Contains | Used by |
 |---|---|---|
 | `models.py` | `SourceKind`, `PageMethod`, `PageSignals`, `PageProbe`, `ModelRef`, `AnswerModel`, `SourceMetadata`, `PageRecord`, `ArtifactKind`, `LayoutArtifact`, `DocumentManifest` (pydantic models and `StrEnum`s) | every layer |
-| `artifacts.py` | `extract_artifacts`, `build_artifact`, `checked_confidence`, `display_latex` (the display equations and tables of a Markdown text, with their page) | `IngestService` |
+| `artifacts.py` | `extract_artifacts`, `build_artifact`, `checked_confidence`, `display_latex` (the display equations and tables of a Markdown text, with their page, found page by page with `text.split_pages`) | `IngestService` |
 | `routing.py` | `RoutingPolicy` (thresholds, the `[routing]` config section), `decide()`, and the blank-page rule (`could_be_blank`, `is_blank`, `blank_probe`) | `IngestService` for every PDF page, `config.AppConfig.routing` |
 | `ocr_guards.py` | `OcrGuards` (thresholds), `OutputProblem`, `find_problem`, `is_looping`, `retry_max_tokens`, `duplicate_pages` | the OCR adapters' retry ladder, `IngestService` |
-| `text.py` | `HYPHEN_MARK`, `garbage_ratio`, `alpha_ratio`, `equals_count`, `math_density`, `is_math_char`, `text_vocabulary`, `clean_text_layer`, `collapse_dot_leaders`, `render_markdown`, `split_pages` | PDF adapter (signals), `IngestService` (clean-up, rendering), synthetic benchmark suite (clean reference text), PaperQA2 adapter and hook, `eval-ocr` command (splitting) |
+| `text.py` | `HYPHEN_MARK`, `garbage_ratio`, `alpha_ratio`, `equals_count`, `math_density`, `is_math_char`, `text_vocabulary`, `clean_text_layer`, `collapse_dot_leaders`, `render_markdown`, `split_pages`, `PAGE_MARKER` | PDF adapter (signals), `IngestService` (clean-up, rendering), synthetic benchmark suite (clean reference text), PaperQA2 adapter and hook, `eval-ocr` command (splitting), `artifacts.py` (`PAGE_MARKER`, `split_pages`) |
 | `layout.py` | `TextLine`, `PageLayout`, `StructuredPage` (what a PDF adapter reports about a page's lines) | `PdfPage.layout()`, `IngestService` |
 | `furniture.py` | `repeated_lines`, `page_numbers` (running headers, running footers, page numbers) | `structure.py` |
 | `headings.py` | `line_style`, `page_styles`, `level`, `is_marker`, `is_caption` | `structure.py` |
@@ -38,7 +38,7 @@ Related reading: [package map](../README.md), [ports](../ports/README.md), [appl
 | `chunking.py` | `Chunk`, `chunk_pages`, `CHUNKER_VERSION`, `CHUNK_CHARS`, `OVERLAP` | `ports` (`Chunk` is re-exported there); the chunk index and `AskService` use it through those |
 | `circuits.py` | `gate_list`, `GateList`, `GateOp`, `CircuitSteps`, `circuit_code_blocks`, `CodeBlock`, `add_gate_lists`, `MAX_STEPS`, `MAX_GATE_WIRES`, `CIRCUIT_FORMAT` | `AskService` (the text of a gate list after each circuit code block of the retrieved chunks); `GateList.circuits` is for callers that must compute with a circuit: `QasmExportService` hands each `CircuitSteps` to the `CircuitExporter` port, which exports it as OpenQASM 3 (see [ports](../ports/README.md#circuitexporter)) |
 | `equations.py` | `equation_references`, `canonical`, `find_equations`, `EquationSpan`, `chunk_for`, `covers`, `equation_header`, `content_words`, `title_overlap`, `lead_sentence_start`, `MAX_REFERENCES`, `MIN_TITLE_WORDS`, `LOOK_BACK`, `TITLE_LENGTH` | `AskService` (the chunk of an equation number the question names) |
-| `blocks.py` | `find_blocks`, `attach_captions`, `whole_blocks`, `Block`, `Whole`, `complete`, `Completion`, `partial_note`, `BLOCK_MAX` | `AskService` (the rest of a display equation, code block or table that a retrieved chunk cuts) |
+| `blocks.py` | `find_blocks`, `attach_captions`, `whole_blocks`, `Block`, `Whole`, `complete`, `Completion`, `partial_note`, `BLOCK_MAX` | `artifacts.py` (the blocks of each page), `AskService` (the rest of a display equation, code block or table that a retrieved chunk cuts) |
 | `errors.py` | `DocingestError` and its subclasses | adapters raise them, application and entrypoints handle them |
 
 ## How domain objects flow through an ingestion
