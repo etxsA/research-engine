@@ -284,7 +284,6 @@ def blocking(release: threading.Event) -> Any:
 EXPORT_CALLS = {
     "qasm": ("to_qasm", lambda a: a.qasm({}, tool="x")),
     "blocks": ("circuit_code_blocks", lambda a: a.blocks("text")),
-    "check_values": ("validate_bindings", lambda a: a.check_values({"theta": 1})),
 }
 
 
@@ -307,3 +306,35 @@ def test_the_lane_bounds_the_export_calls_and_their_time(
         asyncio.run(scenario())
     finally:
         release.set()
+
+
+def test_checking_values_takes_no_lane_slot_and_runs_off_the_event_loop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    release = threading.Event()
+    monkeypatch.setattr("research_api.adapters.circuits.gate_list", blocking(release))
+    threads: list[int] = []
+    checked = validate_bindings
+
+    def recorded(values: Any) -> None:
+        threads.append(threading.get_ident())
+        checked(values)
+
+    monkeypatch.setattr("research_api.adapters.circuits.validate_bindings", recorded)
+    adapter = CircuitsAdapter(timeout_s=0.2, max_busy=1)
+
+    async def scenario() -> None:
+        with pytest.raises(InvalidInputError, match=r"longer than 0\.2 s"):
+            await adapter.parse("x")  # the slow thread keeps the only slot
+        with pytest.raises(UnavailableError):
+            await adapter.parse("x")
+        await adapter.check_values({"theta": "pi/4"})
+        with pytest.raises(InvalidInputError) as refused:
+            await adapter.check_values({"thetta": "1"})
+        assert refused.value.errors[0].path == "/values/thetta"
+
+    try:
+        asyncio.run(scenario())
+    finally:
+        release.set()
+    assert threads and threading.get_ident() not in threads

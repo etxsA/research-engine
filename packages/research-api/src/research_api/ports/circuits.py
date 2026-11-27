@@ -70,7 +70,7 @@ class CircuitEngine(Protocol):
     async def check_values(self, values: Mapping[str, Any] | None) -> None:
         """Refuse binding keys and values the export cannot use, before any circuit is
         exported: an ``InvalidInputError`` with the emitter's message, pointing to the key in
-        ``values`` when one key is the cause."""
+        ``values`` when one key is the cause. Cheap, so it is never refused for a busy engine."""
         ...
 
     async def qasm(

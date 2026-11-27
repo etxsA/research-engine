@@ -798,6 +798,27 @@ def test_a_slow_export_is_a_422_and_then_the_lane_says_busy(
         release.set()
 
 
+def test_a_bad_key_is_a_422_even_when_the_lane_is_busy(
+    client_for: ClientFor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    release = threading.Event()
+    monkeypatch.setattr(
+        "research_api.adapters.circuits.to_qasm", lambda *a, **k: release.wait(10) and {}
+    )
+    client = client_with(client_for, timeout_s=0.2)
+    body = {"circuit_json": text(BELL)}
+    try:
+        for _ in range(2):  # two slow exports keep both slots
+            assert client.post(QASM, json=body).status_code == 422
+        assert client.post(QASM, json=body).status_code == 503
+        bad = client.post(QASM, json={**body, "values": {"thetta": "1"}})
+        assert bad.status_code == 422 and bad.json()["errors"][0]["path"] == "/values/thetta"
+        paper = client.post(paper_url(TELEPORT, "qasm"), json={"values": {"pi": "1"}})
+        assert paper.status_code == 422 and paper.json()["errors"][0]["path"] == "/values/pi"
+    finally:
+        release.set()
+
+
 # --- OpenQASM 3 export of a paper --------------------------------------------------------------
 
 BELL_BLOCK = (
