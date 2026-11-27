@@ -77,6 +77,7 @@ uv run docingest ask "What limits T1 in transmons?" -c config/examples/lab-serve
 | Score runs against a question set and compare two runs | [run guide](docs/run-guide.md#score-runs-with-qa-bench), [packages/qa-bench/README.md](packages/qa-bench/README.md#the-scorer) |
 | Export a paper's circuits as OpenQASM 3 | [run guide](docs/run-guide.md#export-a-papers-circuits-as-openqasm-3), [packages/docingest/README.md](packages/docingest/README.md#cli-overview) and [ADR 0006](packages/docingest/docs/adr/0006-openqasm-3-export.md) |
 | Change the code and open a pull request | [packages/docingest/CONTRIBUTING.md](packages/docingest/CONTRIBUTING.md) |
+| Read the design proposals for multimodal reading and circuit retrieval (not shipped) | [docs/rag-multimodal-upgrade.md](docs/rag-multimodal-upgrade.md), [docs/circuit-retrieval-and-assembly.md](docs/circuit-retrieval-and-assembly.md) and [the OCR comparison](packages/docingest/docs/ocr-implementation-comparison.md) |
 | Find any other document of docingest | [packages/docingest/docs/README.md](packages/docingest/docs/README.md) |
 
 ## Development
