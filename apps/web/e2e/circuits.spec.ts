@@ -806,9 +806,15 @@ test.describe("C10: from an answer's paper to the circuit screen", () => {
   }) => {
     const panel = await openTeleportPaper(page);
     // The cited section holds both circuit blocks of the paper
-    await expect(panel.getByRole("link", { name: "Open in Circuits" })).toHaveCount(2);
+    await expect(panel.getByRole("link", { name: /^Open in Circuits/ })).toHaveCount(2);
+    // each link has a name of its own, so a list of links tells them apart
+    await expect(panel.getByRole("link", { name: "Open in Circuits: block 1" })).toHaveCount(1);
+    await expect(panel.getByRole("link", { name: "Open in Circuits: block 2" })).toHaveCount(1);
     await expectNoAxeViolations(page);
-    await panel.getByRole("link", { name: "Open in Circuits" }).nth(1).click();
+    await panel
+      .getByRole("link", { name: /^Open in Circuits/ })
+      .nth(1)
+      .click();
     await expect(page.getByRole("heading", { level: 1, name: "Circuits" })).toBeVisible();
     await expect(page).toHaveURL(/\/circuits$/);
     await expect(page.getByRole("tab", { name: "LaTeX", selected: true })).toBeVisible();

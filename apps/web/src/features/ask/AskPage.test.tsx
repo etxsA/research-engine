@@ -1403,7 +1403,7 @@ describe("opening a circuit in the Circuits screen", () => {
     await user.click(within(sources).getAllByRole("button")[0]!);
     const dialog = await screen.findByRole("dialog");
     const text = within(dialog).getByRole("region", { name: "Text of the page" });
-    await within(text).findAllByRole("link", { name: "Open in Circuits" });
+    await within(text).findAllByRole("link", { name: /^Open in Circuits/ });
     return { dialog, text };
   }
 
@@ -1419,7 +1419,7 @@ describe("opening a circuit in the Circuits screen", () => {
     const answer = (await screen.findByRole("heading", { name: "Answer" })).closest(
       "div",
     )!.parentElement!;
-    const links = within(answer).getAllByRole("link", { name: "Open in Circuits" });
+    const links = within(answer).getAllByRole("link", { name: /^Open in Circuits/ });
     // one block, one link: inline code gets none
     expect(links).toHaveLength(1);
     expect(links[0]).toHaveAttribute("href", "/circuits");
@@ -1435,8 +1435,13 @@ describe("opening a circuit in the Circuits screen", () => {
   it("sends the LaTeX in the router state, not in the address", async () => {
     const { app, user } = await openAskApp();
     const { text } = await openTeleportationPage(user);
-    const links = within(text).getAllByRole("link", { name: "Open in Circuits" });
+    const links = within(text).getAllByRole("link", { name: /^Open in Circuits/ });
     expect(links).toHaveLength(2);
+    // two links, two names: a list of links tells them apart
+    expect(links.map((link) => link.getAttribute("aria-label"))).toEqual([
+      "Open in Circuits: block 1",
+      "Open in Circuits: block 2",
+    ]);
     const seen: { path: string; state: unknown }[] = [];
     const stop = app.router.subscribe(
       ({ location }) =>
@@ -1478,9 +1483,11 @@ describe("opening a circuit in the Circuits screen", () => {
     const sources = await screen.findByRole("region", { name: "Fuentes" });
     await user.click(within(sources).getAllByRole("button")[0]!);
     const dialog = await screen.findByRole("dialog");
-    expect(await within(dialog).findAllByRole("link", { name: "Abrir en Circuitos" })).toHaveLength(
-      2,
-    );
+    const links = await within(dialog).findAllByRole("link", { name: /^Abrir en Circuitos/ });
+    expect(links.map((link) => link.getAttribute("aria-label"))).toEqual([
+      "Abrir en Circuitos: bloque 1",
+      "Abrir en Circuitos: bloque 2",
+    ]);
     expect(
       within(dialog).getByRole("link", { name: "Circuitos de este artículo" }),
     ).toBeInTheDocument();

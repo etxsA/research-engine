@@ -239,6 +239,7 @@
     },
     "circuits": {
       "open": "Open in Circuits",
+      "openBlock": "Open in Circuits: block {{n}}",
       "paper": "Circuits of this paper"
     }
   },

@@ -49,7 +49,7 @@ const REMARK_PLUGINS = [
   [remarkGfm, { singleTilde: false }],
   remarkPlainFootnotes,
 ] as ComponentProps<typeof Markdown>["remarkPlugins"];
-const REHYPE_PLUGINS = [[rehypeKatex, KATEX_OPTIONS]] as ComponentProps<
+const REHYPE_PLUGINS = [rehypeNumberLatexBlocks, [rehypeKatex, KATEX_OPTIONS]] as ComponentProps<
   typeof Markdown
 >["rehypePlugins"];
 
@@ -163,8 +163,11 @@ function ScrollTable({ children }: { children?: ReactNode }) {
   );
 }
 
-/** What to show under a fenced `latex` block, given its source; see `MarkdownMath`. */
-export type LatexBlockAction = (source: string) => ReactNode;
+/**
+ * What to show under a fenced `latex` block, given its source and its number among the fenced
+ * `latex` blocks of the text (from 1); see `MarkdownMath`.
+ */
+export type LatexBlockAction = (source: string, block: number) => ReactNode;
 
 // A context, not a component made for each caller: react-markdown takes components as element
 // types, and a new function on every render would draw every code block again.
@@ -174,7 +177,7 @@ interface HastNode {
   type: string;
   tagName?: string;
   value?: string;
-  properties?: { className?: unknown };
+  properties?: { className?: unknown; [name: string]: unknown };
   children?: HastNode[];
 }
 
@@ -195,15 +198,39 @@ function latexSource(pre: HastNode | undefined): string | null {
   return textOf(code).replace(/\n$/, "");
 }
 
-function CodeBlock({ node, children, ...rest }: ComponentProps<"pre"> & { node?: unknown }) {
+/** The attribute that carries a latex block's number from the rehype step to `CodeBlock`. */
+/**
+ * Numbers the fenced `latex` blocks of the text from 1, in reading order, so the action under
+ * each can tell them apart (two links with one name are one entry in a screen reader's list).
+ */
+function rehypeNumberLatexBlocks() {
+  return (tree: HastNode) => {
+    let count = 0;
+    const walk = (node: HastNode) => {
+      if (node.tagName === "pre" && latexSource(node) !== null) {
+        count += 1;
+        node.properties = { ...node.properties, "data-latex-block": String(count) };
+      }
+      node.children?.forEach(walk);
+    };
+    walk(tree);
+  };
+}
+
+function CodeBlock({
+  node,
+  children,
+  "data-latex-block": number,
+  ...attributes
+}: ComponentProps<"pre"> & { node?: unknown; "data-latex-block"?: string }) {
   const action = use(LatexBlockActionContext);
   const source = action ? latexSource(node as HastNode | undefined) : null;
-  const block = <pre {...rest}>{children}</pre>;
+  const block = <pre {...attributes}>{children}</pre>;
   if (!action || source === null) return block;
   return (
     <div className="grid gap-2">
       {block}
-      <div>{action(source)}</div>
+      <div>{action(source, Number(number))}</div>
     </div>
   );
 }

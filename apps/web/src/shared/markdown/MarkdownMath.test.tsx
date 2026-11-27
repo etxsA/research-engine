@@ -483,3 +483,41 @@ describe("an action under each latex block", () => {
     expect(container.querySelector("pre")?.textContent).toBe(`${CIRCUIT}\n`);
   });
 });
+
+describe("the action under a latex block", () => {
+  const text = [
+    "```latex\n\\gate{H}\n```",
+    "```python\nprint(1)\n```",
+    "`\\gate{X}`",
+    "```latex\n\\gate{Z}\n```",
+  ].join("\n\n");
+
+  it("gets the source and the number of the block among the latex blocks", () => {
+    const seen: [string, number][] = [];
+    render(
+      <MarkdownMath
+        latexBlockAction={(source, block) => {
+          seen.push([source, block]);
+          return <span>{`action ${block}`}</span>;
+        }}
+      >
+        {text}
+      </MarkdownMath>,
+    );
+    expect(seen).toEqual([
+      ["\\gate{H}", 1],
+      ["\\gate{Z}", 2],
+    ]);
+    expect(screen.getByText("action 1")).toBeInTheDocument();
+    expect(screen.getByText("action 2")).toBeInTheDocument();
+  });
+
+  it("leaves no trace of the numbering in the page", () => {
+    const { container } = render(
+      <MarkdownMath latexBlockAction={() => <span>action</span>}>{text}</MarkdownMath>,
+    );
+    expect(container.querySelector("[data-latex-block]")).toBeNull();
+    render(<MarkdownMath>{text}</MarkdownMath>);
+    expect(document.querySelector("[data-latex-block]")).toBeNull();
+  });
+});
