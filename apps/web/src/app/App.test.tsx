@@ -2,9 +2,16 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { ANA as ana, TEMP as temp, MAX_FAILURES } from "@/test/auth-mock";
-import { renderApp } from "@/test/render";
+import { preloadScreens, renderApp } from "@/test/render";
 import { setSystemDark } from "@/test/media";
 import { authMock, server } from "@/test/server";
+
+preloadScreens(
+  () => import("@/features/ask/AskPage"),
+  () => import("@/features/benchmarks/BenchmarksPage"),
+  () => import("@/features/qsets/SetsPage"),
+  () => import("@/features/circuits/CircuitsPage"),
+);
 
 async function signIn(
   user: ReturnType<typeof userEvent.setup>,

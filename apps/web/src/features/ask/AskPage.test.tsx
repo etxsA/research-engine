@@ -5,7 +5,7 @@ import { vi } from "vitest";
 import { ANA } from "@/test/auth-mock";
 import { answerOf, capturedAsk, CAPTURE, docIdOf, problem } from "@/test/ask-api";
 import { FakeEventSource, replay } from "@/test/event-source";
-import { renderApp } from "@/test/render";
+import { preloadScreens, renderApp } from "@/test/render";
 import { authMock, server, STATUS_BODY } from "@/test/server";
 import { installFakeAudio, type FakeAudio } from "@/test/audio";
 import { installFakeMic, type FakeMic } from "@/test/mic";
@@ -14,6 +14,8 @@ import { serveSynthesis } from "@/test/synthesis";
 import { startReading, stopReading } from "./reader";
 import { useAskStore } from "./store";
 import type { AskResponse } from "./types";
+
+preloadScreens(() => import("./AskPage"));
 
 type User = ReturnType<typeof userEvent.setup>;
 

@@ -1,9 +1,11 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ANA } from "@/test/auth-mock";
-import { renderApp } from "@/test/render";
+import { preloadScreens, renderApp } from "@/test/render";
 import { authMock } from "@/test/server";
 import { reloadPage } from "@/shared/lib/page";
+
+preloadScreens(() => import("@/features/ask/AskPage")); // the other two screens are mocked below
 
 vi.mock("@/shared/lib/page", () => ({ reloadPage: vi.fn() }));
 

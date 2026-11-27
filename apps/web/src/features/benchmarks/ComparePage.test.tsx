@@ -3,12 +3,14 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { ANA } from "@/test/auth-mock";
 import { CAPTURE, problem, RUNS } from "@/test/benchmarks-api";
-import { renderApp } from "@/test/render";
+import { preloadScreens, renderApp } from "@/test/render";
 import { authMock, server } from "@/test/server";
 import { polling } from "./api";
 import { formatInterval, formatNumber, formatSigned, questionCells } from "./domain";
 import { useCompareStore } from "./store";
 import type { Job, ScoreCompare } from "./types";
+
+preloadScreens(() => import("./ComparePage"));
 
 type User = ReturnType<typeof userEvent.setup>;
 

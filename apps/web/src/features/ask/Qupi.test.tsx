@@ -6,9 +6,11 @@ import { usePetPrefs } from "@/shared/pet/hidden";
 import { usePlayback } from "@/shared/voice/playback";
 import { ANA } from "@/test/auth-mock";
 import { installFakeMic, type FakeMic } from "@/test/mic";
-import { renderApp } from "@/test/render";
+import { preloadScreens, renderApp } from "@/test/render";
 import { authMock, server } from "@/test/server";
 import { useAskStore } from "./store";
+
+preloadScreens(() => import("./AskPage"));
 
 let mic: FakeMic | undefined;
 afterEach(() => {

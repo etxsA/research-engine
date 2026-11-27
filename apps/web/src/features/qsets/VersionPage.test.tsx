@@ -3,8 +3,10 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { ANA } from "@/test/auth-mock";
 import { capturedBody, meAs, pageAnswer, problemBody } from "@/test/sets-api";
-import { renderApp } from "@/test/render";
+import { preloadScreens, renderApp } from "@/test/render";
 import { authMock, server } from "@/test/server";
+
+preloadScreens(() => import("./VersionPage"));
 
 beforeEach(() => {
   authMock.handle({

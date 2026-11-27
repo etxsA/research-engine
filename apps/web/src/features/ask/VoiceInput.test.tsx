@@ -4,9 +4,11 @@ import { http, HttpResponse } from "msw";
 import { afterEach, describe, expect, it } from "vitest";
 import { ANA } from "@/test/auth-mock";
 import { installFakeMic, type FakeMic } from "@/test/mic";
-import { renderApp } from "@/test/render";
+import { preloadScreens, renderApp } from "@/test/render";
 import { authMock, server, STATUS_BODY } from "@/test/server";
 import { useAskStore } from "./store";
+
+preloadScreens(() => import("./AskPage"));
 
 let mic: FakeMic;
 afterEach(() => {

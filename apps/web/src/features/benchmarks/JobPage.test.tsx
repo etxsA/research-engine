@@ -3,10 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { ANA } from "@/test/auth-mock";
 import { CAPTURE, createJobStand, logPage, problem, type JobStand } from "@/test/benchmarks-api";
-import { renderApp } from "@/test/render";
+import { preloadScreens, renderApp } from "@/test/render";
 import { authMock, server } from "@/test/server";
 import { polling } from "./api";
 import type { Job } from "./types";
+
+preloadScreens(() => import("./JobPage"));
 
 type User = ReturnType<typeof userEvent.setup>;
 
