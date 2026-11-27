@@ -237,6 +237,52 @@ def test_text_with_no_latex_fence_has_no_blocks() -> None:
     assert asyncio.run(CircuitsAdapter(timeout_s=30).blocks("plain text $x$")) == ()
 
 
+def test_a_paper_already_read_is_listed_again_with_no_lane_slot_and_no_reading(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    read: list[str] = []
+
+    def counted(source: str) -> Any:
+        read.append(source)
+        return gate_list(source)
+
+    monkeypatch.setattr("research_api.adapters.circuits.gate_list", counted)
+    adapter = CircuitsAdapter(timeout_s=30, max_busy=1)
+    first = asyncio.run(adapter.blocks(TWO_BLOCKS))
+    reads = len(read)
+    assert reads == 3
+
+    async def again() -> Any:
+        # the one slot is taken, so only a kept reading can answer
+        release = threading.Event()
+        busy = asyncio.ensure_future(adapter._lane.run(release.wait))
+        await asyncio.sleep(0.05)
+        try:
+            return await adapter.blocks(TWO_BLOCKS)
+        finally:
+            release.set()
+            await busy
+
+    assert asyncio.run(again()) == first
+    assert len(read) == reads
+    # an export of the same text reads nothing again either
+    asyncio.run(
+        adapter.qasm_blocks(
+            TWO_BLOCKS, values={"theta": 1}, origin=lambda b, c: "", tool="x", admit=lambda d: None
+        )
+    )
+    assert len(read) == reads
+
+
+def test_the_kept_readings_are_the_last_eight_texts_used() -> None:
+    adapter = CircuitsAdapter(timeout_s=30)
+    texts = [f"```latex\n{one_gate('X')}\n```\n\ntext {n}" for n in range(9)]
+    for text in texts:
+        asyncio.run(adapter.blocks(text))
+    assert adapter._kept.get(texts[0]) is None  # the least recently used left
+    assert all(adapter._kept.get(text) is not None for text in texts[1:])
+
+
 RY_THETA = one_gate(r"R_y(\theta)")
 TWO_BLOCKS = (
     f"```latex\n{BELL_LATEX}\n```\n\n```latex\nno circuit\n```\n\n"

@@ -27,7 +27,10 @@ runs in a worker thread, off the event loop.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import math
+import threading
+from collections import OrderedDict
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
@@ -53,6 +56,8 @@ __all__ = ["CircuitsAdapter", "ComputeLane"]
 # The placeholders of the second export, as in docingest.adapters.qasm.
 PLACEHOLDER = 0.37
 
+BLOCKS_KEPT = 8  # texts whose blocks are kept, as the paper reader keeps the pages of 8 papers
+
 
 class CircuitsAdapter:
     """Reads LaTeX with docingest's ``gate_list``, simulates with quantum-sim and exports with
@@ -64,6 +69,7 @@ class CircuitsAdapter:
 
     def __init__(self, *, timeout_s: float, max_busy: int = 2) -> None:
         self._lane = ComputeLane(timeout_s=timeout_s, max_busy=max_busy)
+        self._kept = _KeptBlocks(BLOCKS_KEPT)
 
     async def parse(self, latex: str) -> GateListReading:
         return await self._lane.run(lambda: _parse(latex))
@@ -92,7 +98,16 @@ class CircuitsAdapter:
         return conventions()
 
     async def blocks(self, markdown: str) -> tuple[LatexBlock, ...]:
-        return await self._lane.run(lambda: _blocks(markdown), hint=USE_DOCINGEST)
+        kept = self._kept.get(markdown)
+        if kept is not None:
+            return kept  # no lane slot for a paper already read
+        return await self._lane.run(lambda: self._read(markdown), hint=USE_DOCINGEST)
+
+    def _read(self, markdown: str) -> tuple[LatexBlock, ...]:
+        kept = self._kept.get(markdown)
+        if kept is None:
+            kept = self._kept.put(markdown, _blocks(markdown))
+        return kept
 
     async def check_values(self, values: Mapping[str, Any] | None) -> None:
         await asyncio.to_thread(_check_values, values)  # no lane slot: see the module docstring
@@ -119,7 +134,9 @@ class CircuitsAdapter:
         admit: Callable[[Sequence[object]], None],
     ) -> tuple[CircuitQasm, ...]:
         return await self._lane.run(
-            lambda: _qasm_blocks(markdown, values, origin=origin, tool=tool, admit=admit),
+            lambda: _qasm_blocks(
+                self._read(markdown), values, origin=origin, tool=tool, admit=admit
+            ),
             hint=USE_DOCINGEST,
         )
 
@@ -140,8 +157,38 @@ def _blocks(markdown: str) -> tuple[LatexBlock, ...]:
     )
 
 
+class _KeptBlocks:
+    """The blocks of the last few texts read, by the SHA-256 of the text. Safe across threads."""
+
+    def __init__(self, kept: int) -> None:
+        self._kept = kept
+        self._items: OrderedDict[bytes, tuple[LatexBlock, ...]] = OrderedDict()
+        self._lock = threading.Lock()
+
+    @staticmethod
+    def _key(markdown: str) -> bytes:
+        return hashlib.sha256(markdown.encode("utf-8", "surrogatepass")).digest()
+
+    def get(self, markdown: str) -> tuple[LatexBlock, ...] | None:
+        key = self._key(markdown)
+        with self._lock:
+            found = self._items.get(key)
+            if found is not None:
+                self._items.move_to_end(key)
+            return found
+
+    def put(self, markdown: str, blocks: tuple[LatexBlock, ...]) -> tuple[LatexBlock, ...]:
+        key = self._key(markdown)
+        with self._lock:
+            self._items[key] = blocks
+            self._items.move_to_end(key)
+            while len(self._items) > self._kept:
+                self._items.popitem(last=False)
+        return blocks
+
+
 def _qasm_blocks(
-    markdown: str,
+    blocks: tuple[LatexBlock, ...],
     values: Mapping[str, Any] | None,
     *,
     origin: Callable[[int, int], str],
@@ -150,7 +197,7 @@ def _qasm_blocks(
 ) -> tuple[CircuitQasm, ...]:
     found = [
         (block_no, circuit_no, document)
-        for block_no, block in enumerate(_blocks(markdown), 1)
+        for block_no, block in enumerate(blocks, 1)
         for circuit_no, document in enumerate(block.reading.circuits, 1)
     ]
     admit([document for _, _, document in found])
