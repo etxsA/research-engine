@@ -1,4 +1,5 @@
 import { useId, type ReactNode } from "react";
+import { cn } from "@/shared/lib/utils";
 import { Card, CardContent, CardHeader } from "@/shared/ui/card";
 
 /** A titled block of the screen: a labelled region with a level-2 heading. */
@@ -6,18 +7,20 @@ export function Section({
   title,
   description,
   id,
+  className,
   action,
   children,
 }: {
   title: string;
   description?: string | undefined;
   id?: string | undefined;
+  className?: string | undefined;
   action?: ReactNode;
   children: ReactNode;
 }) {
   const headingId = useId();
   return (
-    <section id={id} aria-labelledby={headingId} className="min-w-0">
+    <section id={id} aria-labelledby={headingId} className={cn("min-w-0", className)}>
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-2">

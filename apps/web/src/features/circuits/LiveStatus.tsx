@@ -43,5 +43,16 @@ function sentence(announcement: NumberedAnnouncement, t: TFunction) {
       return t("circuits.result.live.equal");
     case "notEqual":
       return t("circuits.result.live.notEqual");
+    case "qasm":
+      return t("circuits.export.live", { programs: announcement.programs });
+    case "paperCircuits":
+      return t("circuits.paper.live.circuits", { blocks: announcement.blocks });
+    case "paperQasm":
+      return t("circuits.paper.live.export", {
+        programs: announcement.programs,
+        refused: announcement.refused,
+      });
+    case "copy":
+      return t(`circuits.export.copied.${announcement.outcome}`, { file: announcement.file });
   }
 }

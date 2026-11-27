@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Literal, Self
+from typing import Annotated, Any, Literal, Self
 
 from pydantic import (
+    AfterValidator,
     BaseModel,
     ConfigDict,
     Field,
@@ -32,7 +33,16 @@ from ...domain.ask import (
     Phase,
 )
 from ...domain.auth import Language, Role, User
-from ...domain.circuits import CheckTarget
+from ...domain.circuits import (
+    MAX_VALUE_CHARS,
+    MAX_VALUES,
+    CheckTarget,
+    PaperCircuitQasm,
+    PaperCircuits,
+    PaperQasm,
+    PastedQasm,
+    QasmFile,
+)
 from ...domain.documents import (
     DocumentDetail,
     DocumentList,
@@ -216,15 +226,36 @@ STATE_INPUT = (
     "The input: a basis label such as `010` (wire 1 first) or a list of amplitudes, each a "
     "number or a `[re, im]` pair. Default |0...0>."
 )
-VALUES = "A value for each symbol of the circuit, a number or an angle as text such as `\\pi/2`."
+
+
+def _values_are_short(values: dict[str, str | int | float]) -> dict[str, str | int | float]:
+    for key, value in values.items():
+        if len(key) > MAX_VALUE_CHARS:
+            raise ValueError(f"a key is at most {MAX_VALUE_CHARS} characters long")
+        if isinstance(value, str) and len(value) > MAX_VALUE_CHARS:
+            raise ValueError(f"a value is at most {MAX_VALUE_CHARS} characters long")
+    return values
+
+
+Values = Annotated[
+    dict[str, StrictStr | StrictInt | StrictFloat],
+    Field(
+        max_length=MAX_VALUES, json_schema_extra={"propertyNames": {"maxLength": MAX_VALUE_CHARS}}
+    ),
+    AfterValidator(_values_are_short),
+]
+VALUES = (
+    "A value for each symbol of the circuit, a number or an angle as text such as `\\pi/2` or "
+    "`pi/2` (a `pi` that stands alone is `\\pi`). A key is one symbol: `theta`, `\\theta` or "
+    "`\\theta_{1}`. "
+    f"At most {MAX_VALUES} keys; a key or a value is at most {MAX_VALUE_CHARS} characters long."
+)
 
 
 class RunRequest(Request):
     circuit_json: str = Field(description=CIRCUIT_JSON)
     input: str | list[Any] | None = Field(default=None, description=STATE_INPUT)
-    values: dict[str, StrictStr | StrictInt | StrictFloat] | None = Field(
-        default=None, description=VALUES
-    )
+    values: Values | None = Field(default=None, description=VALUES)
     unitary: StrictBool = Field(
         default=False, description="Also list the unitary (up to 8 wires). `true` or `false` only."
     )
@@ -269,9 +300,7 @@ class CheckRequest(Request):
         json_schema_extra=_not_nullable,
     )
     input: str | list[Any] | None = Field(default=None, description=STATE_INPUT)
-    values: dict[str, StrictStr | StrictInt | StrictFloat] | None = Field(
-        default=None, description=VALUES
-    )
+    values: Values | None = Field(default=None, description=VALUES)
 
     @field_validator("target", mode="before")
     @classmethod
@@ -281,6 +310,183 @@ class CheckRequest(Request):
                 'target must be {"state": ...}, {"unitary": ...} or {"circuit_json": ...}'
             )
         return value
+
+
+# --- OpenQASM 3 export ----------------------------------------------------------------------
+
+QASM_VALUES = (
+    VALUES + " A key that is not one symbol, or a value the export cannot use, is a 422 that "
+    "points to `/values/<key>`, before any circuit is exported."
+)
+
+
+class QasmRequest(Request):
+    circuit_json: str = Field(description=CIRCUIT_JSON)
+    values: Values | None = Field(default=None, description=QASM_VALUES)
+
+
+class PaperQasmRequest(Request):
+    values: Values | None = Field(
+        default=None,
+        description=QASM_VALUES + " The same values go to every circuit of the paper, as "
+        "`--set` does.",
+    )
+
+
+class QasmProgramOut(BaseModel):
+    """One OpenQASM 3 program, ready to save under `filename`."""
+
+    filename: str = Field(
+        description="`circuit-pNN.qasm` for a pasted circuit; for a paper, the name "
+        "`docingest circuits export` writes: `<doc_id[:16]>-bNN-cNN-pNN.qasm`."
+    )
+    part: int = Field(description="The side of a drawn equality, from 1.")
+    sign: str | None = Field(
+        description="The sign drawn before this part (`=`, `\\approx`, ...); null for part 1."
+    )
+    text: str = Field(description="The program: UTF-8 text with LF line ends, ending in a LF.")
+    n_qubits: int
+    n_clbits: int = Field(description="0 when the program measures nothing.")
+
+    @classmethod
+    def from_domain(cls, file: QasmFile) -> QasmProgramOut:
+        p = file.program
+        return cls(
+            filename=file.filename,
+            part=p.part,
+            sign=p.sign,
+            text=p.text,
+            n_qubits=p.n_qubits,
+            n_clbits=p.n_clbits,
+        )
+
+
+QASM_STATUS = (
+    "`ok`, or `refused` with the reasons: a drawing with one part the export cannot express "
+    "has no programs at all."
+)
+QASM_REASONS = "Why the circuit was refused, in the emitter's words; empty when `ok`."
+QASM_NOTES = "The reader's notes about the drawing."
+QASM_UNBOUND = (
+    "For a refused circuit: the symbols with no value, as `values` keys (`theta_{12}`), listed "
+    "only when values for them alone would export it."
+)
+
+
+class QasmResponse(BaseModel):
+    """The export of a pasted circuit. A refused circuit is a 200 with `status: refused`."""
+
+    status: Literal["ok", "refused"] = Field(description=QASM_STATUS)
+    programs: list[QasmProgramOut] = Field(description="One program per part, in order.")
+    reasons: list[str] = Field(description=QASM_REASONS)
+    notes: list[str] = Field(description=QASM_NOTES)
+    symbols: list[str] = Field(
+        description="The free parameters the circuit mentions, by the reader's name "
+        "(`theta_1` for `\\theta_{1}`), bound or not."
+    )
+    unmatched: list[str] = Field(
+        description="The keys of `values`, as sent, that name no symbol of the circuit."
+    )
+    unbound: list[str] = Field(description=QASM_UNBOUND)
+
+    @classmethod
+    def from_domain(cls, done: PastedQasm) -> QasmResponse:
+        export = done.export
+        return cls(
+            status=export.status,  # type: ignore[arg-type]
+            programs=[QasmProgramOut.from_domain(f) for f in done.files],
+            reasons=list(export.reasons),
+            notes=list(export.notes),
+            symbols=list(export.symbols),
+            unmatched=list(export.unmatched),
+            unbound=list(export.unbound),
+        )
+
+
+class PaperBlockOut(BaseModel):
+    block: int = Field(
+        description="The fenced `latex` block, from 1 over the whole paper, as docingest's "
+        "export numbers it."
+    )
+    latex: str = Field(description="The body of the block.")
+    status: Literal["parsed", "partial", "unparsed"] = Field(
+        description="`parsed` when every circuit was fully read, `unparsed` when none was."
+    )
+    circuits: list[dict[str, Any]] = Field(
+        description="Each circuit as a `circuit/1` document, numbered from 1 in the block."
+    )
+
+
+class PaperCircuitsResponse(BaseModel):
+    """The circuit blocks of a paper. A paper with none has an empty `blocks`."""
+
+    doc_id: str = Field(description="The full document id.")
+    source_name: str
+    blocks: list[PaperBlockOut]
+
+    @classmethod
+    def from_domain(cls, paper: PaperCircuits) -> PaperCircuitsResponse:
+        return cls(
+            doc_id=paper.doc_id,
+            source_name=paper.source_name,
+            blocks=[
+                PaperBlockOut(
+                    block=b.block,
+                    latex=b.latex,
+                    status=b.status,  # type: ignore[arg-type]
+                    circuits=[dict(c) for c in b.circuits],
+                )
+                for b in paper.blocks
+            ],
+        )
+
+
+class PaperCircuitQasmOut(BaseModel):
+    block: int
+    circuit: int = Field(description="The circuit in its block, from 1.")
+    status: Literal["ok", "refused"] = Field(description=QASM_STATUS)
+    programs: list[QasmProgramOut]
+    reasons: list[str] = Field(description=QASM_REASONS)
+    notes: list[str] = Field(description=QASM_NOTES)
+    unbound: list[str] = Field(description=QASM_UNBOUND)
+
+    @classmethod
+    def from_domain(cls, done: PaperCircuitQasm) -> PaperCircuitQasmOut:
+        export = done.export
+        return cls(
+            block=done.block,
+            circuit=done.circuit,
+            status=export.status,  # type: ignore[arg-type]
+            programs=[QasmProgramOut.from_domain(f) for f in done.files],
+            reasons=list(export.reasons),
+            notes=list(export.notes),
+            unbound=list(export.unbound),
+        )
+
+
+class PaperQasmResponse(BaseModel):
+    """Every circuit of a paper, exported; nothing is written on the server."""
+
+    doc_id: str = Field(description="The full document id.")
+    source_name: str
+    circuits: list[PaperCircuitQasmOut] = Field(
+        description="Every circuit of every block, in order, refused ones included."
+    )
+    warnings: list[str] = Field(
+        description="The same per-paper notes as `docingest circuits export --doc`: each circuit's "
+        "notes after `<source_name>, block b, circuit c: `, `<source_name>: no circuits found`, "
+        "and each `values` key that matches no symbol of any exported circuit. Notes about other "
+        "papers of the store are not included, and a text that cannot be read is a 404."
+    )
+
+    @classmethod
+    def from_domain(cls, done: PaperQasm) -> PaperQasmResponse:
+        return cls(
+            doc_id=done.doc_id,
+            source_name=done.source_name,
+            circuits=[PaperCircuitQasmOut.from_domain(c) for c in done.circuits],
+            warnings=list(done.warnings),
+        )
 
 
 class LoginRequest(BaseModel):

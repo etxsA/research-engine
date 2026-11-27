@@ -1,29 +1,74 @@
-"""Adapter: docingest gate lists and the quantum-sim engine behind the ``CircuitEngine`` port."""
+"""Adapter: docingest gate lists and the quantum-sim engine behind the ``CircuitEngine`` port.
+
+The OpenQASM 3 export calls ``quantum_sim.qasm.to_qasm`` on the ``circuit/1`` document, as
+docingest's exporter does, and finds a paper's circuits as docingest's export finds them: the
+fenced ``latex`` blocks of the whole text (``circuit_code_blocks``), each read with
+``gate_list``. So the programs of a paper are the bytes ``docingest circuits export`` writes.
+A paper is one lane job (``qasm_blocks``): its blocks are read, its operations checked and
+every circuit exported in one slot and under one time limit, so a busy lane refuses it before
+any work and never in the middle.
+
+An export is docingest's own (``docingest.adapters.qasm.export_document``), not a copy: the
+bytes, the refusals and ``unbound`` (the symbols of a refused circuit with no value, as binding
+keys such as ``theta_{12}``, listed only when values for them alone would export it) are the
+ones the command gives. ``tests/test_circuits_lane.py`` checks the adapter still agrees.
+
+``check_values`` refuses what ``quantum_sim.qasm.validate_bindings`` refuses, as a 422 that
+points to the key: each key is checked alone, then against the earlier key with the same name
+(``theta`` and ``\\theta`` bind one symbol twice). It takes no lane slot: the check is cheap
+(a request has at most ``MAX_VALUES`` keys and a key or a value is at most ``MAX_VALUE_CHARS``
+long, both checked before the request gets here), so a bad key is a 422 even when the lane is
+busy. It runs in a worker thread, off the event loop.
+
+The blocks of a paper are kept after they are read (``BLOCKS_KEPT`` texts, by the SHA-256 of the
+text, the least recently used leaving first): listing the circuits of a paper, which the screen
+does on every visit, then takes no lane slot, and an export of the same text does not read it
+again.
+"""
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from typing import Any
+import asyncio
+import hashlib
+import threading
+from collections import OrderedDict
+from collections.abc import Callable, Mapping, Sequence
+from typing import Any, cast
 
-from docingest.domain.circuits import gate_list
+from docingest.adapters.qasm import export_document
+from docingest.domain.circuits import circuit_code_blocks, gate_list
 from quantum_sim import check, run
+from quantum_sim.angles import symbol_name
 from quantum_sim.entrypoints import conventions
+from quantum_sim.qasm import validate_bindings
 
-from ...ports.circuits import GateListReading
+from ...domain.circuits import (
+    USE_DOCINGEST,
+    USE_THE_LIBRARY,
+    QasmExport,
+    QasmProgram,
+    values_pointer,
+)
+from ...domain.errors import FieldError, InvalidInputError
+from ...ports.circuits import CircuitQasm, GateListReading, LatexBlock
 from .lane import ComputeLane
 
 __all__ = ["CircuitsAdapter", "ComputeLane"]
 
+BLOCKS_KEPT = 8  # texts whose blocks are kept, as the paper reader keeps the pages of 8 papers
+
 
 class CircuitsAdapter:
-    """Reads LaTeX with docingest's ``gate_list`` and simulates with quantum-sim.
+    """Reads LaTeX with docingest's ``gate_list``, simulates with quantum-sim and exports with
+    ``quantum_sim.qasm``.
 
-    Both are pure functions of their input, so any number of calls may run in parallel; the lane
-    decides how many do.
+    All of them are pure functions of their input, so any number of calls may run in parallel;
+    the lane decides how many do.
     """
 
     def __init__(self, *, timeout_s: float, max_busy: int = 2) -> None:
         self._lane = ComputeLane(timeout_s=timeout_s, max_busy=max_busy)
+        self._kept = _KeptBlocks(BLOCKS_KEPT)
 
     async def parse(self, latex: str) -> GateListReading:
         return await self._lane.run(lambda: _parse(latex))
@@ -51,6 +96,49 @@ class CircuitsAdapter:
     def conventions(self) -> Mapping[str, Any]:
         return conventions()
 
+    async def blocks(self, markdown: str) -> tuple[LatexBlock, ...]:
+        kept = self._kept.get(markdown)
+        if kept is not None:
+            return kept  # no lane slot for a paper already read
+        return await self._lane.run(lambda: self._read(markdown), hint=USE_DOCINGEST)
+
+    def _read(self, markdown: str) -> tuple[LatexBlock, ...]:
+        kept = self._kept.get(markdown)
+        if kept is None:
+            kept = self._kept.put(markdown, _blocks(markdown))
+        return kept
+
+    async def check_values(self, values: Mapping[str, Any] | None) -> None:
+        await asyncio.to_thread(_check_values, values)  # no lane slot: see the module docstring
+
+    async def qasm(
+        self,
+        document: object,
+        *,
+        values: Mapping[str, Any] | None = None,
+        origin: str = "",
+        tool: str,
+    ) -> QasmExport:
+        return await self._lane.run(
+            lambda: _qasm(document, values, origin=origin, tool=tool), hint=USE_THE_LIBRARY
+        )
+
+    async def qasm_blocks(
+        self,
+        markdown: str,
+        *,
+        values: Mapping[str, Any] | None = None,
+        origin: Callable[[int, int], str],
+        tool: str,
+        admit: Callable[[Sequence[object]], None],
+    ) -> tuple[CircuitQasm, ...]:
+        return await self._lane.run(
+            lambda: _qasm_blocks(
+                self._read(markdown), values, origin=origin, tool=tool, admit=admit
+            ),
+            hint=USE_DOCINGEST,
+        )
+
 
 def _parse(latex: str) -> GateListReading:
     found = gate_list(latex)
@@ -58,4 +146,101 @@ def _parse(latex: str) -> GateListReading:
         status=found.status,
         text=found.text,
         circuits=tuple(circuit.to_dict() for circuit in found.circuits),
+    )
+
+
+def _blocks(markdown: str) -> tuple[LatexBlock, ...]:
+    return tuple(
+        LatexBlock(source=block.source, reading=_parse(block.source))
+        for block in circuit_code_blocks(markdown)
+    )
+
+
+class _KeptBlocks:
+    """The blocks of the last few texts read, by the SHA-256 of the text. Safe across threads."""
+
+    def __init__(self, kept: int) -> None:
+        self._kept = kept
+        self._items: OrderedDict[bytes, tuple[LatexBlock, ...]] = OrderedDict()
+        self._lock = threading.Lock()
+
+    @staticmethod
+    def _key(markdown: str) -> bytes:
+        return hashlib.sha256(markdown.encode("utf-8", "surrogatepass")).digest()
+
+    def get(self, markdown: str) -> tuple[LatexBlock, ...] | None:
+        key = self._key(markdown)
+        with self._lock:
+            found = self._items.get(key)
+            if found is not None:
+                self._items.move_to_end(key)
+            return found
+
+    def put(self, markdown: str, blocks: tuple[LatexBlock, ...]) -> tuple[LatexBlock, ...]:
+        key = self._key(markdown)
+        with self._lock:
+            self._items[key] = blocks
+            self._items.move_to_end(key)
+            while len(self._items) > self._kept:
+                self._items.popitem(last=False)
+        return blocks
+
+
+def _qasm_blocks(
+    blocks: tuple[LatexBlock, ...],
+    values: Mapping[str, Any] | None,
+    *,
+    origin: Callable[[int, int], str],
+    tool: str,
+    admit: Callable[[Sequence[object]], None],
+) -> tuple[CircuitQasm, ...]:
+    found = [
+        (block_no, circuit_no, document)
+        for block_no, block in enumerate(blocks, 1)
+        for circuit_no, document in enumerate(block.reading.circuits, 1)
+    ]
+    admit([document for _, _, document in found])
+    return tuple(
+        CircuitQasm(b, c, _qasm(document, values, origin=origin(b, c), tool=tool))
+        for b, c, document in found
+    )
+
+
+def _check_values(values: Mapping[str, Any] | None) -> None:
+    named: dict[str, str] = {}  # symbol name -> the first key that binds it
+    for key, value in (values or {}).items():
+        try:
+            validate_bindings({key: value})
+            name = symbol_name(key) or key  # a key that passed is one symbol
+            if name in named:
+                validate_bindings({named[name]: (values or {})[named[name]], key: value})
+        except ValueError as error:
+            message = str(error)
+            raise InvalidInputError(message, (FieldError(values_pointer(key), message),)) from None
+        named[name] = key
+
+
+def _qasm(
+    document: object, values: Mapping[str, Any] | None, *, origin: str, tool: str
+) -> QasmExport:
+    export = export_document(
+        cast(Mapping[str, Any], document), values=values, origin=origin, tool=tool
+    )
+    return QasmExport(
+        status=export.status,
+        programs=tuple(
+            QasmProgram(
+                part=program.part,
+                sign=program.sign,
+                text=program.text,
+                n_qubits=program.n_qubits,
+                n_clbits=program.n_clbits,
+            )
+            for program in export.programs
+        ),
+        reasons=export.reasons,
+        notes=export.notes,
+        symbols=export.symbols,
+        unmatched=export.unmatched or (),
+        unbound=export.unbound,
     )

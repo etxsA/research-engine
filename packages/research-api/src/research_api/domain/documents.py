@@ -66,6 +66,16 @@ class DocumentList:
     total: int
 
 
+@dataclass(frozen=True)
+class DocumentText:
+    """The whole converted text of a paper (``document.md``, page markers included), under its
+    full id and its source file name."""
+
+    doc_id: str
+    source_name: str
+    markdown: str
+
+
 def is_doc_id(value: str) -> bool:
     """A full id or a prefix of one of at least 16 hex characters (what a citation prints)."""
     return _DOC_ID.fullmatch(value) is not None

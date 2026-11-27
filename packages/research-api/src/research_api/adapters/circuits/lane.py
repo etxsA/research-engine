@@ -1,4 +1,8 @@
-"""Run a blocking function in a thread, wait for it at most ``timeout_s``, bound how many run."""
+"""Run a blocking function in a thread, wait for it at most ``timeout_s``, bound how many run.
+
+A call over the time limit is a 422 whose message ends with the call's ``hint``: where to do
+work this size instead (by default, ``quantum-sim`` on the command line).
+"""
 
 from __future__ import annotations
 
@@ -29,7 +33,7 @@ class ComputeLane:
         self._timeout_s = timeout_s
         self._slots = threading.BoundedSemaphore(max_busy)
 
-    async def run(self, work: Callable[[], T]) -> T:
+    async def run(self, work: Callable[[], T], *, hint: str = USE_THE_CLI) -> T:
         if not self._slots.acquire(blocking=False):
             raise UnavailableError(
                 "Circuit jobs are already running; try again in a few seconds.",
@@ -64,5 +68,5 @@ class ComputeLane:
         except TimeoutError:
             raise InvalidInputError(
                 f"The work took longer than {self._timeout_s:g} s, so this request was released. "
-                f"{USE_THE_CLI}"
+                f"{hint}"
             ) from None

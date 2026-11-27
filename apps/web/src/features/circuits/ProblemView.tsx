@@ -10,6 +10,11 @@ function apiTitle(status: number, t: Translate): string {
   switch (status) {
     case 400:
       return t("circuits.problem.badRequest");
+    case 404:
+      return t("circuits.problem.notFound");
+    case 409:
+      // the only 409 of these endpoints: a paper id prefix that more than one paper starts with
+      return t("circuits.problem.ambiguous");
     case 413:
       return t("circuits.problem.tooLarge");
     case 422:

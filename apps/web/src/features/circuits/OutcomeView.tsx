@@ -16,7 +16,7 @@ import { Section } from "./Section";
 import { ProbabilityBars, StateTable, UnitaryMatrix } from "./StateView";
 import { useCircuitStore, type Outcome } from "./store";
 import type { Comparison, SimulatorResult } from "./types";
-import { addMissingNames } from "./values";
+import { addNamesToValues } from "./ValuesPanel";
 
 /** Nothing was computed: the simulator turned the circuit down and gave its reasons, word for word. */
 function Refusal({ reasons }: { reasons: string[] }) {
@@ -113,8 +113,6 @@ function ComparisonTable({ comparisons }: { comparisons: Comparison[] }) {
 
 function Unbound({ names }: { names: string[] }) {
   const { t } = useTranslation();
-  const valuesText = useCircuitStore((state) => state.valuesText);
-  const setValuesText = useCircuitStore((state) => state.setValuesText);
   return (
     <Alert data-testid="unbound">
       <Info aria-hidden="true" />
@@ -122,11 +120,7 @@ function Unbound({ names }: { names: string[] }) {
       <AlertDescription className="grid gap-2">
         <p>{t("circuits.result.symbolicBody", { names: names.join(", ") })}</p>
         <div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setValuesText(addMissingNames(valuesText, names))}
-          >
+          <Button variant="outline" size="sm" onClick={() => addNamesToValues(names)}>
             {t("circuits.result.addNames")}
           </Button>
         </div>

@@ -4,6 +4,10 @@ Everything here is made up for the demo and the tests (titles, authors, numbers 
 of it comes from a real paper. The text is shaped like the converted papers the real service
 holds: Markdown with LaTeX math, one string per page, and for a LaTeX source one string per
 section with a ``quantikz`` code block.
+
+The teleportation paper's "The circuit" section holds two blocks: the teleportation circuit, which
+the OpenQASM export refuses (it is read as ``partial``: classically controlled corrections), and
+the Bell-pair preparation, which exports, so fake mode shows both answers of a paper export.
 """
 
 from __future__ import annotations
@@ -151,6 +155,13 @@ TELEPORT = FakePaper(
             "& \\cwbend{2} \\\\\n"
             "\\lstick{$|0\\rangle$} & \\targ{} & \\ctrl{1} & \\qw & \\meter{} & \\cwbend{1} \\\\\n"
             "\\lstick{$|0\\rangle$} & \\qw & \\targ{} & \\qw & \\qw & \\gate{X^{m_2} Z^{m_1}}\n"
+            "\\end{quantikz}\n"
+            "```\n\n"
+            "The Bell pair itself is prepared with a Hadamard and a CNOT:\n\n"
+            "```latex\n"
+            "\\begin{quantikz}\n"
+            "\\lstick{$|0\\rangle$} & \\gate{H} & \\ctrl{1} & \\qw \\\\\n"
+            "\\lstick{$|0\\rangle$} & \\qw & \\targ{} & \\qw\n"
             "\\end{quantikz}\n"
             "```",
             title="The circuit",

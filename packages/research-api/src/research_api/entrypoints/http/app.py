@@ -15,6 +15,7 @@ from .asks import documents_router, install_ask_handlers
 from .asks import router as asks_router
 from .auth import admin_router
 from .auth import router as auth_router
+from .circuits import papers_router as paper_circuits_router
 from .circuits import router as circuits_router
 from .guard import BindGuard, loopback_only, loopback_or_address
 from .hosts import HostGuard, hosts_allowed_by
@@ -82,6 +83,7 @@ def build_app(container: Container) -> FastAPI:
     app.include_router(admin_router, prefix=API_PREFIX)
     app.include_router(asks_router, prefix=API_PREFIX)
     app.include_router(documents_router, prefix=API_PREFIX)
+    app.include_router(paper_circuits_router, prefix=API_PREFIX)
     app.include_router(sets_router, prefix=API_PREFIX)
     app.include_router(jobs_router, prefix=API_PREFIX)
     app.include_router(speech_router, prefix=API_PREFIX)

@@ -2,12 +2,22 @@
 
 Standard library only. The simulator and the LaTeX reader sit behind a port; what is decided
 here is what the API refuses before any work starts.
+
+The OpenQASM 3 export follows the same caps with no wire limit (it builds no state): one
+operation budget for the whole request, so all the circuits of a paper count together. Its
+refusals point to what can export a circuit this size: the library function
+``quantum_sim.to_qasm`` for a pasted circuit, ``docingest circuits export --doc`` for a paper. A
+paper's programs are named and written as ``docingest circuits export --doc`` writes them
+(``<doc_id[:16]>-bNN-cNN-pNN.qasm``, blocks and circuits numbered from 1 over the whole
+``document.md``, ``docingest`` in the generated-by line); a pasted circuit's are
+``circuit-pNN.qasm``, with ``research-api`` in that line and no source line, so no name or path
+of the caller's reaches the text.
 """
 
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, NoReturn
 
@@ -19,11 +29,26 @@ from .errors import BadRequestError, FieldError, InvalidInputError
 MAX_STATE_WIRES = 12
 MAX_UNITARY_WIRES = 8
 
+# What a request may carry as parameter values: a paper's circuits are all bound with the same
+# keys, so the work grows with the keys times the circuits. A key or a value longer than
+# ``quantum_sim.angles.MAX_CHARS`` is refused by the reader anyway; it is cut before it is read.
+MAX_VALUES = 64
+MAX_VALUE_CHARS = 500
+
 DEFAULT_MAX_BODY_BYTES = 1024 * 1024
 DEFAULT_MAX_OPS = 2000
 DEFAULT_TIMEOUT_S = 30.0
 
+# Where to do work over the caps instead. quantum-sim's command simulates and checks but does
+# not export, so an export over a cap points to the library function or to docingest's command.
 USE_THE_CLI = "Use `quantum-sim` on the command line for a circuit this size."
+USE_THE_LIBRARY = "Use the Python function `quantum_sim.to_qasm` for a circuit this size."
+USE_DOCINGEST = "Use `docingest circuits export --doc` on the command line for a paper this size."
+
+# The generated-by name and the source line of the programs (see the module docstring).
+PASTED_TOOL = "research-api"
+PASTED_ORIGIN = ""
+PAPER_TOOL = "docingest"
 
 _NEUTRAL_KINDS = frozenset({"barrier", "text"})
 _SHOWN_KEY = 80
@@ -113,29 +138,158 @@ def operation_count(document: object) -> int:
 
 
 def ensure_within_caps(
-    documents: Sequence[tuple[str, object]], caps: CircuitCaps, *, max_wires: int
+    documents: Sequence[tuple[str, object]],
+    caps: CircuitCaps,
+    *,
+    max_wires: int | None,
+    hint: str = USE_THE_CLI,
 ) -> None:
     """Refuse (422) a request whose circuits are over the synchronous caps.
 
     ``documents`` pairs the JSON pointer of each circuit field with its parsed document. The
-    operation cap is for the whole request.
+    operation cap is for the whole request. ``max_wires`` is ``None`` for work that builds no
+    state (the OpenQASM export): then any number of wires passes. ``hint`` ends the message:
+    where to do work this size instead.
     """
     for pointer, document in documents:
         wires = wire_count(document)
-        if wires is not None and wires > max_wires:
+        if max_wires is not None and wires is not None and wires > max_wires:
             _refuse(
                 pointer,
-                f"The circuit has {wires} wires; this check takes at most {max_wires}. "
-                + USE_THE_CLI,
+                f"The circuit has {wires} wires; this check takes at most {max_wires}. " + hint,
             )
     ops = sum(operation_count(document) for _, document in documents)
     if ops > caps.max_ops:
         _refuse(
             documents[0][0],
             f"The request asks for {ops} operations; this endpoint takes at most {caps.max_ops}. "
-            + USE_THE_CLI,
+            + hint,
+        )
+
+
+def ensure_paper_within_caps(documents: Sequence[object], caps: CircuitCaps) -> None:
+    """Refuse (422) the export of a paper whose circuits, all together, ask for more operations
+    than the operation cap; the message points to docingest's command, which has no cap. There
+    is no wire cap. No field is named: the path names the paper and the body holds no circuit.
+    """
+    ops = sum(operation_count(document) for document in documents)
+    if ops > caps.max_ops:
+        raise InvalidInputError(
+            f"The paper's circuits ask for {ops} operations; this endpoint takes at most "
+            f"{caps.max_ops}. " + USE_DOCINGEST
         )
 
 
 def _refuse(pointer: str, message: str) -> NoReturn:
     raise InvalidInputError(message, (FieldError(pointer, message),))
+
+
+# --- OpenQASM 3 export -------------------------------------------------------------------------
+
+
+def qasm_filename(doc_id: str, block: int, circuit: int, part: int) -> str:
+    """The file name ``docingest circuits export`` gives a paper's program (blocks, circuits and
+    parts from 1): ``<doc_id[:16]>-bNN-cNN-pNN.qasm``."""
+    return f"{doc_id[:16]}-b{block:02d}-c{circuit:02d}-p{part:02d}.qasm"
+
+
+def pasted_qasm_filename(part: int) -> str:
+    """The file name of a part of a pasted circuit: ``circuit-pNN.qasm``."""
+    return f"circuit-p{part:02d}.qasm"
+
+
+def values_pointer(key: str) -> str:
+    """The JSON pointer of one key of ``values`` (``~`` and ``/`` escaped, RFC 6901)."""
+    return "/values/" + key.replace("~", "~0").replace("/", "~1")
+
+
+@dataclass(frozen=True)
+class QasmProgram:
+    """One OpenQASM 3 program: a part of a drawn circuit (from 1), its drawn sign (``None`` for
+    the first part), the text, and its qubit and classical bit counts."""
+
+    part: int
+    sign: str | None
+    text: str
+    n_qubits: int
+    n_clbits: int
+
+
+@dataclass(frozen=True)
+class QasmExport:
+    """What the emitter made of one circuit. ``status`` is ``ok`` or ``refused``; a refused
+    circuit has no programs (all or nothing) and ``reasons`` says why, in the emitter's words.
+    ``notes`` are the reader's notes, ``symbols`` the free parameters the circuit mentions,
+    ``unmatched`` the caller's binding keys that name none of them. ``unbound`` lists, as binding
+    keys, the symbols of a refused circuit that have no value, only when values for them alone
+    would export it (as docingest's exporter reports them)."""
+
+    status: str
+    programs: tuple[QasmProgram, ...]
+    reasons: tuple[str, ...]
+    notes: tuple[str, ...] = ()
+    symbols: tuple[str, ...] = ()
+    unmatched: tuple[str, ...] = ()
+    unbound: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class QasmFile:
+    """A program and the name of its file."""
+
+    filename: str
+    program: QasmProgram
+
+
+@dataclass(frozen=True)
+class PastedQasm:
+    """The export of one pasted circuit: the emitter's answer and its named programs."""
+
+    export: QasmExport
+    files: tuple[QasmFile, ...]
+
+
+@dataclass(frozen=True)
+class PaperBlock:
+    """One fenced ``latex`` block of a paper, numbered from 1 over the whole text as docingest
+    numbers it, with the reader's status and each circuit as a ``circuit/1`` document."""
+
+    block: int
+    latex: str
+    status: str
+    circuits: tuple[Mapping[str, Any], ...]
+
+
+@dataclass(frozen=True)
+class PaperCircuits:
+    doc_id: str
+    source_name: str
+    blocks: tuple[PaperBlock, ...]
+
+
+@dataclass(frozen=True)
+class PaperCircuitQasm:
+    """The export of circuit ``circuit`` (from 1) of block ``block`` of a paper."""
+
+    block: int
+    circuit: int
+    export: QasmExport
+    files: tuple[QasmFile, ...]
+
+
+@dataclass(frozen=True)
+class PaperQasm:
+    """The export of every circuit of one paper. ``warnings`` are the notes docingest's export
+    gives for the paper: each circuit's notes after ``<source_name>, block b, circuit c: ``,
+    ``<source_name>: no circuits found``, and each binding key that matches no symbol of any
+    exported circuit."""
+
+    doc_id: str
+    source_name: str
+    circuits: tuple[PaperCircuitQasm, ...]
+    warnings: tuple[str, ...]
+
+
+def paper_origin(source_name: str, block: int, circuit: int) -> str:
+    """The source line docingest writes for a paper's circuit."""
+    return f"{source_name}, block {block}, circuit {circuit}"

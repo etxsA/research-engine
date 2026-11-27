@@ -190,15 +190,20 @@ describe("UnitaryMatrix", () => {
       return "blob:test";
     };
     URL.revokeObjectURL = () => undefined;
-    const click = vi
-      .spyOn(HTMLAnchorElement.prototype, "click")
-      .mockImplementation(() => undefined);
+    const names: string[] = [];
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      names.push(this.download);
+    });
     render(<UnitaryMatrix part={part(6, { unitary: identity(64) })} />);
     const table = screen.getByTestId("unitary-table");
     expect(within(table).getAllByRole("row")).toHaveLength(MATRIX_PREVIEW + 1);
     expect(screen.getByText("Showing the top left 16 by 16 of 64 by 64.")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Download the unitary (JSON)" }));
     expect(click).toHaveBeenCalledOnce();
+    expect(names).toEqual(["unitary.json"]);
+    expect(created[0]!.type).toBe("application/json");
     const body = JSON.parse(await created[0]!.text()) as unknown[][];
     expect(body).toHaveLength(64);
   });

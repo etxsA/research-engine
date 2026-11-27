@@ -236,6 +236,11 @@
       "ambiguous": "Ese id corto corresponde a más de un artículo.",
       "error": "No se pudo cargar la página.",
       "retry": "Intentar de nuevo"
+    },
+    "circuits": {
+      "open": "Abrir en Circuitos",
+      "openBlock": "Abrir en Circuitos: bloque {{n}}",
+      "paper": "Circuitos de este artículo"
     }
   },
   "benchmarks": {
@@ -939,7 +944,8 @@
       "reading": "Leyendo",
       "clear": "Limpiar",
       "example": "Probar un ejemplo",
-      "examplePick": "Elige uno"
+      "examplePick": "Elige uno",
+      "paper": "Artículo"
     },
     "examples": {
       "bell": "Par de Bell (quantikz)",
@@ -1002,13 +1008,17 @@
       "barrier": "barrera",
       "text": "texto"
     },
+    "values": {
+      "title": "Valores",
+      "description": "Los valores de los símbolos del circuito. Simular, Comprobar y Exportar los usan.",
+      "label": "Valores de los parámetros",
+      "hint": "Uno por línea, nombre = valor. Un nombre es un solo símbolo, como theta, \\theta o \\theta_{1}. Un valor es un número o un ángulo como \\pi/2 o pi/2."
+    },
     "run": {
       "title": "Simular",
       "description": "El estado final y las probabilidades de los resultados, hasta 12 cables.",
       "input": "Estado de entrada",
       "inputHint": "Una etiqueta de base como 010 (primero el cable 1) o una lista de amplitudes como [0, 1]. Vacío significa todos los cables en 0.",
-      "values": "Valores de los parámetros",
-      "valuesHint": "Uno por línea, nombre = valor. Un valor es un número o un ángulo como \\pi/2.",
       "unitary": "Mostrar también la unitaria (hasta 8 cables)",
       "simulate": "Simular",
       "running": "Simulando"
@@ -1042,6 +1052,68 @@
       "drawnNone": "El circuito leído no tiene ninguna igualdad dibujada.",
       "submit": "Comprobar",
       "checking": "Comprobando"
+    },
+    "export": {
+      "title": "Exportar",
+      "description": "Escribe el circuito en OpenQASM 3, un programa por cada parte del dibujo, como lo hace docingest circuits export. No se guarda nada en el servidor.",
+      "submit": "Exportar",
+      "exporting": "Exportando",
+      "resultTitle": "Programas OpenQASM 3",
+      "resultDescription": "Cada parte del dibujo es un programa. Cópialo o guárdalo como archivo .qasm.",
+      "ofCircuit": "Circuito {{n}} de la lectura.",
+      "part": "Parte {{part}}",
+      "partAfter": "Parte {{part}}, después de \"{{sign}}\"",
+      "size": "Qubits: {{qubits}}. Bits clásicos: {{clbits}}.",
+      "program": "Programa OpenQASM 3 {{file}}",
+      "copy": "Copiar",
+      "copyFile": "Copiar {{file}}",
+      "download": "Descargar",
+      "downloadFile": "Descargar {{file}}",
+      "copied": {
+        "copied": "{{file}} copiado.",
+        "selected": "{{file}} está seleccionado: el navegador no permitió copiar. Pulsa Ctrl+C (Cmd+C en una Mac) para copiarlo.",
+        "failed": "No se pudo copiar {{file}}. Selecciona su texto y cópialo."
+      },
+      "refusedTitle": "Rechazado",
+      "refusedBody": "La exportación no escribió este circuito en OpenQASM 3, así que no hay programa. Estas son sus razones.",
+      "reasons": "Razones",
+      "unboundTitle": "Faltan valores",
+      "unboundBody": "El circuito tiene símbolos sin valor: {{names}}. Dale un valor a cada uno y exporta de nuevo.",
+      "unmatchedTitle": "Valores sin usar",
+      "unmatchedBody": "Estos nombres no corresponden a ningún símbolo del circuito, así que sus valores no se usaron: {{names}}.",
+      "notes": "Notas",
+      "live": "Exportación terminada. Programas: {{programs}}."
+    },
+    "paper": {
+      "description": "Busca un artículo guardado, lista sus bloques de circuitos, lee uno de ellos aquí o exporta todos los circuitos del artículo a OpenQASM 3.",
+      "searchLabel": "Buscar un artículo guardado",
+      "query": "Título o id",
+      "queryHint": "Parte de un título, o el comienzo del id de un artículo. Déjalo vacío para listar los primeros artículos.",
+      "search": "Buscar artículos",
+      "searching": "Buscando",
+      "found": "Artículos encontrados",
+      "showing": "Mostrando {{shown}} de {{total}}. Escribe más del título para acotar la búsqueda.",
+      "none": "Ningún artículo guardado coincide.",
+      "loading": "Leyendo los bloques de circuitos del artículo",
+      "id": "Id: {{id}}",
+      "blocks": "Bloques de circuitos ({{count}})",
+      "noBlocks": "Este artículo no tiene bloques de circuitos: su texto no tiene ningún bloque latex delimitado.",
+      "block": "Bloque {{block}}",
+      "circuitsRead": "Circuitos leídos: {{count}}",
+      "latex": "LaTeX del bloque {{block}}",
+      "read": "Leer este bloque",
+      "readBlock": "Leer este bloque: bloque {{block}}",
+      "exportHint": "Exporta todos los circuitos del artículo con los valores de abajo, con los nombres de archivo que escribe docingest circuits export --doc. No se escribe nada en el servidor.",
+      "export": "Exportar este artículo",
+      "exporting": "Exportando el artículo",
+      "exportTitle": "Programas de {{source}}",
+      "exportSummary": "Programas: {{programs}}. Circuitos rechazados: {{refused}}.",
+      "warnings": "Advertencias",
+      "circuit": "Bloque {{block}}, circuito {{circuit}}",
+      "live": {
+        "circuits": "Bloques de circuitos del artículo: {{blocks}}.",
+        "export": "Exportación del artículo terminada. Programas: {{programs}}. Circuitos rechazados: {{refused}}."
+      }
     },
     "result": {
       "runTitle": "Simulación",
@@ -1131,6 +1203,8 @@
       "notAllowed": "No tienes permiso para hacer esto",
       "failed": "La solicitud falló",
       "malformed": "No se pudo leer la respuesta del servidor",
+      "notFound": "No se encontró",
+      "ambiguous": "Más de un artículo coincide",
       "retry": "Intenta de nuevo en {{seconds}} segundos."
     },
     "local": {
@@ -1158,6 +1232,10 @@
         "title": "Un valor de parámetro no es válido",
         "detail": "Línea {{line}} ({{name}}): escribe nombre = valor, una vez por nombre."
       },
+      "badName": {
+        "title": "Un nombre de parámetro no es válido",
+        "detail": "Línea {{line}}: \"{{name}}\" no es un nombre de parámetro. Escribe un solo símbolo, como theta, \\theta o \\theta_{1}."
+      },
       "badState": {
         "title": "El estado no es válido",
         "detail": "Escribe una etiqueta de base como 010, o una lista de amplitudes como [0, 1]."
@@ -1177,6 +1255,14 @@
       "secondMany": {
         "title": "Hay más de un circuito en el segundo texto",
         "detail": "El segundo texto tiene {{count}} circuitos. Deja uno."
+      },
+      "noPaper": {
+        "title": "No se eligió ningún artículo",
+        "detail": "Elige primero un artículo."
+      },
+      "unknownPaper": {
+        "title": "No se encontró",
+        "detail": "Ningún artículo guardado tiene este id. Un id tiene de 16 a 64 caracteres, cada uno un dígito o una letra de la a a la f."
       },
       "network": {
         "title": "No se pudo contactar al servidor",

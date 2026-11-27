@@ -32,7 +32,7 @@ from quantum_sim.qasm import to_qasm, validate_bindings
 from ..domain.circuits import CircuitSteps
 from ..ports import QasmExport, QasmProgram
 
-__all__ = ["QuantumSimExporter"]
+__all__ = ["QuantumSimExporter", "export_document"]
 
 # The placeholders of the second export: 0.37 plus a tenth of the square root of a prime, one
 # prime per unbound symbol. Square roots of distinct primes are linearly independent over the
@@ -56,29 +56,41 @@ class QuantumSimExporter:
         origin: str = "",
         tool: str = "docingest",
     ) -> QasmExport:
-        document = circuit.to_dict()
-        export = to_qasm(document, values=values, origin=origin, tool=tool)
-        unbound: tuple[str, ...] = ()
-        if not export.ok:
-            unbound = _unbound(document, values, export.symbols, origin=origin, tool=tool)
-        return QasmExport(
-            status=export.status,
-            programs=tuple(
-                QasmProgram(
-                    part=program.part,
-                    sign=program.sign,
-                    text=program.text,
-                    n_qubits=program.n_qubits,
-                    n_clbits=program.n_clbits,
-                )
-                for program in export.programs
-            ),
-            reasons=export.reasons,
-            notes=export.notes,
-            symbols=export.symbols,
-            unmatched=export.unmatched,
-            unbound=unbound,
-        )
+        return export_document(circuit.to_dict(), values=values, origin=origin, tool=tool)
+
+
+def export_document(
+    document: Mapping[str, Any],
+    *,
+    values: Mapping[str, str | float | int] | None = None,
+    origin: str = "",
+    tool: str = "docingest",
+) -> QasmExport:
+    """Export a ``circuit/1`` document: what ``QuantumSimExporter.export`` does for a circuit read
+    from a paper. Public so a caller that holds the document (a pasted circuit, or a reading it
+    kept) gets the same bytes, refusals and ``unbound`` names with no copy of this module."""
+    export = to_qasm(document, values=values, origin=origin, tool=tool)
+    unbound: tuple[str, ...] = ()
+    if not export.ok:
+        unbound = _unbound(document, values, export.symbols, origin=origin, tool=tool)
+    return QasmExport(
+        status=export.status,
+        programs=tuple(
+            QasmProgram(
+                part=program.part,
+                sign=program.sign,
+                text=program.text,
+                n_qubits=program.n_qubits,
+                n_clbits=program.n_clbits,
+            )
+            for program in export.programs
+        ),
+        reasons=export.reasons,
+        notes=export.notes,
+        symbols=export.symbols,
+        unmatched=export.unmatched,
+        unbound=unbound,
+    )
 
 
 def _unbound(

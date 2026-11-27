@@ -7,6 +7,7 @@ import { Button } from "@/shared/ui/button";
 import { Card, CardContent } from "@/shared/ui/card";
 import { citationIndex, linkCitations } from "./citations";
 import { CitationChip, CitationTitle, InlineCitation, openerName } from "./CitationButtons";
+import { openInCircuits } from "./CircuitLinks";
 import { ContextsPanel } from "./ContextsPanel";
 import { formatSeconds } from "./format";
 import { ReadAloudButton } from "./ReadAloudButton";
@@ -66,7 +67,9 @@ export function AnswerView({ entry, response }: { entry: AskEntry; response: Ask
           </Alert>
         ) : null}
 
-        <MarkdownMath components={components}>{text}</MarkdownMath>
+        <MarkdownMath components={components} latexBlockAction={openInCircuits}>
+          {text}
+        </MarkdownMath>
 
         <section aria-labelledby={`sources-${entry.key}`} className="grid gap-2">
           <h3 id={`sources-${entry.key}`} className="text-sm font-medium">

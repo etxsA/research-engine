@@ -1,5 +1,13 @@
 import "katex/dist/katex.min.css";
-import { type ComponentProps, type ReactNode, useLayoutEffect, useRef, useState } from "react";
+import {
+  type ComponentProps,
+  createContext,
+  type ReactNode,
+  use,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import Markdown, { type Components } from "react-markdown";
 import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
@@ -41,7 +49,7 @@ const REMARK_PLUGINS = [
   [remarkGfm, { singleTilde: false }],
   remarkPlainFootnotes,
 ] as ComponentProps<typeof Markdown>["remarkPlugins"];
-const REHYPE_PLUGINS = [[rehypeKatex, KATEX_OPTIONS]] as ComponentProps<
+const REHYPE_PLUGINS = [rehypeNumberLatexBlocks, [rehypeKatex, KATEX_OPTIONS]] as ComponentProps<
   typeof Markdown
 >["rehypePlugins"];
 
@@ -155,8 +163,81 @@ function ScrollTable({ children }: { children?: ReactNode }) {
   );
 }
 
+/**
+ * What to show under a fenced `latex` block, given its source and its number among the fenced
+ * `latex` blocks of the text (from 1); see `MarkdownMath`.
+ */
+export type LatexBlockAction = (source: string, block: number) => ReactNode;
+
+// A context, not a component made for each caller: react-markdown takes components as element
+// types, and a new function on every render would draw every code block again.
+const LatexBlockActionContext = createContext<LatexBlockAction | undefined>(undefined);
+
+interface HastNode {
+  type: string;
+  tagName?: string;
+  value?: string;
+  properties?: { className?: unknown; [name: string]: unknown };
+  children?: HastNode[];
+}
+
+const textOf = (node: HastNode): string =>
+  node.type === "text" ? (node.value ?? "") : (node.children ?? []).map(textOf).join("");
+
+/**
+ * The source of a fenced `latex` block (```latex), or null for any other block. Only a fenced
+ * block counts: inline code is a `code` element outside a `pre`, and never reaches here.
+ */
+function latexSource(pre: HastNode | undefined): string | null {
+  const code = pre?.children?.find((child) => child.type === "element");
+  const classes = code?.properties?.className;
+  if (code?.tagName !== "code" || !Array.isArray(classes) || !classes.includes("language-latex")) {
+    return null;
+  }
+  // The fence's last line break belongs to the fence, not to the circuit.
+  return textOf(code).replace(/\n$/, "");
+}
+
+/**
+ * Numbers the fenced `latex` blocks of the text from 1, in reading order, so the action under
+ * each can tell them apart (two links with one name are one entry in a screen reader's list).
+ * The number travels in `data-latex-block`, from this rehype step to `CodeBlock`.
+ */
+function rehypeNumberLatexBlocks() {
+  return (tree: HastNode) => {
+    let count = 0;
+    const walk = (node: HastNode) => {
+      if (node.tagName === "pre" && latexSource(node) !== null) {
+        count += 1;
+        node.properties = { ...node.properties, "data-latex-block": String(count) };
+      }
+      node.children?.forEach(walk);
+    };
+    walk(tree);
+  };
+}
+
+function CodeBlock({
+  node,
+  children,
+  "data-latex-block": number,
+  ...attributes
+}: ComponentProps<"pre"> & { node?: unknown; "data-latex-block"?: string }) {
+  const action = use(LatexBlockActionContext);
+  const source = action ? latexSource(node as HastNode | undefined) : null;
+  const block = <pre {...attributes}>{children}</pre>;
+  if (!action || source === null) return block;
+  return (
+    <div className="grid gap-2">
+      {block}
+      <div>{action(source, Number(number))}</div>
+    </div>
+  );
+}
+
 const SAFE_COMPONENTS: Components = {
   table: ({ children }) => <ScrollTable>{children}</ScrollTable>,
+  pre: CodeBlock,
   // react-markdown also hands the syntax node to a custom component; left in `rest` it would
   // reach the DOM as `node="[object Object]"`.
   span: ({ className, children, node, ...rest }) => {
@@ -184,6 +265,11 @@ export interface MarkdownMathProps {
   /** Replaces the safe default of an element (the answer view turns citations into buttons). */
   components?: Components;
   className?: string;
+  /**
+   * Shown under each fenced `latex` code block, with the block's source (docingest fences only
+   * circuits as `latex`). Not applied to code in other languages or to inline code.
+   */
+  latexBlockAction?: LatexBlockAction | undefined;
 }
 
 /**
@@ -191,16 +277,23 @@ export interface MarkdownMathProps {
  * stays as the text it was written as (there is no `rehype-raw`), so `a <b and c> d` reads as
  * typed. Links open only for web addresses, and no image is fetched.
  */
-export function MarkdownMath({ children, components, className }: MarkdownMathProps) {
+export function MarkdownMath({
+  children,
+  components,
+  className,
+  latexBlockAction,
+}: MarkdownMathProps) {
   return (
     <div className={cn("markdown", className)}>
-      <Markdown
-        remarkPlugins={REMARK_PLUGINS}
-        rehypePlugins={REHYPE_PLUGINS}
-        components={{ ...SAFE_COMPONENTS, ...components }}
-      >
-        {escapeBarsInTableMath(closeDisplayMathOnItsOwnLine(children))}
-      </Markdown>
+      <LatexBlockActionContext value={latexBlockAction}>
+        <Markdown
+          remarkPlugins={REMARK_PLUGINS}
+          rehypePlugins={REHYPE_PLUGINS}
+          components={{ ...SAFE_COMPONENTS, ...components }}
+        >
+          {escapeBarsInTableMath(closeDisplayMathOnItsOwnLine(children))}
+        </Markdown>
+      </LatexBlockActionContext>
     </div>
   );
 }
