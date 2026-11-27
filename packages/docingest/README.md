@@ -139,8 +139,8 @@ Step by step:
 5. **Look up.** Unless `--force` is given, the store returns a cached result that is valid for these run options. If only the metadata changed, the manifest and the Markdown title line are updated without re-processing. If the stored `document.md` no longer starts with the title line docingest wrote (it was edited by hand, or cannot be read), the document is processed again instead.
 6. **Convert.** PDFs are routed per page, images are OCRed frame by frame, and LaTeX, office and text files go to the `DocumentConverter` configured for their kind. Converters are built lazily, so Docling or pandoc load only when such a document appears.
 7. **Record.** A `DocumentManifest` is assembled with one `PageRecord` per page or segment.
-8. **Layout artifacts.** `extract_artifacts` reads the rendered Markdown page by page and lists its display equations and tables on the manifest's `artifacts` (see [Layout artifacts](docs/architecture.md#layout-artifacts)). It changes neither the cache key nor `document.md`.
-9. **Save.** `render_markdown` writes the title line and page markers, and `DocumentStore.save` writes both files atomically to a canonical, variant or degraded location (see [Where files go on disk](#where-files-go-on-disk)).
+8. **Layout artifacts.** `render_markdown` writes the title line and page markers, then `extract_artifacts` reads that Markdown page by page and lists its display equations and tables on the manifest's `artifacts` (see [Layout artifacts](docs/architecture.md#layout-artifacts)). It changes neither the cache key nor `document.md`.
+9. **Save.** `DocumentStore.save` writes both files atomically to a canonical, variant or degraded location (see [Where files go on disk](#where-files-go-on-disk)).
 
 ### Per-page PDF routing
 

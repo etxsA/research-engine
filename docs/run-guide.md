@@ -433,7 +433,7 @@ flowchart TB
     BR["Team browser<br/>Tailscale on the laptop"]
     TUN["SSH tunnel (alternative, one person)<br/>public_origin = http://localhost:8090"]
     subgraph SERVER["Lab server, no sudo"]
-    HTTPS["Tailscale Serve (planned)<br/>HTTPS for the microphone"]
+        HTTPS["Tailscale Serve (planned)<br/>HTTPS for the microphone"]
         API["research-api on tailscale-address:8090<br/>public_origin = the team URL"]
         DATA[("research-api folder<br/>config, db, data, logs, web, backups")]
         MODELS["Model servers, 127.0.0.1 only<br/>llm 8001, embed 8002, rerank 8003, stt 8004, tts 8005"]
@@ -449,7 +449,7 @@ flowchart TB
     SCRIPT -->|"start, backup"| API
 ```
 
-Solid lines are what the team uses: laptops reach the service through the tailnet, and only the service talks to the model servers, which listen on loopback. Dotted lines are the two ways to open the microphone, which needs a secure page: a tunnel for one person today, and HTTPS in front of the service (Tailscale Serve, planned) for everyone. See [Open the app in a secure context](#open-the-app-in-a-secure-context). The crontab box is [Leave it running for the team](#leave-it-running-for-the-team).
+Solid lines are the normal path: laptops reach the service through the tailnet, and only the service talks to the model servers, which listen on loopback. Dotted lines are the two ways to open the microphone, which needs a secure page: a tunnel for one person today, and HTTPS in front of the service (Tailscale Serve, planned) for everyone. The tunnel case changes the service's own `public_origin` for everyone, not only for the person using the tunnel, which is why the diagram shows both values. See [Open the app in a secure context](#open-the-app-in-a-secure-context). The crontab box is [Leave it running for the team](#leave-it-running-for-the-team).
 
 ### What you need
 
@@ -601,7 +601,7 @@ The script installs nothing on its own. To have the service come back after a cr
 - **The nightly backup** is `deploy/research-api.sh backup` (see [Backups and restore](#backups-and-restore)). It keeps the newest 14 copies, and the copies stay on the same disk, so copy them elsewhere now and then.
 - **Check it.** `crontab -l` shows the lines, `deploy/research-api.sh status` the service, and `deploy/research-api.sh logs -n 20` what it has done.
 
-**Accounts.** There is no sign-up page. The person who runs the server makes each account in a terminal with `deploy/research-api.sh users add <username> --name "Their Name"` (add `--role admin` only for yourself). The command prints a random one-time password of 20 characters on standard output; give it to the person privately, never in a chat or a ticket. At the first sign-in the app forces them to choose their own password (at least 12 characters, not a common one) before anything else works. `users reset <username>` gives a lost password a new one-time password and ends that person's sessions, and `users disable <username>` closes an account at its next request. The steps with the first admin are in [First start](#first-start), and the other actions in the [research-api README](../packages/research-api/README.md#accounts).
+**Accounts.** There is no sign-up page. The person who runs the server makes each account in a terminal with `deploy/research-api.sh users add <username> --name "Their Name"` (add `--role admin` only for yourself). The command prints a random one-time password of 20 characters on standard output; give it to the person privately, never in a chat or a ticket. At the first sign-in the app forces them to choose their own password (at least 12 characters, not a common one) before anything else works. `users reset <username>` gives a lost password a new one-time password and ends that person's sessions, and `users disable <username>` refuses the account and ends its sessions. The steps with the first admin are in [First start](#first-start), and the other actions in the [research-api README](../packages/research-api/README.md#accounts).
 
 ### Backups and restore
 
@@ -666,7 +666,7 @@ To also sign in from a browser, open `http://<tailscale-address>:8091/` in a pri
 
 ## Ask by voice
 
-The Ask screen has a Speak button. You press it, say the question, and the text appears in the question box. You read it, fix it if needed and press Ask as usual. The text is never sent by itself. The answer can be read aloud too: each answer has a Read aloud button, and an answer to a spoken question is read by itself (a switch next to Speak turns that off). Qupi, the Pomeranian beside the question box, listens while you speak, thinks while the answer is written and moves its mouth while it is read.
+The Ask screen has a Speak button. You press it, say the question, and the text appears in the question box. You read it, fix it if needed and press Ask as usual. The text is never sent by itself. The answer can be read aloud too: each answer has a Read aloud button, and an answer to a spoken question is read by itself (the checkbox "Read answers after a spoken question" next to Speak turns that off). Qupi, the Pomeranian beside the question box, listens while you speak, thinks while the answer is written and moves its mouth while it is read.
 
 Speaking to the app needs the speech server. Hearing the answer needs the reading server, or nothing at all: without it the browser's own voice reads the answer. Each piece is started by a command in this section:
 
@@ -722,7 +722,7 @@ sequenceDiagram
     Note over Q: idle
 ```
 
-The text of an answer is cleaned before it is read: citations, Markdown syntax and code are dropped and each formula becomes the word "equation" (or "ecuación"). The web app cuts the text into sentences of at most about 300 characters and asks for one WAV per sentence, fetching the next while one plays; Stop cancels what is in flight. A `503` from the reading server hands the rest of the answer to the browser voice once. The language of the text is guessed (Spanish stop words or accents, else English) whatever the language of the screen, and the voice `default` is the reading server's default speaker. Qupi's state follows what the screen does: `listening`, `transcribing`, `waiting`, `thinking`, `speaking` and `idle`, with `error` and `unavailable` taking priority when they apply. Neither the audio nor the text is stored or logged by the API or the servers.
+The text of an answer is cleaned before it is read: citations, Markdown syntax and code are dropped and each formula becomes the word "equation" (or "ecuación"). The web app cuts the text into sentences of at most about 300 characters and asks for one WAV per sentence, fetching the next while one plays; Stop cancels what is in flight. A `503` from the reading server hands the rest of the answer to the browser voice once. The language of the text is guessed (Spanish stop words or accents, else English) whatever the language of the screen, and the voice `default` is the reading server's default speaker. Qupi's state follows what the screen does: `listening`, `transcribing`, `waiting`, `thinking`, `speaking` and `idle`, and `unavailable`. When several apply, the first of these wins: `error`, `speaking`, `listening`, `transcribing`, `thinking`, `waiting`, `unavailable`, `idle`. Neither the audio nor the text is stored or logged by the API or the servers.
 
 ### What it does and what it needs
 
@@ -774,7 +774,7 @@ The reading server needs one NVIDIA GPU, about 4.3 GB of it with the default mod
 uv venv --python 3.12 /path/to/tts-env
 # torch first, then the pinned requirements: see serving/README.md
 uv pip install --python /path/to/tts-env/bin/python -r serving/tts/requirements.txt
-umask 077 && python3 -c "import secrets; print(secrets.token_urlsafe(32))" > ~/.local/state/research-engine/tts.key
+umask 077 && mkdir -p ~/.local/state/research-engine && python3 -c "import secrets; print(secrets.token_urlsafe(32))" > ~/.local/state/research-engine/tts.key
 printf 'TTS_PYTHON=/path/to/tts-env/bin/python\nTTS_GPU=0\n' >> serving/env.local
 serving/serve.sh tts start           # downloads the model on the first start
 curl -s http://127.0.0.1:8005/health
@@ -852,7 +852,7 @@ Other facts:
 ### Hear the answer
 
 - Press **Read aloud** under a finished answer. Press it again (it says Stop reading) to stop. One answer reads at a time; asking another question, leaving the screen or hiding the tab stops it.
-- After a question that came from the Speak button, the answer is read by itself. The checkbox next to Speak turns this off (the choice is kept in the browser). A typed question is never read by itself, and neither is an answer already on the screen when you open the page.
+- After a question that came from the Speak button, the answer is read by itself. The checkbox "Read answers after a spoken question" next to Speak turns this off (the choice is kept in the browser). A typed question is never read by itself, and neither is an answer already on the screen when you open the page.
 - Chromium plays after the first click on the page, and Speak is a click. A browser that blocks audio until a click (Safari may) ends the automatic reading with a message; the Read aloud button, being a click, works.
 
 ### Each session and stopping
@@ -871,7 +871,7 @@ ssh -N -L 8090:<tailscale-address>:8090 <user>@<server>
 # open http://localhost:8090/ and press Speak
 
 # when you are done: stop the tunnel with Ctrl+C, then on the server
-deploy/research-api.sh stop                   # only if nobody else uses it
+deploy/research-api.sh stop                   # only if nobody else uses it; take the */5 cron line out first, see "Stopping on purpose"
 serving/serve.sh stt stop
 serving/serve.sh tts stop
 ```
@@ -923,7 +923,7 @@ curl -s http://127.0.0.1:8005/v1/audio/speech \
 | The reading stops with "could not be read" and no sound | The browser keeps audio suspended until a click (Safari). Press Read aloud. |
 | `serve.sh tts start` says no API key file, or the server exits | Make `tts.key` as in [Install the reading server](#install-the-reading-server-optional) (mode 0600), or set `TTS_API_KEY_FILE`. If the log shows a CUDA error, the wheel does not match the driver or the GPU is full: see [serving/README.md](../serving/README.md#text-to-speech-tts) and `nvidia-smi`. |
 | `serve.sh stt start` says no API key file | Make the key file as in [Install the speech server once](#install-the-speech-server-once), or set `STT_API_KEY_FILE`. |
-| `serve.sh stt start` says the server exited | Read the last log lines it prints. Usual causes: `STT_PYTHON` is not set or does not point at the environment you made, the port 8004 is taken (on a shared server, another account's speech server can answer `/health` and make yours look ready while it dies; start yours on another port: `serving/serve.sh stt start 8005`, and change `stt_endpoint`), or the machine cannot download the model. |
+| `serve.sh stt start` says the server exited | Read the last log lines it prints. Usual causes: `STT_PYTHON` is not set or does not point at the environment you made, the port 8004 is taken (on a shared server, another account's speech server can answer `/health` and make yours look ready while it dies; start yours on a free port, for example `serving/serve.sh stt start 8006` (check which ports are taken with `ss -ltn`; 8005 is the reading server's), and change `stt_endpoint`), or the machine cannot download the model. |
 
 ## Export a paper's circuits as OpenQASM 3
 
@@ -936,8 +936,8 @@ flowchart LR
     subgraph WEBAPP["Circuits screen (apps/web)"]
         LT["LaTeX or circuit/1 JSON tab"]
         PT["Paper tab"]
-        ASK["Ask screen: Open in Circuits"]
     end
+    ASK["Ask screen: Open in Circuits"]
     subgraph API["research-api"]
         PARSE["POST /circuits/parse"]
         RUNC["POST /circuits/run and /check"]
@@ -946,17 +946,18 @@ flowchart LR
         PQASM["POST /documents/id/qasm"]
     end
     SIM["quantum-sim: circuit/1 reader, simulator, to_qasm"]
-    EXP["docingest QasmExportService"]
+    EXP["docingest export: circuit_code_blocks, gate_list, export_document"]
     OUT["OpenQASM 3 programs: Copy and Download<br/>one per part, circuit-p01.qasm"]
     CLI["docingest circuits export<br/>writes qasm/ files"]
     ASK --> LT
     LT --> PARSE --> SIM
     LT --> RUNC --> SIM
     LT --> QASM --> SIM --> OUT
+    QASM --> EXP
     PT --> LIST --> EXP
     PT --> PQASM --> EXP --> SIM
-    EXP -->|"same bytes"| OUT
-    CLI --> EXP
+    EXP --> OUT
+    CLI --> SVC["QasmExportService"] -->|"same bytes"| EXP
 ```
 
 From the package folder, with the configuration from step 4:

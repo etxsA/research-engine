@@ -226,7 +226,7 @@ The defaults need two GPUs with 48 GB each: one for the answering model, one for
 | `rerank` | 21,608 at `RERANK_GPU_MEM=0.45` | 16 GB | |
 
 - **One GPU for the pair.** The embedder and the reranker together used 43,017 to 43,019 MiB (two runs) and 44,635 MiB in a later run. The answering model does not fit next to them on a 48 GB GPU. The GPU 1 figures (embed, rerank, pair) include about 650 MiB that another process held; it was not subtracted.
-- **Reading aloud.** The `tts` role needs one more GPU slot: the default model holds about 3.3 GB once ready (4.3 GB in the benchmark below) on the GPU of `TTS_GPU` (default 0), which is a different GPU from the answering model's in the defaults. It is optional: without it the web app reads answers with the browser's voice.
+- **Reading aloud.** The `tts` role needs one more GPU slot: the default model holds about 3.3 GB once ready (4.3 GB in the benchmark above) on the GPU of `TTS_GPU` (default 0), which is a different GPU from the answering model's in the defaults. It is optional: without it the web app reads answers with the browser's voice.
 - **Smaller GPUs.** Lower the `*_GPU_MEM` fractions or pick a smaller model from `models.tsv`. No other size was measured.
 - **Disk.** The three models are about 44 GB. The vLLM environment ([below](#install-vllm)) is about 11 GB and the compile caches about 235 MB. uv keeps its own cache of the downloaded wheels; after the workspace and two vLLM installs it held about 21 GB (uv hard-links from it when it is on the same disk). Where each of these goes by default and how to move it is under [Configuration](#configuration).
 - **Software.** Linux with an NVIDIA driver and `nvidia-smi`, and a vLLM environment with Python 3.12.
