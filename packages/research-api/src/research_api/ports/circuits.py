@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -28,6 +28,15 @@ class LatexBlock:
 
     source: str
     reading: GateListReading
+
+
+@dataclass(frozen=True)
+class CircuitQasm:
+    """The export of circuit ``circuit`` (from 1) of fenced ``latex`` block ``block`` (from 1)."""
+
+    block: int
+    circuit: int
+    export: QasmExport
 
 
 class CircuitEngine(Protocol):
@@ -84,4 +93,21 @@ class CircuitEngine(Protocol):
         """The OpenQASM 3 export of a ``circuit/1`` document. ``origin`` is the source line of
         the header (none when empty) and ``tool`` the generated-by name. A circuit the emitter
         refuses comes back with status ``refused`` and its reasons, never as an error."""
+        ...
+
+    async def qasm_blocks(
+        self,
+        markdown: str,
+        *,
+        values: Mapping[str, Any] | None = None,
+        origin: Callable[[int, int], str],
+        tool: str,
+        admit: Callable[[Sequence[object]], None],
+    ) -> tuple[CircuitQasm, ...]:
+        """Export every circuit of the fenced ``latex`` blocks of a Markdown text, as one job:
+        one slot and one time limit for the whole text. The blocks are read as ``blocks`` reads
+        them; ``admit`` gets every circuit document first and raises to refuse the whole job
+        before any circuit is exported; then each circuit is exported as ``qasm`` exports it,
+        with the source line ``origin(block, circuit)``. A job over the time limit is an
+        ``InvalidInputError`` that points to ``docingest circuits export --doc``."""
         ...

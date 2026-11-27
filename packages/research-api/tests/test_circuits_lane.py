@@ -237,6 +237,61 @@ def test_text_with_no_latex_fence_has_no_blocks() -> None:
     assert asyncio.run(CircuitsAdapter(timeout_s=30).blocks("plain text $x$")) == ()
 
 
+RY_THETA = one_gate(r"R_y(\theta)")
+TWO_BLOCKS = (
+    f"```latex\n{BELL_LATEX}\n```\n\n```latex\nno circuit\n```\n\n"
+    f"````latex\n{RY_THETA}\n{one_gate('X')}\n````\n"
+)
+
+
+def test_the_circuits_of_a_text_are_exported_in_one_job_as_blocks_and_qasm_export_them() -> None:
+    adapter = CircuitsAdapter(timeout_s=30)
+    admitted: list[list[object]] = []
+    done = asyncio.run(
+        adapter.qasm_blocks(
+            TWO_BLOCKS,
+            values={"theta": "pi/4"},
+            origin=lambda b, c: f"p.tex, block {b}, circuit {c}",
+            tool="docingest",
+            admit=lambda documents: admitted.append(list(documents)),
+        )
+    )
+    blocks = asyncio.run(adapter.blocks(TWO_BLOCKS))
+    documents = [
+        (b, c, d) for b, k in enumerate(blocks, 1) for c, d in enumerate(k.reading.circuits, 1)
+    ]
+    assert admitted == [[d for _, _, d in documents]]
+    assert [(x.block, x.circuit) for x in done] == [(1, 1), (3, 1), (3, 2)]
+    for (b, c, document), ours in zip(documents, done, strict=True):
+        alone = asyncio.run(
+            adapter.qasm(
+                document,
+                values={"theta": "pi/4"},
+                origin=f"p.tex, block {b}, circuit {c}",
+                tool="docingest",
+            )
+        )
+        assert ours.export == alone
+
+
+def test_a_job_its_admission_refuses_exports_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
+    exported: list[object] = []
+    monkeypatch.setattr(
+        "research_api.adapters.circuits.to_qasm", lambda *a, **k: exported.append(a)
+    )
+
+    def refuse(documents: Any) -> None:
+        raise InvalidInputError("too many")
+
+    with pytest.raises(InvalidInputError, match="too many"):
+        asyncio.run(
+            CircuitsAdapter(timeout_s=30).qasm_blocks(
+                TWO_BLOCKS, origin=lambda b, c: "", tool="x", admit=refuse
+            )
+        )
+    assert exported == []
+
+
 @pytest.mark.parametrize("values", [None, {}, {"theta": "pi/4", "phi": 0.5, "psi": 2}])
 def test_values_the_export_can_use_pass(values: dict[str, Any] | None) -> None:
     asyncio.run(CircuitsAdapter(timeout_s=30).check_values(values))
@@ -284,6 +339,10 @@ def blocking(release: threading.Event) -> Any:
 EXPORT_CALLS = {
     "qasm": ("to_qasm", lambda a: a.qasm({}, tool="x")),
     "blocks": ("circuit_code_blocks", lambda a: a.blocks("text")),
+    "qasm_blocks": (
+        "circuit_code_blocks",
+        lambda a: a.qasm_blocks("text", origin=lambda b, c: "", tool="x", admit=lambda d: None),
+    ),
 }
 
 
@@ -297,8 +356,10 @@ def test_the_lane_bounds_the_export_calls_and_their_time(
     adapter = CircuitsAdapter(timeout_s=0.2, max_busy=1)
 
     async def scenario() -> None:
-        with pytest.raises(InvalidInputError, match=r"longer than 0\.2 s"):
+        with pytest.raises(InvalidInputError, match=r"longer than 0\.2 s") as slow:
             await start(adapter)
+        hint = "docingest circuits export --doc" if call == "qasm_blocks" else "quantum-sim"
+        assert hint in slow.value.detail
         with pytest.raises(UnavailableError):  # the slow thread still holds the only slot
             await adapter.parse("x")
 

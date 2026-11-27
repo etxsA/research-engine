@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 from collections.abc import Callable, Iterator
 from typing import Any
 
@@ -10,6 +11,7 @@ from fastapi.testclient import TestClient
 from helpers import BELL, SEED_FILE, sign_in_as_member
 from quantum_sim.qasm import to_qasm
 
+from research_api.adapters.circuits import ComputeLane
 from research_api.adapters.fake import FakeDocumentReader
 from research_api.adapters.fake.corpus import PAPERS, TELEPORT, TRANSMON, FakePage, FakePaper
 from research_api.bootstrap import Settings, build_container
@@ -1006,6 +1008,43 @@ def test_a_paper_export_body_over_the_cap_is_a_413(client_for: ClientFor) -> Non
     client = client_over(client_for, CIRCUIT_PAPER, max_body_bytes=50)
     response = client.post(paper_url(CIRCUIT_PAPER, "qasm"), json={"values": {"t" * 60: 1}})
     assert response.status_code == 413
+
+
+def test_a_paper_export_takes_exactly_one_lane_slot(
+    client_for: ClientFor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    taken: list[str] = []
+    run = ComputeLane.run
+
+    async def counted(self: ComputeLane, work: Any, **kwargs: Any) -> Any:
+        taken.append("slot")
+        return await run(self, work, **kwargs)
+
+    monkeypatch.setattr(ComputeLane, "run", counted)
+    client = client_over(client_for, CIRCUIT_PAPER)
+    response = client.post(paper_url(CIRCUIT_PAPER, "qasm"), json={"values": {"theta": 1}})
+    assert response.status_code == 200
+    assert [c["status"] for c in response.json()["circuits"]] == ["ok", "ok"]
+    assert taken == ["slot"]
+
+
+def test_a_slow_paper_times_out_as_a_whole_and_points_to_the_docingest_command(
+    client_for: ClientFor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # each circuit alone is within the time limit; the two together are not
+    def slow(*args: Any, **kwargs: Any) -> Any:
+        time.sleep(0.3)
+        return to_qasm(*args, **kwargs)
+
+    monkeypatch.setattr("research_api.adapters.circuits.to_qasm", slow)
+    client = client_over(client_for, CIRCUIT_PAPER, timeout_s=0.5)
+    response = client.post(paper_url(CIRCUIT_PAPER, "qasm"), json={"values": {"theta": 1}})
+    assert response.status_code == 422
+    assert response.json()["detail"] == (
+        "The work took longer than 0.5 s, so this request was released. "
+        "Use `docingest circuits export --doc` on the command line for a paper this size."
+    )
+    time.sleep(0.3)  # the job's thread ends on its own and gives its slot back
 
 
 def test_the_contract_types_the_export_answers() -> None:

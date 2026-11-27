@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import threading
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -25,7 +25,7 @@ from research_api.domain.errors import (
     InvalidInputError,
     NotFoundError,
 )
-from research_api.ports.circuits import GateListReading, LatexBlock
+from research_api.ports.circuits import CircuitQasm, GateListReading, LatexBlock
 
 DOC_ID = "0123456789abcdef" + "a" * 48
 NAME = "paper.tex"
@@ -75,6 +75,33 @@ class ScriptedEngine:
         tool: str,
     ) -> QasmExport:
         self.calls.append(("qasm", document, values, origin, tool))
+        return self._answer(document)
+
+    async def qasm_blocks(
+        self,
+        markdown: str,
+        *,
+        values: Mapping[str, Any] | None = None,
+        origin: Callable[[int, int], str],
+        tool: str,
+        admit: Callable[[Sequence[object]], None],
+    ) -> tuple[CircuitQasm, ...]:
+        """One call, as the adapter's one lane job: the circuits of ``found``, admitted before
+        any is exported; each export is recorded as a ``qasm`` call would be."""
+        self.calls.append(("qasm_blocks", markdown))
+        found = [
+            (b, c, document)
+            for b, block in enumerate(self.found, 1)
+            for c, document in enumerate(block.reading.circuits, 1)
+        ]
+        admit([document for _, _, document in found])
+        done = []
+        for b, c, document in found:
+            self.calls.append(("qasm", document, values, origin(b, c), tool))
+            done.append(CircuitQasm(b, c, self._answer(document)))
+        return tuple(done)
+
+    def _answer(self, document: object) -> QasmExport:
         assert isinstance(document, dict)
         return self.answers[document["parts"][0][0][0]["label"]]
 
@@ -190,7 +217,11 @@ async def test_a_paper_is_exported_circuit_by_circuit_as_docingest_numbers_them(
     reader = ScriptedReader("the whole text")
     done = await exporter(engine, reader)(DOC_ID[:16], values={"theta": "1"})
     assert reader.asked == [DOC_ID[:16]]
-    assert engine.named("blocks") == [("blocks", "the whole text")]
+    assert [call[0] for call in engine.calls if call[0] != "qasm"] == [
+        "check_values",
+        "qasm_blocks",
+    ]
+    assert engine.named("qasm_blocks") == [("qasm_blocks", "the whole text")]
     assert [(c[2], c[3], c[4]) for c in engine.named("qasm")] == [
         ({"theta": "1"}, "paper.tex, block 1, circuit 1", "docingest"),
         ({"theta": "1"}, "paper.tex, block 3, circuit 1", "docingest"),

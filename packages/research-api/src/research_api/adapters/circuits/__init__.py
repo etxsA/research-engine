@@ -4,6 +4,9 @@ The OpenQASM 3 export calls ``quantum_sim.qasm.to_qasm`` on the ``circuit/1`` do
 docingest's exporter does, and finds a paper's circuits as docingest's export finds them: the
 fenced ``latex`` blocks of the whole text (``circuit_code_blocks``), each read with
 ``gate_list``. So the programs of a paper are the bytes ``docingest circuits export`` writes.
+A paper is one lane job (``qasm_blocks``): its blocks are read, its operations checked and
+every circuit exported in one slot and under one time limit, so a busy lane refuses it before
+any work and never in the middle.
 
 ``unbound`` follows docingest's exporter (``docingest.adapters.qasm``) rule for rule: it names
 the symbols of a refused circuit that have no value, as binding keys (``theta_{12}`` for the
@@ -24,7 +27,7 @@ from __future__ import annotations
 
 import asyncio
 import math
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 from docingest.domain.circuits import circuit_code_blocks, gate_list
@@ -33,9 +36,9 @@ from quantum_sim.angles import symbol_name
 from quantum_sim.entrypoints import conventions
 from quantum_sim.qasm import to_qasm, validate_bindings
 
-from ...domain.circuits import QasmExport, QasmProgram, values_pointer
+from ...domain.circuits import USE_DOCINGEST, QasmExport, QasmProgram, values_pointer
 from ...domain.errors import FieldError, InvalidInputError
-from ...ports.circuits import GateListReading, LatexBlock
+from ...ports.circuits import CircuitQasm, GateListReading, LatexBlock
 from .lane import ComputeLane
 
 __all__ = ["CircuitsAdapter", "ComputeLane"]
@@ -97,6 +100,20 @@ class CircuitsAdapter:
     ) -> QasmExport:
         return await self._lane.run(lambda: _qasm(document, values, origin=origin, tool=tool))
 
+    async def qasm_blocks(
+        self,
+        markdown: str,
+        *,
+        values: Mapping[str, Any] | None = None,
+        origin: Callable[[int, int], str],
+        tool: str,
+        admit: Callable[[Sequence[object]], None],
+    ) -> tuple[CircuitQasm, ...]:
+        return await self._lane.run(
+            lambda: _qasm_blocks(markdown, values, origin=origin, tool=tool, admit=admit),
+            hint=USE_DOCINGEST,
+        )
+
 
 def _parse(latex: str) -> GateListReading:
     found = gate_list(latex)
@@ -111,6 +128,26 @@ def _blocks(markdown: str) -> tuple[LatexBlock, ...]:
     return tuple(
         LatexBlock(source=block.source, reading=_parse(block.source))
         for block in circuit_code_blocks(markdown)
+    )
+
+
+def _qasm_blocks(
+    markdown: str,
+    values: Mapping[str, Any] | None,
+    *,
+    origin: Callable[[int, int], str],
+    tool: str,
+    admit: Callable[[Sequence[object]], None],
+) -> tuple[CircuitQasm, ...]:
+    found = [
+        (block_no, circuit_no, document)
+        for block_no, block in enumerate(_blocks(markdown), 1)
+        for circuit_no, document in enumerate(block.reading.circuits, 1)
+    ]
+    admit([document for _, _, document in found])
+    return tuple(
+        CircuitQasm(b, c, _qasm(document, values, origin=origin(b, c), tool=tool))
+        for b, c, document in found
     )
 
 

@@ -184,9 +184,11 @@ class ListPaperCircuits:
 class ExportPaperQasm:
     """Export every circuit of one paper, read only: the programs come back, nothing is written.
 
-    The circuits of the paper share one operation budget. Each circuit is exported with the
-    source line and the generated-by name docingest writes, so each program is the file
-    ``docingest circuits export --doc`` would write.
+    The values are checked first, then the paper is read. Its circuits are exported in one
+    engine job, with one time limit: the circuits share one operation budget, checked before any
+    of them is exported. Each circuit is exported with the source line and the generated-by
+    name docingest writes, so each program is the file ``docingest circuits export --doc`` would
+    write.
     """
 
     def __init__(self, *, engine: CircuitEngine, reader: DocumentReader, caps: CircuitCaps) -> None:
@@ -197,25 +199,23 @@ class ExportPaperQasm:
     async def __call__(self, doc_id: str, *, values: Mapping[str, Any] | None = None) -> PaperQasm:
         await self._engine.check_values(values)
         paper = await _paper_text(self._reader, doc_id)
-        blocks = await self._engine.blocks(paper.markdown)
-        found = [
-            (block_no, circuit_no, document)
-            for block_no, block in enumerate(blocks, 1)
-            for circuit_no, document in enumerate(block.reading.circuits, 1)
-        ]
-        ensure_paper_within_caps([document for _, _, document in found], self._caps)
         name = paper.source_name
+        caps = self._caps
+        found = await self._engine.qasm_blocks(
+            paper.markdown,
+            values=values,
+            origin=lambda block, circuit: paper_origin(name, block, circuit),
+            tool=PAPER_TOOL,
+            admit=lambda documents: ensure_paper_within_caps(documents, caps),
+        )
         keys = set(values or {})
         warnings: list[str] = []
         circuits: list[PaperCircuitQasm] = []
-        for block_no, circuit_no, document in found:
-            origin = paper_origin(name, block_no, circuit_no)
-            export = await self._engine.qasm(
-                document, values=values, origin=origin, tool=PAPER_TOOL
-            )
-            keys &= set(export.unmatched)
-            warnings.extend(f"{origin}: {note}" for note in export.notes)
-            circuits.append(_paper_circuit(paper.doc_id, block_no, circuit_no, export))
+        for done in found:
+            origin = paper_origin(name, done.block, done.circuit)
+            keys &= set(done.export.unmatched)
+            warnings.extend(f"{origin}: {note}" for note in done.export.notes)
+            circuits.append(_paper_circuit(paper.doc_id, done.block, done.circuit, done.export))
         if not found:
             warnings.append(f"{name}: no circuits found")
         warnings.extend(
