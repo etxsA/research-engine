@@ -248,6 +248,17 @@ describe("the Paper tab", () => {
 });
 
 describe("the ?doc= link", () => {
+  it("is dropped from the address when a block is read in the LaTeX tab", async () => {
+    const user = userEvent.setup();
+    const app = renderApp(`/circuits?doc=${TELEPORTATION}`);
+    await screen.findByTestId("paper-blocks");
+    expect(app.router.state.location.search).toBe(`?doc=${TELEPORTATION}`);
+    await user.click(screen.getByRole("button", { name: "Read this block: block 2" }));
+    expect(screen.getByRole("tab", { name: "LaTeX", selected: true })).toBeInTheDocument();
+    expect(app.router.state.location.search).toBe("");
+    await screen.findByText("Read in full");
+  });
+
   it("opens the Paper tab on that paper", async () => {
     const sent = await requestsDuring(async () => {
       await openPage(`/circuits?doc=${TELEPORTATION}`);
