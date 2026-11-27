@@ -3,12 +3,13 @@
     POST /v1/audio/speech   Bearer key; JSON {"model": "local-tts", "input": str, "voice": str,
                             "response_format": "wav", "language": "es" | "en" | null}
                             -> audio/wav (mono, 16-bit PCM, at the sample rate of the model)
-    GET  /v1/models         Bearer key; the served model name
+    GET  /v1/models         Bearer key; the served model name, its voices and its default voice
     GET  /health            no key; 200 {"ok": true} once the model is loaded, 503 while it loads
 
 The model is loaded once, in the background, so the port answers (503) during the load. Requests
 are sentence-sized and run one at a time. Text and audio stay in memory and are never logged.
-Settings come from the environment (see serving/serve.sh and env.example).
+Settings come from the environment (see serving/serve.sh and env.example). The voice name "default"
+means the server's default voice (TTS_DEFAULT_VOICE): a client need not know the speakers.
 """
 
 from __future__ import annotations
@@ -36,12 +37,15 @@ MAX_CHARS = 500  # a sentence: above it the token cap below would cut the speech
 MAX_NEW_TOKENS = (
     1024  # the 12 Hz codec makes about 12 tokens per second: a cap of about 85 s of audio
 )
+DEFAULT_VOICE_NAME = "default"  # what a client sends to get the server's default voice
+PRESET_DEFAULT_VOICE = "vivian"  # default speaker of the CustomVoice models
 _LANGUAGE_NAMES = {"es": "Spanish", "en": "English", None: "Auto"}
 
 
 class Engine(Protocol):
     sample_rate: int
     voices: tuple[str, ...]
+    default_voice: str  # one of voices: what the voice name "default" stands for
 
     def synthesize(self, text: str, voice: str, language: str | None) -> np.ndarray:
         """Mono float32 samples in [-1, 1] at sample_rate; voice is one of voices."""
@@ -66,6 +70,19 @@ def read_key(path: str) -> str:
     if not key:
         raise SystemExit(f"{path} is empty")
     return key
+
+
+def pick_default_voice(voices: tuple[str, ...], wanted: str | None, fallback: str) -> str:
+    """The voice that "default" stands for: wanted (TTS_DEFAULT_VOICE) or else fallback, which must
+    be one of voices (compared without case); refuses to load with a message listing the choices."""
+    name = wanted or fallback
+    found = {v.lower(): v for v in voices}.get(name.lower())
+    if found is None:
+        origin = "TTS_DEFAULT_VOICE" if wanted else "the built-in default voice"
+        raise SystemExit(
+            f"{origin} {name!r} is not a voice of this model (voices: {', '.join(voices)})"
+        )
+    return found
 
 
 def encode_wav(samples: np.ndarray, sample_rate: int) -> bytes:
@@ -135,9 +152,18 @@ def create_app(
     @app.get("/v1/models", dependencies=[Depends(check_key)])
     async def models() -> dict:
         voices = list(state["engine"].voices) if state["engine"] is not None else []  # type: ignore[union-attr]
+        default = state["engine"].default_voice if state["engine"] is not None else None  # type: ignore[union-attr]
         return {
             "object": "list",
-            "data": [{"id": SERVED_NAME, "object": "model", "voices": voices}],
+            "data": [
+                {
+                    "id": SERVED_NAME,
+                    "object": "model",
+                    "voices": voices,
+                    "default_voice": default,
+                    "aliases": {DEFAULT_VOICE_NAME: default},
+                }
+            ],
         }
 
     @app.post("/v1/audio/speech", dependencies=[Depends(check_key)])
@@ -148,7 +174,10 @@ def create_app(
         text = body.input.strip()
         if not text:
             raise HTTPException(422, "input is empty")
-        voice = {v.lower(): v for v in current.voices}.get(body.voice.lower())
+        known = {v.lower(): v for v in current.voices}
+        voice = known.get(body.voice.lower())
+        if voice is None and body.voice.lower() == DEFAULT_VOICE_NAME:
+            voice = current.default_voice
         if voice is None:
             raise HTTPException(400, "unknown voice, see GET /v1/models")
         samples = await anyio.to_thread.run_sync(
@@ -166,8 +195,14 @@ def create_app(
 class QwenEngine:
     """Qwen3-TTS behind one call: generate(text, voice, language name) -> (waves, sample rate)."""
 
-    def __init__(self, voices: tuple[str, ...], generate: Callable[[str, str, str], tuple]):
+    def __init__(
+        self,
+        voices: tuple[str, ...],
+        generate: Callable[[str, str, str], tuple],
+        default_voice: str | None = None,
+    ):
         self.voices = voices
+        self.default_voice = default_voice or voices[0]
         self.sample_rate = 24_000
         self._generate = generate
 
@@ -198,6 +233,9 @@ def _clone_clips(folder: str) -> dict[str, tuple[str, str]]:
 
 def build_engine(env: Callable[[str, str | None], str | None] = os.environ.get) -> Engine:
     """Load the pinned model on the GPU that CUDA_VISIBLE_DEVICES leaves visible.
+
+    TTS_DEFAULT_VOICE names the voice that "default" stands for (vivian for a CustomVoice model, the
+    first clip of TTS_VOICES_DIR for a Base model).
 
     TTS_BACKEND=faster (default) runs the talker and the code predictor as CUDA graphs
     (faster-qwen3-tts); TTS_BACKEND=qwen runs the plain qwen-tts loop, about six times slower.
@@ -234,6 +272,9 @@ def build_engine(env: Callable[[str, str | None], str | None] = os.environ.get) 
         raise SystemExit(f"model type {kind} is not served (use a CustomVoice or Base model)")
     if kind == "custom_voice":
         speakers = tuple(wrapper.get_supported_speakers() or ())
+        default_voice = pick_default_voice(
+            speakers, env("TTS_DEFAULT_VOICE", None), PRESET_DEFAULT_VOICE
+        )
         target = fast or wrapper
 
         def preset(text: str, voice: str, language: str) -> tuple:
@@ -241,7 +282,7 @@ def build_engine(env: Callable[[str, str | None], str | None] = os.environ.get) 
                 text=text, speaker=voice, language=language, max_new_tokens=token_cap(text)
             )
 
-        return QwenEngine(speakers, preset)
+        return QwenEngine(speakers, preset, default_voice)
 
     # A Base model speaks in cloned voices: a folder of NAME.wav clips, each with a NAME.txt text.
     clips = _clone_clips(need("TTS_VOICES_DIR"))
@@ -271,7 +312,10 @@ def build_engine(env: Callable[[str, str | None], str | None] = os.environ.get) 
                 max_new_tokens=token_cap(text),
             )
 
-    return QwenEngine(tuple(clips), clone)
+    default_voice = pick_default_voice(
+        tuple(clips), env("TTS_DEFAULT_VOICE", None), next(iter(clips))
+    )
+    return QwenEngine(tuple(clips), clone, default_voice)
 
 
 def create_app_from_env() -> FastAPI:

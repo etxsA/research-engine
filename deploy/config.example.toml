@@ -101,7 +101,8 @@ login_window_minutes = 15
 #   tts_api_key_file path of a file that holds only the key, mode 0600, outside the repository
 #                    (by default $SERVING_STATE_DIR/tts.key, the file the reading server reads).
 #   tts_voice_es     the voice for Spanish text (default "default").
-#   tts_voice_en     the voice for English text (default "default").
+#   tts_voice_en     the voice for English text (default "default"). "default" means the reading
+#                    server's default voice (vivian unless TTS_DEFAULT_VOICE says otherwise).
 #   max_tts_chars    most characters per request after cleanup, 1 to 2000 (default 400).
 #   tts_timeout_s    wait for one sentence, in seconds (default 30).
 # tts_endpoint = "http://127.0.0.1:8005/v1"

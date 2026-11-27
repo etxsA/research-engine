@@ -126,6 +126,12 @@ supported by every model.
 | `qwen3-tts-0.6b-base` | `Qwen/Qwen3-TTS-12Hz-0.6B-Base` | Apache-2.0 | clones a voice from a clip of a few seconds: the voices are the `NAME.wav` + `NAME.txt` pairs of `TTS_VOICES_DIR` |
 | `qwen3-tts-1.7b-voicedesign` | `Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign` | Apache-2.0 | designs a voice from a text description; used to make a reference clip; the server refuses to load it |
 
+**The default voice.** A client may ask for the voice `default` (the research API does, unless
+`tts_voice_es` and `tts_voice_en` name a speaker). The server maps it to `TTS_DEFAULT_VOICE`: `vivian` for the
+CustomVoice models, and for the Base model the first clone in `TTS_VOICES_DIR` by name. A name that is not a voice
+of the loaded model stops the load with a message that lists the voices. `GET /v1/models` shows the voices, the
+`default_voice` and the alias. Any other unknown voice is still a 400.
+
 The preset speakers are Chinese or English natives; they all speak Spanish. A designed voice is cloned to keep it
 stable: VoiceDesign speaks one reference sentence, and the Base model clones that clip, so every sentence has the
 same voice (a new design draw per sentence changes the voice from clip to clip).
