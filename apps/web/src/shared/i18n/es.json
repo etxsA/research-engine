@@ -1043,6 +1043,15 @@
       "submit": "Comprobar",
       "checking": "Comprobando"
     },
+    "export": {
+      "live": "Exportación terminada. Programas: {{programs}}."
+    },
+    "paper": {
+      "live": {
+        "circuits": "Bloques de circuitos del artículo: {{blocks}}.",
+        "export": "Exportación del artículo terminada. Programas: {{programs}}. Circuitos rechazados: {{refused}}."
+      }
+    },
     "result": {
       "runTitle": "Simulación",
       "checkTitle": "Comprobación",
@@ -1181,6 +1190,10 @@
       "secondMany": {
         "title": "Hay más de un circuito en el segundo texto",
         "detail": "El segundo texto tiene {{count}} circuitos. Deja uno."
+      },
+      "noPaper": {
+        "title": "No se eligió ningún artículo",
+        "detail": "Elige primero un artículo."
       },
       "network": {
         "title": "No se pudo contactar al servidor",

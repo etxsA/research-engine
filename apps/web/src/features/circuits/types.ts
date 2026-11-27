@@ -4,6 +4,10 @@
  * the screen types them here and reads every answer through the functions below. An answer that
  * does not have the shape is a `MalformedAnswerError` shown as a problem, never a crash in a
  * component. `fixtures/captured.json` holds real answers; a test reads each of them.
+ *
+ * The OpenQASM 3 export's answers are typed by the API, and read here the same way: a program's
+ * file name becomes the name of a download, so it must be a plain `.qasm` name, and its text is
+ * kept byte for byte (it is what `docingest circuits export` writes for a paper).
  */
 
 /** A complex number as quantum-sim writes it: `[re, im]`. */
@@ -93,6 +97,68 @@ export interface Conventions {
   conventions: Record<string, string>;
   gates: GateInfo[];
   limits: Record<string, number>;
+}
+
+export type QasmStatus = "ok" | "refused";
+
+/** One OpenQASM 3 program: a part of a drawn circuit (from 1) and the file it is saved as. */
+export interface QasmProgram {
+  filename: string;
+  part: number;
+  /** The sign drawn before this part (`=`); null for the first part. */
+  sign: string | null;
+  text: string;
+  nQubits: number;
+  nClbits: number;
+}
+
+/** What `/circuits/qasm` made of one pasted circuit. A refused circuit has no programs. */
+export interface QasmExport {
+  status: QasmStatus;
+  programs: QasmProgram[];
+  reasons: string[];
+  notes: string[];
+  /** The free parameters, by the reader's name (`theta_12`). */
+  symbols: string[];
+  /** The keys of the values, as sent, that name no symbol. */
+  unmatched: string[];
+  /** For a circuit refused only for missing values: the symbols, as keys (`theta_{12}`). */
+  unbound: string[];
+}
+
+/** One fenced `latex` block of a paper, numbered from 1 as docingest's export numbers it. */
+export interface PaperBlock {
+  block: number;
+  latex: string;
+  status: ReadingStatus;
+  circuits: CircuitDocument[];
+  raw: Record<string, unknown>[];
+}
+
+/** The answer of `GET /documents/{doc_id}/circuits`. */
+export interface PaperCircuits {
+  docId: string;
+  sourceName: string;
+  blocks: PaperBlock[];
+}
+
+/** The export of circuit `circuit` (from 1) of block `block` of a paper. */
+export interface PaperCircuitExport {
+  block: number;
+  circuit: number;
+  status: QasmStatus;
+  programs: QasmProgram[];
+  reasons: string[];
+  notes: string[];
+  unbound: string[];
+}
+
+/** The answer of `POST /documents/{doc_id}/qasm`: every circuit of the paper, refused ones too. */
+export interface PaperExport {
+  docId: string;
+  sourceName: string;
+  circuits: PaperCircuitExport[];
+  warnings: string[];
 }
 
 export class MalformedAnswerError extends Error {
@@ -336,5 +402,134 @@ export function readConventions(value: unknown): Conventions {
     conventions,
     gates,
     limits,
+  };
+}
+
+// A file name the browser saves as given: `circuit-p01.qasm`, `<id16>-b01-c01-p01.qasm`.
+const QASM_FILENAME = /^[A-Za-z0-9][A-Za-z0-9._-]*\.qasm$/;
+
+function isCount(value: unknown): value is number {
+  return isNumber(value) && Number.isInteger(value) && value >= 0;
+}
+
+function readProgram(value: unknown): QasmProgram | null {
+  if (
+    !isRecord(value) ||
+    typeof value.filename !== "string" ||
+    !QASM_FILENAME.test(value.filename) ||
+    !isCount(value.part) ||
+    (value.sign !== null && typeof value.sign !== "string") ||
+    typeof value.text !== "string" ||
+    !isCount(value.n_qubits) ||
+    !isCount(value.n_clbits)
+  ) {
+    return null;
+  }
+  return {
+    filename: value.filename,
+    part: value.part,
+    sign: value.sign,
+    text: value.text,
+    nQubits: value.n_qubits,
+    nClbits: value.n_clbits,
+  };
+}
+
+type ExportFields = Pick<QasmExport, "status" | "programs" | "reasons" | "notes" | "unbound">;
+
+/** The fields an export of one circuit has, pasted or from a paper. */
+function readExportFields(value: Record_): ExportFields | null {
+  if (value.status !== "ok" && value.status !== "refused") return null;
+  if (!Array.isArray(value.programs)) return null;
+  const programs = (value.programs as unknown[]).map(readProgram);
+  const reasons = strings(value.reasons);
+  const notes = strings(value.notes);
+  const unbound = strings(value.unbound);
+  if (programs.some((program) => program === null) || !reasons || !notes || !unbound) return null;
+  return {
+    status: value.status,
+    programs: programs as QasmProgram[],
+    reasons,
+    notes,
+    unbound,
+  };
+}
+
+export function readQasmExport(value: unknown): QasmExport {
+  const fail = () => new MalformedAnswerError("circuit export");
+  if (!isRecord(value)) throw fail();
+  const fields = readExportFields(value);
+  const symbols = strings(value.symbols);
+  const unmatched = strings(value.unmatched);
+  if (!fields || !symbols || !unmatched) throw fail();
+  return { ...fields, symbols, unmatched };
+}
+
+function readBlock(value: unknown): PaperBlock | null {
+  if (
+    !isRecord(value) ||
+    !isCount(value.block) ||
+    typeof value.latex !== "string" ||
+    !["parsed", "partial", "unparsed"].includes(value.status as string) ||
+    !Array.isArray(value.circuits)
+  ) {
+    return null;
+  }
+  const circuits: CircuitDocument[] = [];
+  const raw: Record<string, unknown>[] = [];
+  for (const circuit of value.circuits as unknown[]) {
+    const document = readCircuitDocument(circuit);
+    if (!document || !isRecord(circuit)) return null;
+    circuits.push(document);
+    raw.push(circuit);
+  }
+  return {
+    block: value.block,
+    latex: value.latex,
+    status: value.status as ReadingStatus,
+    circuits,
+    raw,
+  };
+}
+
+export function readPaperCircuits(value: unknown): PaperCircuits {
+  const fail = () => new MalformedAnswerError("list of a paper's circuits");
+  if (
+    !isRecord(value) ||
+    typeof value.doc_id !== "string" ||
+    typeof value.source_name !== "string" ||
+    !Array.isArray(value.blocks)
+  ) {
+    throw fail();
+  }
+  const blocks = (value.blocks as unknown[]).map(readBlock);
+  if (blocks.some((block) => block === null)) throw fail();
+  return { docId: value.doc_id, sourceName: value.source_name, blocks: blocks as PaperBlock[] };
+}
+
+function readPaperCircuit(value: unknown): PaperCircuitExport | null {
+  if (!isRecord(value) || !isCount(value.block) || !isCount(value.circuit)) return null;
+  const fields = readExportFields(value);
+  return fields ? { block: value.block, circuit: value.circuit, ...fields } : null;
+}
+
+export function readPaperExport(value: unknown): PaperExport {
+  const fail = () => new MalformedAnswerError("paper export");
+  if (
+    !isRecord(value) ||
+    typeof value.doc_id !== "string" ||
+    typeof value.source_name !== "string" ||
+    !Array.isArray(value.circuits)
+  ) {
+    throw fail();
+  }
+  const circuits = (value.circuits as unknown[]).map(readPaperCircuit);
+  const warnings = strings(value.warnings);
+  if (circuits.some((circuit) => circuit === null) || !warnings) throw fail();
+  return {
+    docId: value.doc_id,
+    sourceName: value.source_name,
+    circuits: circuits as PaperCircuitExport[],
+    warnings,
   };
 }

@@ -1043,6 +1043,15 @@
       "submit": "Check",
       "checking": "Checking"
     },
+    "export": {
+      "live": "Export finished. Programs: {{programs}}."
+    },
+    "paper": {
+      "live": {
+        "circuits": "Circuit blocks of the paper: {{blocks}}.",
+        "export": "Export of the paper finished. Programs: {{programs}}. Refused circuits: {{refused}}."
+      }
+    },
     "result": {
       "runTitle": "Simulation",
       "checkTitle": "Check",
@@ -1181,6 +1190,10 @@
       "secondMany": {
         "title": "More than one circuit in the second text",
         "detail": "The second text holds {{count}} circuits. Keep one."
+      },
+      "noPaper": {
+        "title": "No paper chosen",
+        "detail": "Choose a paper first."
       },
       "network": {
         "title": "The server could not be reached",

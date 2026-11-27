@@ -483,7 +483,7 @@ test.describe("C7: the bridge sources", () => {
 test.describe("the recorded answers", () => {
   for (const entry of recorded) {
     test(`still match the API: ${entry.name}`, async ({ api }) => {
-      const url = `/api/v1/circuits/${entry.path}`;
+      const url = `/api/v1${entry.path}`;
       const answer =
         entry.request === null
           ? await api.get(url)

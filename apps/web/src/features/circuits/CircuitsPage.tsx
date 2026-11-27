@@ -14,8 +14,11 @@ import { RunPanel } from "./RunPanel";
 
 export function CircuitsPage() {
   const { t } = useTranslation();
-  const { parse, run, check } = useCircuitCalls();
-  const flows = useMemo(() => createFlows({ parse, run, check }), [parse, run, check]);
+  const { parse, run, check, qasm, paperCircuits, paperQasm } = useCircuitCalls();
+  const flows = useMemo(
+    () => createFlows({ parse, run, check, qasm, paperCircuits, paperQasm }),
+    [parse, run, check, qasm, paperCircuits, paperQasm],
+  );
   return (
     <>
       <PageHeader title={t("pages.circuits.title")}>

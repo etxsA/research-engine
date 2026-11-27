@@ -8,8 +8,11 @@ import {
   announcementFor,
   currentText,
   makeOutcome,
+  makePaperExport,
+  makeQasmOutcome,
   useCircuitStore,
   type Busy,
+  type CircuitState,
   type LocalCode,
   type Outcome,
   type Problem,
@@ -48,9 +51,9 @@ function circuitJson(): Picked<string> {
   return raw ? { value: JSON.stringify(raw) } : { problem: local("notRead") };
 }
 
-function requestOptions() {
-  const state = useCircuitStore.getState();
-  const values = parseValues(state.valuesText);
+/** The values typed, or the problem with the first bad line. Simulate, Check and both exports use them. */
+function valuesOption(): Picked<Record<string, string | number> | undefined> {
+  const values = parseValues(useCircuitStore.getState().valuesText);
   const firstError = values.errors[0];
   if (firstError?.code === "notName") {
     // the API refuses it too (a 422 at /values/<key>), in the same words
@@ -65,14 +68,15 @@ function requestOptions() {
       }),
     };
   }
-  const input = parseStateInput(state.inputState);
+  return { value: Object.keys(values.values).length > 0 ? values.values : undefined };
+}
+
+function requestOptions() {
+  const values = valuesOption();
+  if (failed(values)) return values;
+  const input = parseStateInput(useCircuitStore.getState().inputState);
   if (!input.ok) return { problem: local("badState", { where: "input" }) };
-  return {
-    value: {
-      input: input.value,
-      values: Object.keys(values.values).length > 0 ? values.values : undefined,
-    },
-  };
+  return { value: { input: input.value, values: values.value } };
 }
 
 /** Show a reading and announce it. */
@@ -110,27 +114,40 @@ function toProblem(error: unknown): Problem {
   return local("network");
 }
 
+/** The counters of the store that say what an answer depends on (see `CircuitState`). */
+type Counter = "revision" | "textRevision" | "valuesRevision" | "paperRevision";
+
 /**
- * The three actions of the screen. Each reads the store, validates what a person typed, sends one
+ * The actions of the screen. Each reads the store, validates what a person typed, sends one
  * request and writes the answer or the problem back. An answer to an input that has changed since
- * is dropped, so the screen never shows a result for text that is no longer there.
+ * is dropped, so the screen never shows a result for text that is no longer there. One request
+ * runs at a time.
  */
 export function createFlows(calls: CircuitCalls) {
+  /**
+   * Run one request. Its answer, or its problem, is shown only while every counter in `watch` is
+   * the same as when it started and `still` holds.
+   */
   async function guarded<T>(
     busy: Exclude<Busy, null>,
     work: () => Promise<T>,
     apply: (value: T) => void,
-    watch: "revision" | "textRevision" = "revision",
+    watch: readonly Counter[] = ["revision"],
+    still: (state: CircuitState) => boolean = () => true,
   ) {
     const store = useCircuitStore;
     if (store.getState().busy !== null) return;
-    const revision = store.getState()[watch];
+    const started = watch.map((counter) => store.getState()[counter]);
+    const current = () => {
+      const state = store.getState();
+      return watch.every((counter, index) => state[counter] === started[index]) && still(state);
+    };
     store.setState({ busy, problem: null });
     try {
       const value = await work();
-      if (store.getState()[watch] === revision) apply(value);
+      if (current()) apply(value);
     } catch (error) {
-      if (store.getState()[watch] === revision) showProblem(toProblem(error));
+      if (current()) showProblem(toProblem(error));
     } finally {
       // Nothing else starts while the flag is set (see the first lines), so the flag is always ours.
       store.setState({ busy: null });
@@ -169,7 +186,7 @@ export function createFlows(calls: CircuitCalls) {
       () => calls.parse(text),
       showReading,
       // A reading answers the text only: editing the options meanwhile does not make it stale.
-      "textRevision",
+      ["textRevision"],
     );
   }
 
@@ -244,7 +261,78 @@ export function createFlows(calls: CircuitCalls) {
     );
   }
 
-  return { read, run, check };
+  /**
+   * Export the circuit that was read (or the circuit/1 text) as OpenQASM 3. The answer depends on
+   * the circuit, the one chosen and the values, not on the options of a simulation or a check.
+   */
+  async function exportQasm(): Promise<void> {
+    const circuit = circuitJson();
+    if (failed(circuit)) return showProblem(circuit.problem);
+    const values = valuesOption();
+    if (failed(values)) return showProblem(values.problem);
+    const { selected } = useCircuitStore.getState();
+    await guarded(
+      "qasm",
+      () => calls.qasm({ circuitJson: circuit.value, values: values.value }),
+      (exported) =>
+        useCircuitStore.setState({
+          qasm: makeQasmOutcome({ export: exported, circuit: selected }),
+          // A refusal is announced by its own alert, as a simulation's is.
+          announcement:
+            exported.status === "ok"
+              ? announce({ kind: "qasm", programs: exported.programs.length })
+              : null,
+        }),
+      ["textRevision", "valuesRevision"],
+      (state) => state.selected === selected,
+    );
+  }
+
+  /** The paper chosen, or the problem that none is. */
+  function paperId(): Picked<string> {
+    const docId = useCircuitStore.getState().paperId.trim();
+    return docId === "" ? { problem: local("noPaper") } : { value: docId };
+  }
+
+  /** List the circuit blocks of the paper chosen. The values do not change them. */
+  async function listPaperCircuits(): Promise<void> {
+    const docId = paperId();
+    if (failed(docId)) return showProblem(docId.problem);
+    await guarded(
+      "paperCircuits",
+      () => calls.paperCircuits(docId.value),
+      (paper) =>
+        useCircuitStore.setState({
+          paperCircuits: paper,
+          announcement: announce({ kind: "paperCircuits", blocks: paper.blocks.length }),
+        }),
+      ["paperRevision"],
+    );
+  }
+
+  /** Export every circuit of the paper chosen, with the values typed. Nothing is written on the server. */
+  async function exportPaper(): Promise<void> {
+    const docId = paperId();
+    if (failed(docId)) return showProblem(docId.problem);
+    const values = valuesOption();
+    if (failed(values)) return showProblem(values.problem);
+    await guarded(
+      "paperQasm",
+      () => calls.paperQasm({ docId: docId.value, values: values.value }),
+      (exported) =>
+        useCircuitStore.setState({
+          paperExport: makePaperExport(exported),
+          announcement: announce({
+            kind: "paperQasm",
+            programs: exported.circuits.reduce((sum, item) => sum + item.programs.length, 0),
+            refused: exported.circuits.filter((item) => item.status === "refused").length,
+          }),
+        }),
+      ["paperRevision", "valuesRevision"],
+    );
+  }
+
+  return { read, run, check, exportQasm, listPaperCircuits, exportPaper };
 }
 
 export type CircuitFlows = ReturnType<typeof createFlows>;
