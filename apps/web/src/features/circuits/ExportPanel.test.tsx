@@ -189,6 +189,23 @@ describe("the export card", () => {
     expect(screen.queryByTestId("qasm-program")).not.toBeInTheDocument();
   });
 
+  it("does not call the values unused when the circuit is refused", async () => {
+    const user = await openPage();
+    await readExample(user, "partial", "Read in part");
+    await user.type(screen.getByLabelText("Parameter values"), "theta = 1");
+    await user.click(exportButton());
+    const refusal = await screen.findByTestId("export-refusal");
+    // the API lists every key of a refused circuit as unmatched
+    expect(capturedAnswer("qasm partial refused with a value").response.unmatched).toEqual([
+      "theta",
+    ]);
+    expect(
+      within(refusal).getByText("status: the circuit was read as 'partial', not 'parsed'"),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("export-unmatched")).not.toBeInTheDocument();
+    expect(screen.queryByText("Values not used")).not.toBeInTheDocument();
+  });
+
   it("refuses a key that is not one symbol before sending anything", async () => {
     const user = await openPage();
     await readExample(user, "rotation");

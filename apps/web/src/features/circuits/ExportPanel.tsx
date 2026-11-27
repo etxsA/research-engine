@@ -43,7 +43,9 @@ function QasmBody({ outcome }: { outcome: QasmOutcome }) {
       {exported.status === "refused" && exported.unbound.length > 0 ? (
         <ExportUnbound names={exported.unbound} />
       ) : null}
-      <UnmatchedValues keys={exported.unmatched} />
+      {/* A refused circuit lists every key as unmatched, used or not; like docingest's "matches
+          no symbol of any exported circuit", the note is only for a circuit that was exported. */}
+      {exported.status === "ok" ? <UnmatchedValues keys={exported.unmatched} /> : null}
       {exported.programs.map((program) => (
         <ProgramView key={program.filename} program={program} />
       ))}

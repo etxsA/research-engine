@@ -219,6 +219,11 @@ await add("qasm two-character subscript bound", "qasm", {
 });
 await add("qasm stray key", "qasm", { circuit_json: bell, values: { theta: "1" } });
 await add("qasm partial refused", "qasm", { circuit_json: await text("partial") });
+// a refused circuit lists every key as unmatched: the screen does not call them unused
+await add("qasm partial refused with a value", "qasm", {
+  circuit_json: await text("partial"),
+  values: { theta: "1" },
+});
 await add("qasm bad key", "qasm", {
   circuit_json: await text("rotation"),
   values: { thetta: "1" },

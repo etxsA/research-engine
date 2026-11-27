@@ -2234,6 +2234,26 @@
     }
   },
   {
+    "name": "qasm partial refused with a value",
+    "path": "/circuits/qasm",
+    "request": {
+      "circuit_json": "{\"format\":\"circuit/1\",\"kind\":\"quantikz\",\"status\":\"partial\",\"label\":\"\",\"wires\":3,\"wire_labels\":[\"1 = q_1\",\"2 = q_2\",\"3 = q_3\"],\"parts\":[[[{\"kind\":\"x\",\"label\":\"X\",\"targets\":[2],\"controls\":[1],\"open_controls\":[],\"classical\":false,\"source\":\"\"}],[{\"kind\":\"x\",\"label\":\"X\",\"targets\":[3],\"controls\":[2],\"open_controls\":[],\"classical\":false,\"source\":\"\"},{\"kind\":\"unparsed\",\"label\":\"\",\"targets\":[2],\"controls\":[],\"open_controls\":[],\"classical\":false,\"source\":\"\\\\wire[l][1][\\\"\\\\iddots\\\"{below,pos=0.1}]{a}\"}]]]}",
+      "values": {
+        "theta": "1"
+      }
+    },
+    "status": 200,
+    "response": {
+      "status": "refused",
+      "programs": [],
+      "reasons": ["status: the circuit was read as 'partial', not 'parsed'"],
+      "notes": [],
+      "symbols": [],
+      "unmatched": ["theta"],
+      "unbound": []
+    }
+  },
+  {
     "name": "qasm bad key",
     "path": "/circuits/qasm",
     "request": {
