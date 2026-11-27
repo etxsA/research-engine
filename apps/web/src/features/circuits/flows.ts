@@ -19,6 +19,9 @@ import {
   type TargetKind,
 } from "./store";
 
+/** A document id or a prefix of 16 or more of its characters: the API's `DOC_ID_PATTERN`. */
+const DOC_ID = /^[0-9a-f]{16,64}$/;
+
 const local = (code: LocalCode, params: Record<string, string | number> = {}): Problem => ({
   kind: "local",
   code,
@@ -288,10 +291,14 @@ export function createFlows(calls: CircuitCalls) {
     );
   }
 
-  /** The paper chosen, or the problem that none is. */
+  /**
+   * The paper chosen, or the problem that none is. An id the API's path rule refuses (a `?doc=`
+   * typed by hand) names no paper: it is "Not found" here, as the API's 404, not its 422.
+   */
   function paperId(): Picked<string> {
     const docId = useCircuitStore.getState().paperId.trim();
-    return docId === "" ? { problem: local("noPaper") } : { value: docId };
+    if (docId === "") return { problem: local("noPaper") };
+    return DOC_ID.test(docId) ? { value: docId } : { problem: local("unknownPaper") };
   }
 
   /** List the circuit blocks of the paper chosen. The values do not change them. */

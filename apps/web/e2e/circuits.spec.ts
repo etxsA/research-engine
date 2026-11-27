@@ -763,6 +763,11 @@ test.describe("C9: export a stored paper", () => {
     await expect(problem).toContainText("No such document.");
     await expect(page.getByTestId("paper-blocks")).toHaveCount(0);
     await expectNoAxeViolations(page);
+
+    // an address that is not a document id names no paper either (the API would say 422)
+    await page.goto("/circuits?doc=not-a-paper");
+    await expect(problem).toContainText("Not found");
+    await expect(problem).toContainText("No stored paper has this id.");
   });
 
   test("says when a paper has no circuit to export", async ({ page }) => {

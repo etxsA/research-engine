@@ -908,6 +908,21 @@ describe("a circuit sent by another screen", () => {
     expect(await screen.findAllByTestId("paper-block")).toHaveLength(2);
   });
 
+  it("says Not found for a ?doc= that is not a document id, without asking the API", async () => {
+    const sent: string[] = [];
+    server.events.on("request:start", ({ request }) => void sent.push(request.url));
+    try {
+      await arrive("?doc=not-a-paper", null);
+      const problem = await screen.findByTestId("problem");
+      expect(within(problem).getByText("Not found")).toBeInTheDocument();
+      expect(within(problem).getByText(/No stored paper has this id\./)).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Paper", selected: true })).toBeInTheDocument();
+      expect(sent.filter((url) => url.includes("/documents/"))).toEqual([]);
+    } finally {
+      server.events.removeAllListeners();
+    }
+  });
+
   it("reads the LaTeX rather than the paper when both come", async () => {
     const { app } = await arrive("?doc=ffffffffffffffff", { latex: BELL });
     expect(await screen.findByText("Read in full")).toBeInTheDocument();

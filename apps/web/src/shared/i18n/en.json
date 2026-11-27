@@ -1259,6 +1259,10 @@
         "title": "No paper chosen",
         "detail": "Choose a paper first."
       },
+      "unknownPaper": {
+        "title": "Not found",
+        "detail": "No stored paper has this id. An id is 16 to 64 characters, each a digit or a letter from a to f."
+      },
       "network": {
         "title": "The server could not be reached",
         "detail": "Check the connection and try again."

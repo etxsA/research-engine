@@ -22,6 +22,7 @@ export type LocalCode =
   | "secondUnread"
   | "secondMany"
   | "noPaper"
+  | "unknownPaper"
   | "network";
 
 export type Problem =

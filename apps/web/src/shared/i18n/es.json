@@ -1259,6 +1259,10 @@
         "title": "No se eligió ningún artículo",
         "detail": "Elige primero un artículo."
       },
+      "unknownPaper": {
+        "title": "No se encontró",
+        "detail": "Ningún artículo guardado tiene este id. Un id tiene de 16 a 64 caracteres, cada uno un dígito o una letra de la a a la f."
+      },
       "network": {
         "title": "No se pudo contactar al servidor",
         "detail": "Revisa la conexión e intenta de nuevo."
