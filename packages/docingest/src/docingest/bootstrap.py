@@ -80,6 +80,16 @@ def _docling(cfg: AppConfig):
     return DoclingConverter()
 
 
+def _mineru(cfg: AppConfig):
+    from .adapters.converters.mineru import MineruConverter
+
+    return MineruConverter(cfg.mineru)
+
+
+def _no_multimodal(cfg: AppConfig):
+    return None
+
+
 def _pandoc(cfg: AppConfig):
     from .adapters.converters.pandoc_latex import PandocLatexConverter
 
@@ -134,6 +144,7 @@ REGISTRY: dict[str, dict[str, Factory]] = {
     "ocr": {"mlx-vlm": _mlx_vlm, "openai-compatible": _openai_ocr},
     "images": {"pillow": _pillow},
     "office": {"docling": _docling},
+    "multimodal": {"none": _no_multimodal, "mineru": _mineru},
     "latex": {"pandoc": _pandoc},
     "text": {"passthrough": _passthrough},
     "store": {"filesystem": _filesystem},
@@ -209,6 +220,7 @@ class Container:
             store=self.adapter("store"),
             policy=self.cfg.routing,
             log=self.log,
+            multimodal=self.adapter("multimodal") if self.configured("multimodal") else None,
         )
 
     def configured(self, port: str) -> bool:

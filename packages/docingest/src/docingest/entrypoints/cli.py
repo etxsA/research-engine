@@ -19,7 +19,7 @@ from rich.table import Table
 from ..application.ingest import SIDECAR_SUFFIX, IngestOptions
 from ..bootstrap import REGISTRY, Container, available, factory, plugins
 from ..config import load_config
-from ..domain.errors import DocingestError, OcrUnavailableError
+from ..domain.errors import DocingestError, NotConfiguredError, OcrUnavailableError
 from ..domain.text import split_pages
 from ..ports import StoredDocument
 from .ask_lines import serve_lines
@@ -219,6 +219,53 @@ def ingest(
     if failures:
         _failures(failures)
     if failures or stopped:
+        raise typer.Exit(1)
+
+
+@app.command("ingest-async")
+def ingest_async(
+    paths: Annotated[list[Path], typer.Argument(help="Files or directories")],
+    config: ConfigOpt = None,
+) -> None:
+    """Read PDFs and images with the multimodal converter ([adapters] multimodal), a page per page.
+
+    Other inputs, and any document the converter cannot read, are ingested the regular way.
+    """
+    container = _container(config)
+    try:
+        if not container.configured("multimodal"):
+            raise NotConfiguredError(
+                '[adapters] multimodal is "none": select "mineru" (see config/README.md)'
+            )
+        service = container.ingest  # builds the converter: a bad [mineru] table stops here
+    except DocingestError as e:
+        console.print(f"[red]error[/]: {escape(str(e))}")
+        raise typer.Exit(1) from e
+
+    async def run() -> tuple[list[StoredDocument], list[tuple[str, str]]]:
+        gate = asyncio.Semaphore(container.cfg.mineru.max_concurrency)
+        stored: dict[Path, StoredDocument] = {}
+        failures: list[tuple[str, str]] = []
+
+        async def one(path: Path) -> None:
+            async with gate:
+                try:
+                    stored[path] = await service.ingest_async(path)
+                except Exception as e:  # one bad file must not stop the batch
+                    failures.append((path.name, f"{type(e).__name__}: {e}"))
+                    console.print(f"[red]failed[/]: {escape(path.name)}: {escape(str(e))}")
+                    return
+            console.print(f"[green]ok[/] {escape(path.name)} -> {escape(stored[path].location)}")
+
+        inputs = iter_inputs(paths)
+        await asyncio.gather(*(one(path) for path in inputs))
+        return [stored[p] for p in inputs if p in stored], failures
+
+    stored, failures = asyncio.run(run())
+    if stored:
+        _summary(stored)
+    if failures:
+        _failures(failures)
         raise typer.Exit(1)
 
 

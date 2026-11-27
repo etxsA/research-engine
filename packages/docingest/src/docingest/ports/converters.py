@@ -33,6 +33,10 @@ class Conversion:
     # True when a fallback ran because of the environment (timeout, crash, missing tool),
     # not because the input is unconvertible: the result must not be cached as canonical.
     degraded: bool = False
+    # What a converter found besides the text (images, tables), one dict per item. The ingest
+    # service does not store them yet; paths in them are relative to the converter's own
+    # output folder.
+    artifacts: list[dict[str, object]] = field(default_factory=list)
 
 
 @runtime_checkable
@@ -41,4 +45,25 @@ class DocumentConverter(Protocol):
 
     def convert(self, path: Path) -> Conversion:
         """Raise ``ConversionError`` when the document cannot be converted."""
+        ...
+
+
+@dataclass(frozen=True)
+class MultimodalRequest:
+    """What the ingest service knows about a document before a multimodal converter reads it."""
+
+    doc_id: str  # sha256 of the file: names the converter's work folder
+    source_pages: int  # pages (frames) of the source; the conversion has exactly this many segments
+    ocr: bool  # some page has no usable text layer, so the whole document is read as a scan
+
+
+@runtime_checkable
+class AsyncDocumentConverter(Protocol):
+    """A converter that runs outside the event loop: PDFs and images, one segment per page."""
+
+    fingerprint: str  # everything that changes its output: tool version, model, settings
+
+    async def convert_async(self, path: Path, request: MultimodalRequest) -> Conversion:
+        """Raise ``ConversionError`` when the document cannot be converted (the ingest service
+        then reads it the regular way)."""
         ...

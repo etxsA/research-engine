@@ -274,12 +274,22 @@ Constructor (all keyword-only):
 | `store` | `DocumentStore` | cache lookup, persistence, reading Markdown back |
 | `policy` | `RoutingPolicy` | thresholds for the per-page OCR decision (`[routing]` in `pipeline.toml`) |
 | `log` | `Log` | progress lines; default `print` |
+| `multimodal` | `AsyncDocumentConverter` or `None` | the optional converter of `ingest_async`; `None` (default, `[adapters] multimodal = "none"`) |
 
 Methods:
 
 - `ingest(path, options=None, metadata=None) -> StoredDocument`: the use case.
   `options` defaults to `IngestOptions()`. `metadata` is optional `SourceMetadata` that
   overrides the sidecar and the converter's metadata.
+- `async ingest_async(path, metadata=None) -> StoredDocument`: reads PDFs and images with the
+  `multimodal` converter, one segment per page (the page numbers of the PDF; empty pages kept;
+  `source_pages` from our own PDF reader). The mode (`ocr` or text layer only) is decided per
+  document from the per-page `signals()` and `decide()`: one page that needs OCR makes the
+  document a scan. LaTeX, text and office inputs, and any `ConversionError` of the converter,
+  go through `ingest()`. The cache key is `multimodal_hash(kind)` (converter fingerprint plus,
+  for PDFs, `[routing]` and the reader's fingerprint), so `config_hash` and the cache of
+  `ingest` do not change when the converter is turned on. A metadata change refreshes the
+  stored result without running the converter. Raises `NotConfiguredError` without a converter.
 - `config_hash(kind, *, ocr_all=False) -> str`: the 12-character cache key for a
   `SourceKind` with the current adapters. See [Caching](#caching).
 

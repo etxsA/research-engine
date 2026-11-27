@@ -245,6 +245,8 @@ A contents page joins each entry to its page number with a run of dots. A text l
 | DOCX, PPTX, XLSX, HTML (`.html`, `.htm`), XHTML | suffix | `office`: Docling (`office` extra) | `docling`, one segment |
 | Markdown (`.md`, `.markdown`), text (`.txt`) | suffix | `text`: passthrough | `passthrough`, one segment |
 
+Optionally, `docingest ingest-async` reads PDFs and images with MinerU 4 (an external command, `[adapters] multimodal = "mineru"`, off by default), one segment per page; see [config/README.md](config/README.md#mineru) for the settings and the licenses.
+
 Detection details worth knowing:
 
 - A `.tex`, `.ltx`, `.md`, `.markdown` or `.txt` file that happens to start with a `%PDF-` comment line keeps its LaTeX or text kind (it is not taken for a PDF) as long as its first 1024 bytes decode as UTF-8 and contain no NUL byte.

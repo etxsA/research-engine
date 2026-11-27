@@ -414,6 +414,10 @@ Implementations (details in [adapters/converters/README.md](../adapters/converte
 
 Test fake: `FakeConverter`.
 
+### AsyncDocumentConverter
+
+Same module (`converters.py`). The optional converter of `docingest ingest-async`: `async convert_async(path, request: MultimodalRequest) -> Conversion` and a `fingerprint`. `MultimodalRequest` carries `doc_id`, `source_pages` and `ocr` (some page of the PDF needs OCR). The conversion must have exactly `source_pages` segments, one per page, empty ones included; `Conversion.artifacts` may list what was found besides the text, with paths relative to the converter's own output folder. Raise `ConversionError` when the document cannot be read: `IngestService.ingest_async` then reads it the regular way. Implementation: `MineruConverter` (`adapters/converters/mineru.py`, slot `multimodal`, `MINERU`).
+
 ### DocumentStore
 
 Module `store.py`. Persists normalized documents, content-addressed, and enumerates the corpus.
