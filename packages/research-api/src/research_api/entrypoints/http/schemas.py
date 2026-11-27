@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Literal, Self
+from typing import Annotated, Any, Literal, Self
 
 from pydantic import (
+    AfterValidator,
     BaseModel,
     ConfigDict,
     Field,
@@ -33,6 +34,8 @@ from ...domain.ask import (
 )
 from ...domain.auth import Language, Role, User
 from ...domain.circuits import (
+    MAX_VALUE_CHARS,
+    MAX_VALUES,
     CheckTarget,
     PaperCircuitQasm,
     PaperCircuits,
@@ -223,19 +226,32 @@ STATE_INPUT = (
     "The input: a basis label such as `010` (wire 1 first) or a list of amplitudes, each a "
     "number or a `[re, im]` pair. Default |0...0>."
 )
+
+
+def _values_are_short(values: dict[str, str | int | float]) -> dict[str, str | int | float]:
+    for key, value in values.items():
+        if len(key) > MAX_VALUE_CHARS:
+            raise ValueError(f"a key is at most {MAX_VALUE_CHARS} characters long")
+        if isinstance(value, str) and len(value) > MAX_VALUE_CHARS:
+            raise ValueError(f"a value is at most {MAX_VALUE_CHARS} characters long")
+    return values
+
+
+Values = Annotated[
+    dict[str, StrictStr | StrictInt | StrictFloat], AfterValidator(_values_are_short)
+]
 VALUES = (
     "A value for each symbol of the circuit, a number or an angle as text such as `\\pi/2` or "
     "`pi/2` (a `pi` that stands alone is `\\pi`). A key is one symbol: `theta`, `\\theta` or "
-    "`\\theta_{1}`."
+    "`\\theta_{1}`. "
+    f"At most {MAX_VALUES} keys; a key or a value is at most {MAX_VALUE_CHARS} characters long."
 )
 
 
 class RunRequest(Request):
     circuit_json: str = Field(description=CIRCUIT_JSON)
     input: str | list[Any] | None = Field(default=None, description=STATE_INPUT)
-    values: dict[str, StrictStr | StrictInt | StrictFloat] | None = Field(
-        default=None, description=VALUES
-    )
+    values: Values | None = Field(default=None, max_length=MAX_VALUES, description=VALUES)
     unitary: StrictBool = Field(
         default=False, description="Also list the unitary (up to 8 wires). `true` or `false` only."
     )
@@ -280,9 +296,7 @@ class CheckRequest(Request):
         json_schema_extra=_not_nullable,
     )
     input: str | list[Any] | None = Field(default=None, description=STATE_INPUT)
-    values: dict[str, StrictStr | StrictInt | StrictFloat] | None = Field(
-        default=None, description=VALUES
-    )
+    values: Values | None = Field(default=None, max_length=MAX_VALUES, description=VALUES)
 
     @field_validator("target", mode="before")
     @classmethod
@@ -304,14 +318,13 @@ QASM_VALUES = (
 
 class QasmRequest(Request):
     circuit_json: str = Field(description=CIRCUIT_JSON)
-    values: dict[str, StrictStr | StrictInt | StrictFloat] | None = Field(
-        default=None, description=QASM_VALUES
-    )
+    values: Values | None = Field(default=None, max_length=MAX_VALUES, description=QASM_VALUES)
 
 
 class PaperQasmRequest(Request):
-    values: dict[str, StrictStr | StrictInt | StrictFloat] | None = Field(
+    values: Values | None = Field(
         default=None,
+        max_length=MAX_VALUES,
         description=QASM_VALUES + " The same values go to every circuit of the paper, as "
         "`--set` does.",
     )

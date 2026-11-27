@@ -29,6 +29,12 @@ from .errors import BadRequestError, FieldError, InvalidInputError
 MAX_STATE_WIRES = 12
 MAX_UNITARY_WIRES = 8
 
+# What a request may carry as parameter values: a paper's circuits are all bound with the same
+# keys, so the work grows with the keys times the circuits. A key or a value longer than
+# ``quantum_sim.angles.MAX_CHARS`` is refused by the reader anyway; it is cut before it is read.
+MAX_VALUES = 64
+MAX_VALUE_CHARS = 500
+
 DEFAULT_MAX_BODY_BYTES = 1024 * 1024
 DEFAULT_MAX_OPS = 2000
 DEFAULT_TIMEOUT_S = 30.0

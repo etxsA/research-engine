@@ -1161,7 +1161,7 @@ export interface components {
             target?: components["schemas"]["CheckTargetBody"];
             /**
              * Values
-             * @description A value for each symbol of the circuit, a number or an angle as text such as `\pi/2` or `pi/2` (a `pi` that stands alone is `\pi`). A key is one symbol: `theta`, `\theta` or `\theta_{1}`.
+             * @description A value for each symbol of the circuit, a number or an angle as text such as `\pi/2` or `pi/2` (a `pi` that stands alone is `\pi`). A key is one symbol: `theta`, `\theta` or `\theta_{1}`. At most 64 keys; a key or a value is at most 500 characters long.
              */
             values?: {
                 [key: string]: string | number;
@@ -1722,7 +1722,7 @@ export interface components {
         PaperQasmRequest: {
             /**
              * Values
-             * @description A value for each symbol of the circuit, a number or an angle as text such as `\pi/2` or `pi/2` (a `pi` that stands alone is `\pi`). A key is one symbol: `theta`, `\theta` or `\theta_{1}`. A key that is not one symbol, or a value the export cannot use, is a 422 that points to `/values/<key>`, before any circuit is exported. The same values go to every circuit of the paper, as `--set` does.
+             * @description A value for each symbol of the circuit, a number or an angle as text such as `\pi/2` or `pi/2` (a `pi` that stands alone is `\pi`). A key is one symbol: `theta`, `\theta` or `\theta_{1}`. At most 64 keys; a key or a value is at most 500 characters long. A key that is not one symbol, or a value the export cannot use, is a 422 that points to `/values/<key>`, before any circuit is exported. The same values go to every circuit of the paper, as `--set` does.
              */
             values?: {
                 [key: string]: string | number;
@@ -1884,7 +1884,7 @@ export interface components {
             circuit_json: string;
             /**
              * Values
-             * @description A value for each symbol of the circuit, a number or an angle as text such as `\pi/2` or `pi/2` (a `pi` that stands alone is `\pi`). A key is one symbol: `theta`, `\theta` or `\theta_{1}`. A key that is not one symbol, or a value the export cannot use, is a 422 that points to `/values/<key>`, before any circuit is exported.
+             * @description A value for each symbol of the circuit, a number or an angle as text such as `\pi/2` or `pi/2` (a `pi` that stands alone is `\pi`). A key is one symbol: `theta`, `\theta` or `\theta_{1}`. At most 64 keys; a key or a value is at most 500 characters long. A key that is not one symbol, or a value the export cannot use, is a 422 that points to `/values/<key>`, before any circuit is exported.
              */
             values?: {
                 [key: string]: string | number;
@@ -2119,7 +2119,7 @@ export interface components {
             unitary: boolean;
             /**
              * Values
-             * @description A value for each symbol of the circuit, a number or an angle as text such as `\pi/2` or `pi/2` (a `pi` that stands alone is `\pi`). A key is one symbol: `theta`, `\theta` or `\theta_{1}`.
+             * @description A value for each symbol of the circuit, a number or an angle as text such as `\pi/2` or `pi/2` (a `pi` that stands alone is `\pi`). A key is one symbol: `theta`, `\theta` or `\theta_{1}`. At most 64 keys; a key or a value is at most 500 characters long.
              */
             values?: {
                 [key: string]: string | number;

@@ -1155,3 +1155,32 @@ def test_the_contract_types_the_export_answers() -> None:
     assert "together" in paper["422"]["description"]
     run = paths["/api/v1/circuits/run"]["post"]["responses"]
     assert "`quantum-sim` command" in run["422"]["description"]
+
+
+def test_values_with_more_than_64_keys_are_a_422_on_every_route_that_takes_them(
+    client: TestClient,
+) -> None:
+    many = {f"theta_{{{n}}}": 1 for n in range(65)}
+    fits = {f"theta_{{{n}}}": 1 for n in range(64)}
+    for url, body in (
+        (QASM, {"circuit_json": text(ry())}),
+        (paper_url(CIRCUIT_PAPER, "qasm"), {}),
+        ("/api/v1/circuits/run", {"circuit_json": text(ry())}),
+        ("/api/v1/circuits/check", {"circuit_json": text(ry())}),
+    ):
+        response = client.post(url, json={**body, "values": many})
+        assert response.status_code == 422, url
+        assert response.headers["content-type"] == PROBLEM
+        assert response.json()["errors"][0]["path"] == "/values"
+        assert client.post(url, json={**body, "values": fits}).status_code != 422, url
+
+
+def test_a_key_or_a_value_of_more_than_500_characters_is_a_422(client: TestClient) -> None:
+    long_key = client.post(QASM, json={"circuit_json": text(ry()), "values": {"t" * 501: 1}})
+    long_value = client.post(
+        QASM, json={"circuit_json": text(ry()), "values": {"theta": "1" * 501}}
+    )
+    assert long_key.status_code == long_value.status_code == 422
+    assert (
+        long_key.json()["errors"][0]["path"] == long_value.json()["errors"][0]["path"] == "/values"
+    )

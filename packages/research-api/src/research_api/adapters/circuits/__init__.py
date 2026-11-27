@@ -18,8 +18,9 @@ sorted symbol order); ``tests/test_circuits_lane.py`` checks the two agree.
 ``check_values`` refuses what ``quantum_sim.qasm.validate_bindings`` refuses, as a 422 that
 points to the key: each key is checked alone, then against the earlier key with the same name
 (``theta`` and ``\\theta`` bind one symbol twice). It takes no lane slot: the check is cheap
-(a value is at most ``quantum_sim.angles.MAX_CHARS`` long and the body cap bounds the keys,
-under half a second for a full body), so a bad key is a 422 even when the lane is busy. It
+(a request has at most ``MAX_VALUES`` keys and a key or a value is at most ``MAX_VALUE_CHARS``
+long, both checked before the request gets here), so a bad key is a 422 even when the lane is
+busy. It
 runs in a worker thread, off the event loop.
 """
 
