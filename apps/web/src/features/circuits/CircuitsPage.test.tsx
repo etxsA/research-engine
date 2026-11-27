@@ -865,8 +865,8 @@ describe("a circuit sent by another screen", () => {
   const TELEPORT_ID = "c7f460355b1958c3e6cf45b6d3234766cd8c9d49a5a9265864030a0606907a44";
 
   /** Opens the app at `/ask`, then at the Circuits screen as a link with `state` leaves it. */
-  async function arrive(search: string, state: unknown) {
-    const app = renderApp(["/ask", { pathname: "/circuits", search, state }]);
+  async function arrive(search: string, state: unknown, hash = "") {
+    const app = renderApp(["/ask", { pathname: "/circuits", search, hash, state }]);
     await screen.findByRole("heading", { level: 1, name: "Circuits" });
     return { app, user: userEvent.setup() };
   }
@@ -877,6 +877,14 @@ describe("a circuit sent by another screen", () => {
     expect(screen.getByLabelText("LaTeX code of one circuit")).toHaveValue(BELL);
     expect(await screen.findByText("Read in full")).toBeInTheDocument();
     expect(app.router.state.location.state).toBeNull();
+  });
+
+  it("is removed from the entry without losing its #fragment", async () => {
+    const { app } = await arrive("?x=1", { latex: BELL }, "#x");
+    expect(await screen.findByText("Read in full")).toBeInTheDocument();
+    expect(app.router.state.location.state).toBeNull();
+    expect(app.router.state.location.search).toBe("?x=1");
+    expect(app.router.state.location.hash).toBe("#x");
   });
 
   it("is read once: coming back to the entry does not read it again", async () => {
@@ -909,6 +917,13 @@ describe("a circuit sent by another screen", () => {
     await arrive("?doc=c7f460355b1958c3e6cf45b6d3234766cd8c9d49a5a9265864030a0606907a44", null);
     expect(screen.getByRole("tab", { name: "Paper", selected: true })).toBeInTheDocument();
     expect(await screen.findAllByTestId("paper-block")).toHaveLength(2);
+  });
+
+  it("opens the paper of a ?doc= written in capitals, as ids are lowercase", async () => {
+    await arrive(`?doc=${TELEPORT_ID.toUpperCase()}`, null);
+    expect(screen.getByRole("tab", { name: "Paper", selected: true })).toBeInTheDocument();
+    expect(await screen.findAllByTestId("paper-block")).toHaveLength(2);
+    expect(screen.queryByTestId("problem")).not.toBeInTheDocument();
   });
 
   it("says Not found for a ?doc= that is not a document id, without asking the API", async () => {
