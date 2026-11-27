@@ -16,7 +16,7 @@ Contents:
 - [How configuration reaches the code](#how-configuration-reaches-the-code)
 - [Selecting and overriding a configuration](#selecting-and-overriding-a-configuration)
 - [Validation](#validation)
-- [`config/pipeline.toml` reference](#configpipelinetoml-reference): [top level](#top-level-keys), [`[adapters]`](#adapters), [`[routing]`](#routing), [`[ocr]`](#ocr), [`[qa]`](#qa), [`[latex]`](#latex), [`[arxiv]`](#arxiv), [plugin sections](#plugin-sections), [`[index]`, `[embedder]` and `[reranker]`](#index-embedder-and-reranker-docingest-index)
+- [`config/pipeline.toml` reference](#configpipelinetoml-reference): [top level](#top-level-keys), [`[adapters]`](#adapters), [`[routing]`](#routing), [`[mineru]`](#mineru), [`[ocr]`](#ocr), [`[qa]`](#qa), [`[latex]`](#latex), [`[arxiv]`](#arxiv), [plugin sections](#plugin-sections), [`[index]`, `[embedder]` and `[reranker]`](#index-embedder-and-reranker-docingest-index)
 - [Pinning models by revision](#pinning-models-by-revision)
 - [What invalidates cached outputs](#what-invalidates-cached-outputs)
 - [Example configurations](#example-configurations)
@@ -159,6 +159,7 @@ Selects the implementation plugged into each port. A value is either a built-in 
 | `office` | string | `"docling"` | `docling` | `DocumentConverter` | the first DOCX, PPTX, XLSX or HTML input |
 | `latex` | string | `"pandoc"` | `pandoc` | `DocumentConverter` | the first LaTeX input |
 | `text` | string | `"passthrough"` | `passthrough` | `DocumentConverter` | the first Markdown or text input |
+| `multimodal` | string | `"none"` | `none`, `mineru` | `AsyncDocumentConverter` | `docingest ingest-async` (with `none` the command refuses to run) |
 | `store` | string | `"filesystem"` | `filesystem` | `DocumentStore` | the ingestion service or `ask` is first used |
 | `qa` | string | `"paperqa"` | `paperqa` | `QuestionAnswerer` | `docingest ask` |
 | `crawler` | string | `"arxiv"` | `arxiv` | `SourceCrawler` | `docingest crawl` |
@@ -397,6 +398,43 @@ Settings of the `pandoc` LaTeX converter (arXiv sources, `.tex` files). The pipe
 | `pandoc_path` | string (path) | `null` | pandoc binary. `null` means the binary bundled by `pypandoc-binary` (pinned by `uv.lock`). |
 | `fallback` | bool | `true` | When pandoc fails or times out, produce plain text with pylatexenc (math kept verbatim) instead of failing. Part of the converter fingerprint. |
 
+### `[mineru]`
+
+Settings of the optional MinerU 4 converter, read only with `[adapters] multimodal = "mineru"`. MinerU is an external command, not a dependency of docingest: it is installed in its own environment (nothing changes in `uv.lock`) and `command` points at its `mineru-kit` executable. `docingest ingest-async` hands it PDFs and images (one MinerU run per document, up to `max_concurrency` at once) and keeps one segment per page of the source, so the page numbers of a citation are the PDF's own. Everything else (LaTeX, text, office) and any document MinerU cannot read are ingested the regular way. The adapter is described in [../src/docingest/adapters/converters/README.md](../src/docingest/adapters/converters/README.md).
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `command` | string (path) | `null` | The `mineru-kit` executable. Required when the adapter is enabled; it is run with `--version` at start-up and must report MinerU 4. |
+| `tier` | string | `"standard"` | `--tier`: `standard` or `advanced`, the tiers that run the MinerU2.5-Pro model. `flash` and `basic` are refused. |
+| `model` | string | `null` | The weights the install uses: `MinerU2.5-Pro-2604-1.2B` or `MinerU2.5-Pro-2605-1.2B`, both Apache-2.0. Required. See below. |
+| `model_source` | string | `null` | Passed to the command as `MINERU_MODEL_SOURCE` (`huggingface`, `modelscope`, `local`, `auto`); `null` leaves MinerU's own setting. |
+| `timeout_s` | float (seconds) | `900` | Wall-clock limit per document. A MinerU that takes longer is stopped, with every process it started, and the document is read the regular way. |
+| `output_dir` | path | `"data/mineru"` | Where MinerU works: a hidden folder per run, removed at the end. |
+| `keep_output` | bool | `false` | Keep MinerU's files (Markdown, middle JSON, `images/`) in `output_dir/<doc_id>`, the folder of the document's sha256. Off by default: the Markdown and the layout are not stored twice. |
+| `max_concurrency` | int | `1` | Documents converted at once by `ingest-async` (`1` to `16`). Each MinerU run uses the GPU. Reading the PDF, the regular ingest (LaTeX, text and office files, and the fallback after a `ConversionError`) and saving the result run under one lock, one document at a time, whatever the value. |
+
+**The model cannot be chosen from the command line.** MinerU 4's `mineru-kit parse` has `--tier`, but no option that names the VLM repository: the installed release downloads its own weights (`mineru-kit models download --tier standard`, source by `MINERU_MODEL_SOURCE` or its `config.yaml`; check them with `mineru-kit models verify`). `model` therefore records what the operator checked: it is in the cache key, and a value that is not an Apache-2.0 Pro release (the AGPL `MinerU2.5-2509-1.2B` included) stops the command with a message. A remote VLM endpoint (`model.vlm.server_url` in MinerU's own config) serves the weights of the operator's choice and is the way to pin a repository exactly.
+
+How a document is read:
+
+1. The mode is decided per document from the same per-page signals and `[routing]` policy as `ingest`: `--ocr-mode txt` when every page has a usable text layer, `ocr` as soon as one page needs OCR (a mixed PDF is read as a scan, so its scanned pages are not lost). Images are always `ocr`.
+2. `<command> parse <file> -o <run>/result.zip --format zip --tier <tier> --ocr-mode <mode>` runs as an argument list (no shell) under `timeout_s`, in a folder made for this run.
+3. The text of each page is built from the `page_idx` of the blocks in the middle JSON. A page without text stays an empty page, and the number of pages is the source's own (pdfium for a PDF), so `<!-- page N -->` markers and citations match the PDF.
+4. A failure, a timeout, a result without text or with a page the document does not have is a `ConversionError`, and `ingest-async` ingests that document the regular way.
+
+Cache key: only `ingest-async` uses it, built from the converter fingerprint (`mineru <version from <command> --version> model=<model> tier=<tier>`) and, for PDFs, `[routing]` and the PDF reader's fingerprint. A new MinerU version, model or tier is a new key. A change in a `.meta.json` sidecar updates the manifest without running MinerU again.
+
+`ingest` and `ingest-async` keep different keys but share the one canonical slot of a document (`<output_dir>/<doc_id[:16]>/`): **the last command wins**. After `ingest-async` a plain `ingest` of the same file does not see the MinerU result, re-processes the document (the OCR of a scanned one included) and replaces it; the next `ingest-async` then runs MinerU again. Run one of the two commands on a corpus, not both. A document that MinerU could not read (a failure, a timeout) is stored by the regular ingest under its own key, so `ingest-async` tries MinerU again on every run, a document that hangs costing `timeout_s` each time.
+
+The converter is built when `ingest-async` starts, not by `ingest`, `crawl`, `self-test` or the PaperQA hook: with `multimodal = "mineru"` a missing MinerU install does not stop them.
+
+#### Licenses
+
+- **MinerU (the code)** is published under the *MinerU Open Source License*: Apache-2.0 plus extra terms. It may be used commercially without a separate license unless you and your affiliates exceed 100 million monthly active users or USD 20 million of monthly revenue; if you offer an online service to third parties based on MinerU you must state clearly, in the interface or in public documentation, that MinerU is used; and the license ends automatically if that attribution or a required commercial license is missing. This is not an OSI license, so it is why MinerU is opt-in and off by default.
+- **Weights.** Only the Apache-2.0 *MinerU2.5-Pro* releases (`MinerU2.5-Pro-2604-1.2B`, `MinerU2.5-Pro-2605-1.2B`) are supported. The earlier `MinerU2.5-2509-1.2B` weights are AGPL-3.0 and must not be used: docingest refuses that name. The small-model bundles that the `standard` tier also downloads (`MinerU-4_models_torch` or `_onnx`) carry their own licenses on their Hugging Face or ModelScope pages; review them before deploying.
+- **Attribution note** to put in the interface or the public documentation of any service whose answers come from documents read with MinerU: "Document parsing uses MinerU (https://github.com/opendatalab/MinerU), MinerU Open Source License."
+- Enabling the adapter in a deployment needs the lead's approval of these terms.
+
 ### `[arxiv]`
 
 Settings of the `arxiv` crawler (`docingest crawl`). `pipeline.toml` sets only `delay_s`, `retries` and `prefer`; the other keys use their defaults.
@@ -558,6 +596,8 @@ flowchart LR
 | `[latex] split_level`, `fallback`, the pandoc version (which `pandoc_path` can change) and, when `fallback` is on, the pylatexenc version | LaTeX |
 | `[latex] timeout_s`, `max_archive_mb` | nothing |
 | Docling version | office documents |
+| `[mineru] tier`, `model` and the MinerU version (`<command> --version`) | PDFs and images read by `ingest-async` only (its own key; `ingest` keeps its key) |
+| `[mineru] timeout_s`, `output_dir`, `keep_output`, `max_concurrency`, `model_source`, `command` (path) | nothing |
 | `[qa]` (`skip_summary` and `answer_max_sources` included), `[arxiv]`, `output_dir`, `raw_dir` | nothing |
 
 Changing only a `<file>.meta.json` sidecar updates the stored manifest and title without re-processing. `docingest ingest --force` re-processes regardless of the cache.

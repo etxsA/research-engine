@@ -14,6 +14,9 @@ images = "pillow"
 office = "docling"
 latex = "pandoc"
 text = "passthrough"
+# Optional: read PDFs and images with MinerU 4 (an external command) in `docingest ingest-async`.
+# Off by default; needs the [mineru] table below and the license notes in config/README.md.
+# multimodal = "mineru"
 store = "filesystem"
 qa = "paperqa"
 crawler = "arxiv"
@@ -93,6 +96,16 @@ max_archive_mb = 200   # refuse larger extracted sources (zip-bomb guard)
 split_level = 2        # section depth that becomes one segment ("page")
 fallback = true        # pylatexenc plain text (math verbatim) when pandoc fails or times out
 # pandoc_path = "/opt/homebrew/bin/pandoc"   # native arm64 pandoc instead of the bundled one
+
+# MinerU 4 as an external command, used only with [adapters] multimodal = "mineru".
+# [mineru]
+# command = "/srv/envs/mineru/bin/mineru-kit"   # required
+# model = "MinerU2.5-Pro-2605-1.2B"             # required: Apache-2.0 Pro weights only
+# tier = "standard"                              # or "advanced"
+# timeout_s = 900                                # per document
+# output_dir = "/srv/research-data/mineru"
+# keep_output = false                            # keep MinerU's own files per doc_id
+# max_concurrency = 1
 
 [arxiv]
 delay_s = 3.0          # arXiv API terms: at most one request every 3 seconds

@@ -208,6 +208,14 @@ uv run docingest ingest data/raw/shannon1948_bstj_scanned.pdf --force   # re-pro
 uv run docingest ingest data/raw --config config/examples/remote-ocr.toml
 ```
 
+### `docingest ingest-async`
+
+```
+docingest ingest-async [OPTIONS] PATHS...
+```
+
+Read PDFs and images with the converter of `[adapters] multimodal` (MinerU 4, optional and off by default), one segment per page; everything else, and any document the converter cannot read, is ingested the regular way. Options: `--config`, `-c`. Up to `[mineru] max_concurrency` documents run at once. With `multimodal = "none"` (the default) or an unusable `[mineru]` table it prints the reason and exits 1. Output, summary and exit codes are those of `docingest ingest`; `--force`, `--ocr-all`, `--max-pages` and `--index` do not exist here. See [config/README.md](../../../config/README.md#mineru).
+
 ### `docingest crawl`
 
 ```

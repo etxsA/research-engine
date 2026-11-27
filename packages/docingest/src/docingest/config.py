@@ -33,6 +33,9 @@ class AdapterSelection(BaseModel):
     office: str = "docling"
     latex: str = "pandoc"
     text: str = "passthrough"
+    # "none": `docingest ingest-async` is off. "mineru": PDFs and images are read by MinerU 4,
+    # an external command (see [mineru]).
+    multimodal: str = "none"
     store: str = "filesystem"
     qa: str = "paperqa"
     crawler: str = "arxiv"
@@ -118,6 +121,30 @@ class LatexConfig(BaseModel):
     fallback: bool = True  # pylatexenc plain-text fallback when pandoc fails
 
 
+# MinerU weights that docingest accepts: the Apache-2.0 MinerU2.5-Pro releases. The earlier
+# MinerU2.5-2509 weights are AGPL-3.0 and are refused (config/README.md, "Licenses").
+MINERU_MODELS = ("MinerU2.5-Pro-2604-1.2B", "MinerU2.5-Pro-2605-1.2B")
+MINERU_TIERS = ("standard", "advanced")  # the tiers that run the Pro model
+
+
+class MineruConfig(BaseModel):
+    """MinerU 4 as an external command. Read only when ``[adapters] multimodal = "mineru"``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    command: str | None = None  # path of the mineru-kit executable; required when enabled
+    tier: str = "standard"  # --tier: "standard" or "advanced", the ones that run the Pro model
+    # The weights MinerU runs. Its CLI has no option to choose them (the release picks the
+    # repository), so this names the ones the operator checked: it goes into the cache key and
+    # an unlisted or AGPL model is refused. Required when enabled.
+    model: str | None = None
+    model_source: str | None = None  # MINERU_MODEL_SOURCE for the command: huggingface, modelscope
+    timeout_s: float = Field(default=900.0, gt=0)  # wall-clock limit per document
+    output_dir: str = "data/mineru"  # work folders; one folder per doc_id when keep_output
+    keep_output: bool = False  # keep MinerU's files (markdown, middle json, images) per document
+    max_concurrency: int = Field(default=1, ge=1, le=16)  # documents converted at once
+
+
 class ArxivConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -168,6 +195,7 @@ class AppConfig(BaseModel):
     ocr: OcrConfig = OcrConfig()
     qa: QaConfig = QaConfig()
     latex: LatexConfig = LatexConfig()
+    mineru: MineruConfig = MineruConfig()
     arxiv: ArxivConfig = ArxivConfig()
 
 

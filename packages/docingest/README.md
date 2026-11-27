@@ -245,6 +245,8 @@ A contents page joins each entry to its page number with a run of dots. A text l
 | DOCX, PPTX, XLSX, HTML (`.html`, `.htm`), XHTML | suffix | `office`: Docling (`office` extra) | `docling`, one segment |
 | Markdown (`.md`, `.markdown`), text (`.txt`) | suffix | `text`: passthrough | `passthrough`, one segment |
 
+Optionally, `docingest ingest-async` reads PDFs and images with MinerU 4 (an external command, `[adapters] multimodal = "mineru"`, off by default), one segment per page; see [config/README.md](config/README.md#mineru) for the settings and the licenses.
+
 Detection details worth knowing:
 
 - A `.tex`, `.ltx`, `.md`, `.markdown` or `.txt` file that happens to start with a `%PDF-` comment line keeps its LaTeX or text kind (it is not taken for a PDF) as long as its first 1024 bytes decode as UTF-8 and contain no NUL byte.
@@ -436,7 +438,7 @@ The text of a `text_layer` page is Markdown: paragraphs separated by a blank lin
 | `ocr_model` | `repo_id` and `revision` of the OCR model, when any page used OCR |
 | `title`, `metadata` | title and `SourceMetadata` (title, authors, year, abstract, doi, arxiv_id, version, url, license, categories) |
 | `created_at`, `total_seconds` | timing |
-| `artifacts` | the display equations and tables found in `document.md`, in order: `kind` (`equation`, `table`; `figure` and `region` are reserved for layout readers), `page` (0-based, like `PageRecord.index`, so the marker `page N` is `N - 1`), `latex` (an equation, without its delimiters) or `text` (a table, as Markdown), and optional `confidence` (0 to 1) and `bbox`. Inline `$x$` math and code blocks are not listed. Not part of the cache key: manifests written before the field existed load with `[]`, and `--force` fills it for an old document, at the price of re-running OCR on a scanned one (hours of GPU time) |
+| `artifacts` | the display equations and tables found in `document.md`, in order: `kind` (`equation`, `table`; `figure`, from `ingest-async`, holds the image path relative to MinerU's output folder in `text`; `region` is reserved for layout readers), `page` (0-based, like `PageRecord.index`, so the marker `page N` is `N - 1`), `latex` (an equation, without its delimiters) or `text` (a table, as Markdown), and optional `confidence` (0 to 1) and `bbox`. Inline `$x$` math and code blocks are not listed. Not part of the cache key: manifests written before the field existed load with `[]`, and `--force` fills it for an old document, at the price of re-running OCR on a scanned one (hours of GPU time) |
 
 `data/normalized/index.json` maps each canonical `doc_id` to its source name, title, kind, page count, OCR page count, directory and citation.
 

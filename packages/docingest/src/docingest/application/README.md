@@ -274,12 +274,29 @@ Constructor (all keyword-only):
 | `store` | `DocumentStore` | cache lookup, persistence, reading Markdown back |
 | `policy` | `RoutingPolicy` | thresholds for the per-page OCR decision (`[routing]` in `pipeline.toml`) |
 | `log` | `Log` | progress lines; default `print` |
+| `multimodal` | `AsyncDocumentConverter` or `None` | the optional converter of `ingest_async`; `None` (default, `[adapters] multimodal = "none"`) |
 
 Methods:
 
 - `ingest(path, options=None, metadata=None) -> StoredDocument`: the use case.
   `options` defaults to `IngestOptions()`. `metadata` is optional `SourceMetadata` that
   overrides the sidecar and the converter's metadata.
+- `async ingest_async(path, metadata=None) -> StoredDocument`: reads PDFs and images with the
+  `multimodal` converter, one segment per page (the page numbers of the PDF; empty pages kept;
+  `source_pages` from our own PDF reader). The mode (`ocr` or text layer only) is decided per
+  document from the per-page `signals()` and `decide()`: one page that needs OCR makes the
+  document a scan. LaTeX, text and office inputs, and any `ConversionError` of the converter,
+  go through `ingest()`. The cache key is `multimodal_hash(kind)` (converter fingerprint plus,
+  for PDFs, `[routing]` and the reader's fingerprint), so `config_hash` does not change when
+  the converter is turned on. Both commands save to the one canonical slot of the document,
+  so the last one run wins: a later `ingest` re-processes and replaces the MinerU result.
+  A blank page (no text and no ink) does not make a PDF a scan. A conversion whose number of
+  segments is not the page count of the source is treated as a `ConversionError`. Reading the
+  PDF, every regular `ingest()` (LaTeX, text and office inputs, and the fallback) and saving run
+  under one lock (pdfium, the OCR engine and the catalog are not thread-safe); only the
+  converter runs in parallel. A metadata change
+  refreshes the stored result without running the converter. Raises `NotConfiguredError`
+  without a converter.
 - `config_hash(kind, *, ocr_all=False) -> str`: the 12-character cache key for a
   `SourceKind` with the current adapters. See [Caching](#caching).
 
@@ -303,7 +320,10 @@ Methods:
 9. `render_markdown(manifest, texts)` from `domain.text` produces the Markdown.
    `extract_artifacts` from `domain.artifacts` then lists the display equations and tables
    of that Markdown (page from the page markers, inline math skipped) and the list is put
-   on the manifest as `artifacts`; a warning from it goes to the log.
+   on the manifest as `artifacts`; a warning from it goes to the log. `ingest_async` does the
+   same on the MinerU Markdown and adds the images in `Conversion.artifacts` through
+   `figure_artifacts` (kind `figure`, path in `text`; a bad entry is dropped with a warning),
+   sorted by page.
 10. `store.save(manifest, markdown, degraded=...)` persists both and returns the
     `StoredDocument`.
 
@@ -562,7 +582,7 @@ The `DocumentManifest` fields that `IngestService` fills:
 | `config_hash` | the cache key |
 | `ocr_model` | the OCR engine's `ModelRef` if at least one page used OCR, else `None` |
 | `title`, `metadata` | see [Metadata and title precedence](#metadata-and-title-precedence) |
-| `artifacts` | `LayoutArtifact` list read from the Markdown: display equations and tables with their 0-based page; empty when there are none. Not in `config_hash` |
+| `artifacts` | `LayoutArtifact` list read from the Markdown: display equations and tables with their 0-based page; `ingest_async` adds the figures the converter found (`kind` `figure`, path in `text`), all in page order; empty when there are none. Not in `config_hash` |
 | `total_seconds` | processing time from after the cache check to the manifest (the save is not included) |
 | `created_at` | set by the domain model (UTC, ISO 8601) |
 

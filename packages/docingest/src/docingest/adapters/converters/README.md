@@ -32,6 +32,7 @@ Related documentation: the port definitions are in [../../ports/README.md](../..
   - [Warnings and errors](#warnings-and-errors)
 - [Office and HTML: DoclingConverter](#office-and-html-doclingconverter)
 - [Markdown and text: PassthroughConverter](#markdown-and-text-passthroughconverter)
+- [PDFs and images: MineruConverter](#pdfs-and-images-mineruconverter)
 - [Using a converter directly](#using-a-converter-directly)
 - [Adding or changing a converter](#adding-or-changing-a-converter)
 - [Tests](#tests)
@@ -542,6 +543,17 @@ Behaviour:
 - The text is returned unchanged as a single untitled `Segment`, with `method = passthrough` and `engine = "passthrough"`.
 - A read error is not translated into `ConversionError`: it propagates as `OSError`, and the `ingest` command reports it in the `Failed inputs` table like any other failure.
 - `fingerprint` is `"passthrough 1"`. Bump the number if the output ever changes.
+
+## PDFs and images: MineruConverter
+
+An optional `AsyncDocumentConverter` (`[adapters] multimodal = "mineru"`), used only by `docingest ingest-async`. It runs MinerU 4 as an external command, so docingest gets no dependency and `uv.lock` does not change. The settings, the licenses and the model rule are in [config/README.md](../../../../config/README.md#mineru).
+
+- `convert_async(path, request)` runs in a thread: `<command> parse <file> -o <run>/result.zip --format zip --tier <tier> --ocr-mode <txt|ocr>` as an argument list, under `[mineru] timeout_s`, in a hidden folder of `output_dir` that is new for every run (`.<doc_id>-<random>`). The zip is unpacked with a path check, and `middle_json.json` is read.
+- `MultimodalRequest` (port) brings `doc_id`, `source_pages` (the PDF's page count from our reader) and `ocr` (some page needs OCR by the routing policy; decided by `IngestService`, not by this adapter). The result has exactly `source_pages` segments, one per `page_idx`, empty pages included; a page outside the document is a `ConversionError`.
+- Text comes from the blocks of each page: lines and spans, titles as `#` headings, inline equations as `$...$`, display equations as `$$...$$`, tables as the HTML MinerU gives. Image paths go to `Conversion.artifacts` relative to the output folder (`images/x.png`); `IngestService.ingest_async` keeps each one in the manifest's `artifacts` as a `figure` (the relative path in `text`).
+- With `keep_output` the run folder is renamed to `output_dir/<doc_id>` after a good conversion; otherwise nothing stays. Two files with the same name never share a folder.
+- Any failure (exit code, timeout, bad zip, no text) is a `ConversionError` and `ingest_async` ingests the document the regular way. A configuration that cannot run (no `command`, no `model`, an AGPL or unlisted model, a command that is not MinerU 4) raises `InvalidConfigError` when the adapter is built.
+- `fingerprint` is `mineru <version> model=<model> tier=<tier>`; the version is the first number found in `<command> --version`. `PageMethod.MINERU`, value `"mineru"`.
 
 ## Using a converter directly
 

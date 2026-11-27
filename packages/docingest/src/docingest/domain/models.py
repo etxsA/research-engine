@@ -31,6 +31,7 @@ class PageMethod(StrEnum):
     BLANK = "blank"  # no text and no ink: an empty page, never sent to OCR
     VLM_OCR = "vlm_ocr"  # rasterized page -> vision-language model
     DOCLING = "docling"  # office/html converter
+    MINERU = "mineru"  # PDF or image read by the optional MinerU command
     LATEX = "latex"  # LaTeX source -> Markdown (one segment per section)
     LATEX_PLAINTEXT = "latex_plaintext"  # fallback when the LaTeX converter fails
     PASSTHROUGH = "passthrough"
