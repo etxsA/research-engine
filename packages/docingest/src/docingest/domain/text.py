@@ -11,7 +11,7 @@ HYPHEN_MARK = "\x02"  # pdfium replaces a line-end hyphen with this and joins th
 _CID = re.compile(r"\(cid:\d+\)")
 _SOFT_HYPHEN = re.compile(rf"(\w+){HYPHEN_MARK}(\w+)")
 _CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
-_PAGE_MARKER = re.compile(r"^<!-- page (\d+) \| method=(\w+) -->$", re.MULTILINE)
+PAGE_MARKER = re.compile(r"^<!-- page (\d+) \| method=(\w+) -->$", re.MULTILINE)
 
 # A leader is a run of dots (or middle dots, or ellipsis characters), with or without
 # any number of spaces, tabs or other blanks between them, that joins an entry of a
@@ -150,7 +150,7 @@ def render_markdown(manifest: DocumentManifest, texts: list[str]) -> str:
 
 def split_pages(markdown: str) -> dict[int, str]:
     """Inverse of :func:`render_markdown`: {1-based page number: page text}."""
-    marks = list(_PAGE_MARKER.finditer(markdown))
+    marks = list(PAGE_MARKER.finditer(markdown))
     pages = {}
     for m, nxt in zip(marks, [*marks[1:], None], strict=True):
         end = nxt.start() if nxt else len(markdown)

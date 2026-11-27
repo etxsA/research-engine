@@ -301,6 +301,9 @@ Methods:
      `max_pages` segments.
 8. Build the `DocumentManifest` (fields below).
 9. `render_markdown(manifest, texts)` from `domain.text` produces the Markdown.
+   `extract_artifacts` from `domain.artifacts` then lists the display equations and tables
+   of that Markdown (page from the page markers, inline math skipped) and the list is put
+   on the manifest as `artifacts`; a warning from it goes to the log.
 10. `store.save(manifest, markdown, degraded=...)` persists both and returns the
     `StoredDocument`.
 
@@ -559,6 +562,7 @@ The `DocumentManifest` fields that `IngestService` fills:
 | `config_hash` | the cache key |
 | `ocr_model` | the OCR engine's `ModelRef` if at least one page used OCR, else `None` |
 | `title`, `metadata` | see [Metadata and title precedence](#metadata-and-title-precedence) |
+| `artifacts` | `LayoutArtifact` list read from the Markdown: display equations and tables with their 0-based page; empty when there are none. Not in `config_hash` |
 | `total_seconds` | processing time from after the cache check to the manifest (the save is not included) |
 | `created_at` | set by the domain model (UTC, ISO 8601) |
 
@@ -652,7 +656,10 @@ calls the converter again.
   puts in its User-Agent;
 - in a benchmark run's `manifest.json` under `versions.pipeline`.
 
-Changing it re-processes every document on its next ingest. Change it when a change in
+Changing it re-processes every document on its next ingest. The manifest's `artifacts`
+did not change it: they are a field with a default, written next to the same
+`document.md`, and a manifest stored before them loads with an empty list (`--force`
+fills it). Change it when a change in
 the application or domain layer changes what `ingest` writes for the same input and the
 same adapters, for example routing, text-layer cleaning, Markdown rendering or manifest
 content. A change inside one adapter belongs in that adapter's `fingerprint` instead (the

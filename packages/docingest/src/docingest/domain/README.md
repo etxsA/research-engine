@@ -11,6 +11,7 @@ Related reading: [package map](../README.md), [ports](../ports/README.md), [appl
 - [Modules](#modules)
 - [How domain objects flow through an ingestion](#how-domain-objects-flow-through-an-ingestion)
 - [models.py](#modelspy)
+- [artifacts.py](#artifactspy)
 - [routing.py](#routingpy)
 - [text.py](#textpy)
 - [Text-layer structure](#text-layer-structure-layoutpy-furniturepy-headingspy-structurepy)
@@ -25,7 +26,8 @@ Related reading: [package map](../README.md), [ports](../ports/README.md), [appl
 
 | Module | Contains | Used by |
 |---|---|---|
-| `models.py` | `SourceKind`, `PageMethod`, `PageSignals`, `PageProbe`, `ModelRef`, `AnswerModel`, `SourceMetadata`, `PageRecord`, `DocumentManifest` (pydantic models and `StrEnum`s) | every layer |
+| `models.py` | `SourceKind`, `PageMethod`, `PageSignals`, `PageProbe`, `ModelRef`, `AnswerModel`, `SourceMetadata`, `PageRecord`, `ArtifactKind`, `LayoutArtifact`, `DocumentManifest` (pydantic models and `StrEnum`s) | every layer |
+| `artifacts.py` | `extract_artifacts`, `build_artifact`, `checked_confidence`, `display_latex` (the display equations and tables of a Markdown text, with their page) | `IngestService` |
 | `routing.py` | `RoutingPolicy` (thresholds, the `[routing]` config section), `decide()`, and the blank-page rule (`could_be_blank`, `is_blank`, `blank_probe`) | `IngestService` for every PDF page, `config.AppConfig.routing` |
 | `ocr_guards.py` | `OcrGuards` (thresholds), `OutputProblem`, `find_problem`, `is_looping`, `retry_max_tokens`, `duplicate_pages` | the OCR adapters' retry ladder, `IngestService` |
 | `text.py` | `HYPHEN_MARK`, `garbage_ratio`, `alpha_ratio`, `equals_count`, `math_density`, `is_math_char`, `text_vocabulary`, `clean_text_layer`, `collapse_dot_leaders`, `render_markdown`, `split_pages` | PDF adapter (signals), `IngestService` (clean-up, rendering), synthetic benchmark suite (clean reference text), PaperQA2 adapter and hook, `eval-ocr` command (splitting) |
@@ -266,6 +268,23 @@ Provenance of one page (PDF), frame (image) or segment (converter).
 | `warnings` | `list[str]` | `[]` | OCR pages | What the pipeline did about the page beyond the plain route: the OCR output was rejected (`OCR output rejected (<why>); the text layer was used` or `...; the page was left empty`) or cut off at the token limit. Empty for an ordinary page; manifests written before the field existed load with `[]`. |
 | `removed_lines` | `list[str]` | `[]` | text-layer pages | The running headers, running footers and page numbers taken out of the page text, in page order, white space normalized. Empty when nothing was removed or the reader gave no layout. |
 
+### `LayoutArtifact`
+
+A piece of a page that carries more than running text. Immutable.
+
+| Field | Type | Default | Meaning |
+|---|---|---|---|
+| `kind` | `ArtifactKind` | required | `equation`, `table`, `figure` or `region`. The Markdown reader writes the first two. |
+| `page` | `int` | required | 0-based, like `PageRecord.index`: the marker `page N` of `document.md` is page `N - 1`. At least 0. |
+| `text` | `str \| None` | `None` | A table as Markdown, or the text of a figure or region. |
+| `latex` | `str \| None` | `None` | An equation as LaTeX, without `$$` or `\[ \]` (a raw `\begin{equation}` environment is kept whole). |
+| `confidence` | `float \| None` | `None` | A probability from a layout reader, 0 to 1. The model refuses a value outside the range; `build_artifact` turns it into `None` with a warning, so one bad value never fails an ingest. |
+| `bbox` | `tuple[float, float, float, float] \| None` | `None` | `x0, y0, x1, y1`. Not filled by the Markdown reader. |
+
+At least one of `text` and `latex` is required.
+
+`extract_artifacts(markdown) -> (artifacts, warnings)` in `artifacts.py` reads the text `render_markdown` wrote: display math (`$$..$$`, `\[..\]`, a raw equation environment) becomes an `equation` and a pipe table a `table`. Inline math (`$x$`) and code blocks are skipped, since a physics paper has thousands of inline formulas and `corpus()` reads every manifest on each query. The page comes from the marker above the block; a block above the first marker is on page 0.
+
 ### `DocumentManifest`
 
 The provenance record of one ingestion run, serialized as `manifest.json`.
@@ -290,6 +309,7 @@ The provenance record of one ingestion run, serialized as `manifest.json`.
 | `metadata` | `SourceMetadata \| None` | `None` | Bibliographic metadata, when known. |
 | `created_at` | `str` | now | UTC timestamp in ISO 8601 with seconds precision, set when the manifest is created. |
 | `total_seconds` | `float` | `0.0` | Processing wall time, rounded to 2 decimals. |
+| `artifacts` | `list[LayoutArtifact]` | `[]` | The display equations and tables of `document.md`, in order (see below). Not in the cache key; a manifest written before the field existed loads with `[]`. |
 
 Derived members:
 
@@ -400,6 +420,10 @@ A two-page PDF whose first page has a usable text layer and whose second page is
 ```
 
 Note that `probe.n_chars` counts non-whitespace characters of the raw text layer, while the record's `n_chars` is the length of the structured page text (after the running lines were taken out and the lines joined).
+
+## artifacts.py
+
+`extract_artifacts(markdown)` returns the `LayoutArtifact` list of a document's Markdown and the warnings about the values it dropped. It uses `blocks.find_blocks`, keeps the `display` and `table` blocks and skips `inline` and `code`. `build_artifact` is the one place that makes an artifact from raw values: it passes `confidence` through `checked_confidence` (a value outside [0, 1], or NaN, becomes `None` and a warning). `display_latex` takes the delimiters off a display block. The fields are in [`LayoutArtifact`](#layoutartifact).
 
 ## routing.py
 

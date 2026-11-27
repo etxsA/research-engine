@@ -11,6 +11,7 @@ from pathlib import Path
 
 from PIL.Image import Image
 
+from ..domain.artifacts import extract_artifacts
 from ..domain.errors import UnsupportedInputError
 from ..domain.layout import PageLayout
 from ..domain.models import (
@@ -218,7 +219,12 @@ class IngestService:
                 "  warning: degraded fallback conversion (timeout / crash): stored outside the"
                 " cache, the next run retries the converter"
             )
-        return self.store.save(manifest, render_markdown(manifest, texts), degraded=degraded)
+        markdown = render_markdown(manifest, texts)
+        artifacts, notes = extract_artifacts(markdown)
+        for note in notes:
+            self.log(f"  warning: layout artifact: {note}")
+        manifest = manifest.model_copy(update={"artifacts": artifacts})
+        return self.store.save(manifest, markdown, degraded=degraded)
 
     def _refresh_metadata(
         self, cached: StoredDocument, metadata: SourceMetadata

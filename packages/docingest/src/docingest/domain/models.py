@@ -15,7 +15,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from enum import StrEnum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class SourceKind(StrEnum):
@@ -112,6 +112,35 @@ class PageRecord(BaseModel):
     removed_lines: list[str] = Field(default_factory=list)  # running headers, footers, page numbers
 
 
+class ArtifactKind(StrEnum):
+    EQUATION = "equation"
+    TABLE = "table"
+    FIGURE = "figure"
+    REGION = "region"  # any other area a layout reader marks out
+
+
+class LayoutArtifact(BaseModel, frozen=True):
+    """A piece of a page that carries more than running text: an equation, a table, a figure.
+
+    Kept in the manifest so a consumer can reach the equations and tables of a document without
+    parsing ``document.md`` again, and so a layout reader that sees more than the Markdown does
+    (a box, a confidence) has a place to put it.
+    """
+
+    kind: ArtifactKind
+    page: int = Field(ge=0)  # 0-based, like ``PageRecord.index`` (marker ``page N`` is N - 1)
+    text: str | None = None  # a table as Markdown, a caption or the plain text of a region
+    latex: str | None = None  # an equation as LaTeX, without its delimiters
+    confidence: float | None = Field(default=None, ge=0.0, le=1.0)  # None: the reader gave none
+    bbox: tuple[float, float, float, float] | None = None  # x0, y0, x1, y1; None: not known
+
+    @model_validator(mode="after")
+    def _has_content(self) -> LayoutArtifact:
+        if self.text is None and self.latex is None:
+            raise ValueError("a layout artifact needs text or latex")
+        return self
+
+
 class DocumentManifest(BaseModel):
     doc_id: str  # sha256 of the raw bytes (content-addressed)
     source_path: str
@@ -131,6 +160,8 @@ class DocumentManifest(BaseModel):
     metadata: SourceMetadata | None = None
     created_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat(timespec="seconds"))
     total_seconds: float = 0.0
+    # Not part of the cache key: manifests written before the field existed load with [].
+    artifacts: list[LayoutArtifact] = Field(default_factory=list)
 
     @property
     def ocr_pages(self) -> int:
