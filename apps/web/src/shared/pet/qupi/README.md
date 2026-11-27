@@ -19,8 +19,8 @@ All layers share one square canvas and stack at 0,0, back to front: `tail`, `bod
 - `eyelids`, `mouth-closed` and `mouth-half` are overlays that line up exactly with `head`.
 - `rig.ts` exports `QUPI_LAYERS` and `QUPI_ORIGINS` (transform-origin per layer).
 - Head, ears, mark and overlays share the head transform (rotate about the neck, up to 6 degrees); ears add up
-  to 8 degrees about their roots; the tail rotates about its base. Moving layers are oversized and feathered so
-  these angles show no hole.
+  to 8 degrees about their roots, with no lift or drop; the tail rotates about its base, up to 4 degrees. Moving
+  layers are oversized and feathered so these angles show no hole; going further needs the art rebuilt and checked.
 - Total size of the WebP files is under 150 KB.
 
 ## Tools

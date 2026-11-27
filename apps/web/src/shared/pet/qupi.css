@@ -1,6 +1,7 @@
 /*
- * Qupi, the pet of the Ask screen (Qupi.tsx, QupiPet.tsx). Only transform-like properties
- * (`rotate`, `scale`, `translate`, which do not fight each other), opacity and filter move.
+ * Qupi, the pet of the Ask screen (Qupi.tsx, QupiPet.tsx). Loops and level-driven
+ * motion use only transform-like properties (`rotate`, `scale`, `translate`, which do not fight each
+ * other) and opacity, so nothing is repainted per frame; filters are static and only change with the state.
  * Poses and swaps (eyelids, mouth, filters) apply in every case; everything that loops or follows
  * a level sits under [data-motion="full"], which the component leaves out for people who asked
  * for reduced motion. QupiPet sets --qupi-level (microphone, 0 to 1), --qupi-mouth (voice, 0 to 1)
@@ -51,21 +52,46 @@
   opacity: 1;
 }
 
-/* The qubit mark glows; the colour and the strength say the state. */
+/*
+ * The qubit mark glows; the colour and the strength say the state. The mark keeps a static
+ * drop-shadow; the pulse is the opacity of a soft round gradient laid over the mark (a pseudo
+ * element of the head group), which the browser composites without repainting.
+ */
 .qupi-l-mark {
   filter: drop-shadow(0 0 2px rgb(251 191 36 / 0.45));
-}
-.qupi[data-state="listening"] .qupi-l-mark {
-  filter: drop-shadow(
-    0 0 calc(3px + var(--qupi-level, 0) * 8px)
-      rgb(251 191 36 / calc(0.7 + var(--qupi-level, 0) * 0.3))
-  );
 }
 .qupi[data-state="thinking"] .qupi-l-mark {
   filter: drop-shadow(0 0 4px rgb(167 139 250 / 0.85));
 }
 .qupi[data-state="error"] .qupi-l-mark {
   filter: hue-rotate(-45deg) saturate(2) drop-shadow(0 0 3px rgb(239 68 68 / 0.9));
+}
+.qupi-head-group::after {
+  content: "";
+  position: absolute;
+  left: 71.7%;
+  top: 37.4%;
+  width: 22%;
+  height: 22%;
+  translate: -50% -50%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(251 191 36 / 0.4) 0%, rgb(251 191 36 / 0) 70%);
+  opacity: 0.4;
+  pointer-events: none;
+}
+.qupi[data-state="listening"] .qupi-head-group::after {
+  opacity: 0.8;
+}
+.qupi[data-state="thinking"] .qupi-head-group::after {
+  background: radial-gradient(circle, rgb(167 139 250 / 0.4) 0%, rgb(167 139 250 / 0) 70%);
+  opacity: 0.7;
+}
+.qupi[data-state="error"] .qupi-head-group::after {
+  background: radial-gradient(circle, rgb(239 68 68 / 0.4) 0%, rgb(239 68 68 / 0) 70%);
+  opacity: 0.7;
+}
+.qupi[data-state="unavailable"] .qupi-head-group::after {
+  display: none;
 }
 .qupi[data-state="unavailable"] .qupi-l-mark {
   filter: none;
@@ -75,17 +101,15 @@
   opacity: 0.7;
 }
 
-/* Poses. */
+/* Poses. The ears never move more than the art allows (see qupi/README.md): 8 degrees, no lift. */
 .qupi[data-state="listening"] .qupi-head-group {
   rotate: 4deg;
 }
 .qupi[data-state="listening"] .qupi-l-ear-left {
   rotate: -4deg;
-  translate: 0 -2px;
 }
 .qupi[data-state="listening"] .qupi-l-ear-right {
   rotate: 4deg;
-  translate: 0 -2px;
 }
 .qupi[data-state="thinking"] .qupi-head-group {
   rotate: -3deg;
@@ -94,12 +118,10 @@
   translate: 0 2px;
 }
 .qupi[data-state="error"] .qupi-l-ear-left {
-  rotate: -16deg;
-  translate: 0 3px;
+  rotate: -8deg;
 }
 .qupi[data-state="error"] .qupi-l-ear-right {
-  rotate: 16deg;
-  translate: 0 3px;
+  rotate: 8deg;
 }
 .qupi[data-state="unavailable"] .qupi-head-group {
   translate: 0 3px;
@@ -132,8 +154,8 @@
 .qupi[data-motion="full"][data-state="waiting"] .qupi-l-eyelids {
   transition-duration: 0.15s;
 }
-.qupi[data-motion="full"] .qupi-l-mark {
-  transition: filter 0.1s linear;
+.qupi[data-motion="full"] .qupi-head-group::after {
+  transition: opacity 0.1s linear;
 }
 
 /* Breathing, in every state but the speaking one: chest first, the head a beat later. */
@@ -153,8 +175,11 @@
 .qupi[data-motion="full"][data-state="idle"] .qupi-l-ear-right {
   animation-direction: reverse;
 }
-.qupi[data-motion="full"][data-state="idle"] .qupi-l-mark {
+.qupi[data-motion="full"][data-state="idle"] .qupi-head-group::after {
   animation: qupi-glow 3.6s ease-in-out infinite;
+}
+.qupi[data-motion="full"][data-state="listening"] .qupi-head-group::after {
+  opacity: calc(0.5 + var(--qupi-level, 0) * 0.5);
 }
 
 .qupi[data-motion="full"][data-state="transcribing"] .qupi-head-group {
@@ -166,7 +191,7 @@
   animation-duration: 6s;
 }
 
-.qupi[data-motion="full"][data-state="thinking"] .qupi-l-mark {
+.qupi[data-motion="full"][data-state="thinking"] .qupi-head-group::after {
   animation: qupi-glow 1.2s ease-in-out infinite;
 }
 .qupi[data-motion="full"] .qupi-orbit-live {
@@ -176,7 +201,7 @@
   animation: qupi-orbit-back 3.8s linear infinite;
 }
 
-/* Speaking: the head bobs with the voice, the tail wags, the ears follow a beat behind. */
+/* Speaking: the head bobs with the voice and the tail wags a little. */
 .qupi[data-motion="full"][data-state="speaking"] .qupi-head-group {
   translate: 0 calc(var(--qupi-mouth, 0) * -3px);
   scale: calc(1 + var(--qupi-mouth, 0) * 0.015);
@@ -186,11 +211,6 @@
 }
 .qupi[data-motion="full"][data-state="speaking"] .qupi-l-tail {
   animation: qupi-wag 0.5s ease-in-out infinite;
-}
-.qupi[data-motion="full"][data-state="speaking"] .qupi-l-ear-left,
-.qupi[data-motion="full"][data-state="speaking"] .qupi-l-ear-right {
-  translate: 0 calc(var(--qupi-mouth, 0) * -1.5px);
-  transition: translate 0.18s ease-out;
 }
 
 .qupi[data-motion="full"][data-state="unavailable"] .qupi-l-tail {
@@ -239,10 +259,10 @@
 @keyframes qupi-wag {
   0%,
   100% {
-    rotate: -10deg;
+    rotate: -4deg;
   }
   50% {
-    rotate: 10deg;
+    rotate: 4deg;
   }
 }
 @keyframes qupi-nod {
@@ -259,10 +279,10 @@
 @keyframes qupi-glow {
   0%,
   100% {
-    filter: drop-shadow(0 0 2px rgb(251 191 36 / 0.35));
+    opacity: 0.25;
   }
   50% {
-    filter: drop-shadow(0 0 6px rgb(251 191 36 / 0.95));
+    opacity: 1;
   }
 }
 @keyframes qupi-orbit {

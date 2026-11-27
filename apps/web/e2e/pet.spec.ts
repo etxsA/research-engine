@@ -95,6 +95,47 @@ test.describe("with motion welcome", () => {
 test("Qupi keeps still when reduced motion is asked for", async ({ page }) => {
   await openAsk(page);
   await expect(qupi(page)).toHaveAttribute("data-motion", "still");
+  const running = await qupi(page).evaluate((node) => node.getAnimations({ subtree: true }).length);
+  expect(running).toBe(0);
+});
+
+test("the mouth and eyelid overlays follow data-mouth and data-blink", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" }); // no blink timer runs on its own
+  await openAsk(page);
+  const opacities = () =>
+    qupi(page).evaluate((node) => {
+      const read = (name: string) =>
+        Number(getComputedStyle(node.querySelector(`.qupi-l-${name}`)!).opacity);
+      return { lids: read("eyelids"), closed: read("mouth-closed"), half: read("mouth-half") };
+    });
+  const setup = (state: string, mouth: string | null, blink: boolean) =>
+    qupi(page).evaluate(
+      (node, [nextState, nextMouth, nextBlink]) => {
+        // The styles are read, not the app: state, mouth and blink are set as QupiPet would.
+        node.setAttribute("data-state", nextState);
+        node.setAttribute("data-motion", "still");
+        const wrap = node.parentElement!;
+        if (nextMouth) wrap.dataset.mouth = nextMouth;
+        else delete wrap.dataset.mouth;
+        const lids = node.querySelector<HTMLElement>(".qupi-l-eyelids")!;
+        if (nextBlink) lids.dataset.blink = "true";
+        else delete lids.dataset.blink;
+      },
+      [state, mouth, blink] as const,
+    );
+
+  await setup("speaking", "closed", false);
+  expect(await opacities()).toEqual({ lids: 0, closed: 1, half: 0 });
+  await setup("speaking", "half", false);
+  expect(await opacities()).toEqual({ lids: 0, closed: 0, half: 1 });
+  await setup("speaking", "open", false);
+  expect(await opacities()).toEqual({ lids: 0, closed: 0, half: 0 });
+  await setup("speaking", "closed", true);
+  expect((await opacities()).lids).toBe(1);
+  await setup("idle", null, true);
+  expect(await opacities()).toEqual({ lids: 1, closed: 0, half: 0 });
+  await setup("unavailable", null, false);
+  expect((await opacities()).lids).toBe(1);
 });
 
 test("Qupi listens to the fake microphone", async ({ page, context }) => {

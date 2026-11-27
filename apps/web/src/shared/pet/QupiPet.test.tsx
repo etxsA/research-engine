@@ -170,10 +170,12 @@ describe("QupiPet", () => {
     it("shows the voice as a mouth swap only, with no level-driven motion", () => {
       setReducedMotion(true);
       usePlayback.setState({ state: "speaking" });
+      const raf = vi.spyOn(window, "requestAnimationFrame");
       render(pet());
       const wrap = stage().parentElement!;
       expect(wrap.dataset.mouth).toBe("half");
       playbackLevel.current = 0.9;
+      expect(raf).not.toHaveBeenCalled();
       expect(wrap.dataset.mouth).toBe("half");
     });
 
@@ -257,15 +259,22 @@ describe("QupiPet", () => {
       expect(lids().dataset.blink).toBeUndefined();
     });
 
-    it("does not blink in the other states, and stops when the state changes", () => {
+    it("blinks in every state with open eyes, restarts on a change, and never when asleep", () => {
       vi.spyOn(Math, "random").mockReturnValue(0);
       const { rerender } = render(pet({ ask: "retrieving" }));
-      advance(20_000);
-      expect(lids().dataset.blink).toBeUndefined();
-      rerender(pet());
       advance(3100);
       expect(lids().dataset.blink).toBe("true");
       rerender(pet({ mic: "recording" }));
+      expect(lids().dataset.blink).toBeUndefined();
+      advance(3100);
+      expect(lids().dataset.blink).toBe("true");
+      usePlayback.setState({ state: "speaking" });
+      rerender(pet());
+      expect(lids().dataset.blink).toBeUndefined();
+      advance(3100);
+      expect(lids().dataset.blink).toBe("true");
+      usePlayback.setState({ state: "idle" });
+      rerender(pet({ unavailable: true }));
       expect(lids().dataset.blink).toBeUndefined();
       advance(20_000);
       expect(lids().dataset.blink).toBeUndefined();
@@ -304,10 +313,12 @@ describe("QupiPet", () => {
       expect(targets.some((name) => name.includes("qupi-l-ear-right"))).toBe(true);
     });
 
-    it("shakes once on top of the squash for an error", () => {
+    it("shakes once, added to the squash, for an error", () => {
       const { rerender } = render(pet());
       rerender(pet({ ask: "failed" }));
       expect(animate).toHaveBeenCalledTimes(2);
+      const options = animate.mock.calls.map((call) => call[1] as KeyframeAnimationOptions);
+      expect(options.find((option) => option.duration === 480)).toMatchObject({ composite: "add" });
     });
 
     it("does not repeat a move while the state stays the same", () => {

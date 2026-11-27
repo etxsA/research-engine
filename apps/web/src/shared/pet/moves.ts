@@ -36,15 +36,15 @@ export function twitchEar(node: Element | null | undefined, side: -1 | 1) {
     node,
     [
       { transform: "rotate(0deg)" },
-      { transform: `rotate(${side * 14}deg)`, offset: 0.3 },
-      { transform: `rotate(${side * -4}deg)`, offset: 0.65 },
+      { transform: `rotate(${side * 8}deg)`, offset: 0.3 },
+      { transform: `rotate(${side * -3}deg)`, offset: 0.65 },
       { transform: "rotate(0deg)" },
     ],
     { duration: 380 },
   );
 }
 
-/** One shake, side to side, for an error. */
+/** One shake, side to side, for an error. It adds to the squash that plays at the same time. */
 export function shake(node: Element | null | undefined) {
   play(
     node,
@@ -56,6 +56,6 @@ export function shake(node: Element | null | undefined) {
       { transform: "translateX(2px)", offset: 0.8 },
       { transform: "translateX(0)" },
     ],
-    { duration: 480 },
+    { duration: 480, composite: "add" },
   );
 }

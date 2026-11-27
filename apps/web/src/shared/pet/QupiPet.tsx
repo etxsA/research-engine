@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/shared/ui/button";
 import { playbackLevel, usePlayback } from "@/shared/voice/playback";
 import { usePetPrefs } from "./hidden";
-import { mouthFor } from "./mouth";
+import { mouthFor, type MouthShape } from "./mouth";
 import { shake, squash, twitchEar } from "./moves";
 import { petState, type PetInput, type PetState } from "./petState";
 import { Qupi } from "./Qupi";
@@ -26,7 +26,7 @@ function usePrefersReducedMotion(): boolean {
   );
 }
 
-interface QubiPetProps extends Omit<PetInput, "playback"> {
+interface QupiPetProps extends Omit<PetInput, "playback"> {
   /** Loudness of the microphone while recording, 0 to 1. */
   micLevel: number;
   /** Asks ahead of the newest question while it is queued. */
@@ -37,7 +37,7 @@ interface QubiPetProps extends Omit<PetInput, "playback"> {
  * Qupi with its "Hide Qupi" button, and a line for screen readers that says what it is doing.
  * The screen passes in what it knows; the reader's state comes from the shared playback store.
  */
-export function QupiPet({ micLevel, position, ...signals }: QubiPetProps) {
+export function QupiPet({ micLevel, position, ...signals }: QupiPetProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "pet" });
   const hidden = usePetPrefs((prefs) => prefs.hidden);
   const setHidden = usePetPrefs((prefs) => prefs.setHidden);
@@ -72,8 +72,11 @@ export function QupiPet({ micLevel, position, ...signals }: QubiPetProps) {
     let frame = 0;
     const tick = () => {
       const level = playbackLevel.current;
-      node.style.setProperty("--qupi-mouth", level.toFixed(3));
-      const shape = mouthFor(level);
+      const value = level.toFixed(3);
+      if (node.style.getPropertyValue("--qupi-mouth") !== value) {
+        node.style.setProperty("--qupi-mouth", value);
+      }
+      const shape = mouthFor(level, node.dataset.mouth as MouthShape | undefined);
       if (node.dataset.mouth !== shape) node.dataset.mouth = shape;
       frame = window.requestAnimationFrame(tick);
     };
@@ -84,10 +87,10 @@ export function QupiPet({ micLevel, position, ...signals }: QubiPetProps) {
     };
   }, [state, reduced, visible]);
 
-  // Resting and waiting, the eyelids close now and then: every 3 to 6 s, slower and rarer while waiting.
+  // The eyelids close now and then in every state with open eyes: every 3 to 6 s, slower and rarer while waiting.
   useEffect(() => {
     const lids = stage.current?.querySelector<HTMLElement>(".qupi-l-eyelids");
-    if (!lids || !visible || reduced || (state !== "idle" && state !== "waiting")) return;
+    if (!lids || !visible || reduced || state === "unavailable") return;
     const slow = state === "waiting";
     let timer = 0;
     const schedule = () => {

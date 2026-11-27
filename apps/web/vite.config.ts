@@ -30,8 +30,12 @@ export default defineConfig({
   build: {
     // research-api answers with `font-src 'self'`, which blocks a `data:` font. Vite inlines files
     // under 4 KiB, so one small KaTeX font became a data: URI and logged a CSP error on every page.
-    // Fonts are always files; anything else keeps Vite's default limit.
-    assetsInlineLimit: (file) => (/\.(?:woff2?|ttf|otf)$/i.test(file) ? false : undefined),
+    // Fonts are always files; so are the Qupi layers, whose 1x and 2x versions must not both end up
+    // inlined in the page's script. Anything else keeps Vite's default limit.
+    assetsInlineLimit: (file) =>
+      /\.(?:woff2?|ttf|otf)$/i.test(file) || /shared\/pet\/qupi\/.*\.webp$/.test(file)
+        ? false
+        : undefined,
   },
   server: { proxy },
   preview: { proxy },
