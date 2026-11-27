@@ -277,10 +277,12 @@ def test_a_paper_already_read_is_listed_again_with_no_lane_slot_and_no_reading(
 def test_the_kept_readings_are_the_last_eight_texts_used() -> None:
     adapter = CircuitsAdapter(timeout_s=30)
     texts = [f"```latex\n{one_gate('X')}\n```\n\ntext {n}" for n in range(9)]
-    for text in texts:
+    for text in texts[:8]:
         asyncio.run(adapter.blocks(text))
-    assert adapter._kept.get(texts[0]) is None  # the least recently used left
-    assert all(adapter._kept.get(text) is not None for text in texts[1:])
+    asyncio.run(adapter.blocks(texts[0]))  # used again: now the most recent, not the oldest
+    asyncio.run(adapter.blocks(texts[8]))  # the ninth text pushes out the least recently used
+    assert adapter._kept.get(texts[1]) is None
+    assert all(adapter._kept.get(text) is not None for text in [texts[0], *texts[2:]])
 
 
 RY_THETA = one_gate(r"R_y(\theta)")
