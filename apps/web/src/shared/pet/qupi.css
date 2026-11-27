@@ -108,10 +108,10 @@
 
 /* The little extras. */
 .qupi-orbit-a {
-  transform-origin: 60px 50px;
+  transform-origin: 66px 52px;
 }
 .qupi-orbit-b {
-  transform-origin: 60px 50px;
+  transform-origin: 66px 52px;
   rotate: 180deg;
 }
 

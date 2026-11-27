@@ -25,9 +25,9 @@ All layers share one square canvas and stack at 0,0, back to front: `tail`, `bod
 
 ## Tools
 
-| Step | Tool | License |
-|---|---|---|
-| Background removal | rembg 2.0.67 with the BiRefNet general model | MIT |
-| Fur edge decontamination | pymatting `estimate_foreground_ml` | MIT |
-| Inpainting under overlays | OpenCV (Telea) | Apache-2.0 |
-| Masks, drawing, export | Pillow, NumPy (hand made polygons and ellipses, feathered) | HPND, BSD |
+| Step                      | Tool                                                       | License    |
+| ------------------------- | ---------------------------------------------------------- | ---------- |
+| Background removal        | rembg 2.0.67 with the BiRefNet general model               | MIT        |
+| Fur edge decontamination  | pymatting `estimate_foreground_ml`                         | MIT        |
+| Inpainting under overlays | OpenCV (Telea)                                             | Apache-2.0 |
+| Masks, drawing, export    | Pillow, NumPy (hand made polygons and ellipses, feathered) | HPND, BSD  |

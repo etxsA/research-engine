@@ -92,12 +92,12 @@ export function Qupi({ state, still, position = null, className }: QupiProps) {
           className="qupi-orbit pointer-events-none absolute inset-0 size-full"
         >
           <g className={cn("qupi-orbit-a", motion && "qupi-orbit-live")}>
-            <circle cx="60" cy="6" r="4.5" fill="#2dd4bf" />
-            <circle cx="60" cy="6" r="7" fill="#2dd4bf" opacity="0.25" />
+            <circle cx="66" cy="8" r="4.5" fill="#2dd4bf" />
+            <circle cx="66" cy="8" r="7" fill="#2dd4bf" opacity="0.25" />
           </g>
           <g className={cn("qupi-orbit-b", motion && "qupi-orbit-live")}>
-            <circle cx="60" cy="14" r="3.5" fill="#a78bfa" />
-            <circle cx="60" cy="14" r="6" fill="#a78bfa" opacity="0.25" />
+            <circle cx="66" cy="16" r="3.5" fill="#a78bfa" />
+            <circle cx="66" cy="16" r="6" fill="#a78bfa" opacity="0.25" />
           </g>
         </svg>
       ) : null}
