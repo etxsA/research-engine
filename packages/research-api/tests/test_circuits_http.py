@@ -17,6 +17,7 @@ from research_api.adapters.fake import FakeDocumentReader
 from research_api.adapters.fake.corpus import PAPERS, TELEPORT, TRANSMON, FakePage, FakePaper
 from research_api.bootstrap import Settings, build_container
 from research_api.bootstrap.seed import load_seed_users
+from research_api.domain.circuits import MAX_VALUE_CHARS, MAX_VALUES
 from research_api.entrypoints.cli import openapi_document
 from research_api.entrypoints.http import build_app
 
@@ -591,6 +592,19 @@ def test_the_values_description_names_both_spellings_of_pi() -> None:
     for name in ("RunRequest", "CheckRequest", "QasmRequest", "PaperQasmRequest"):
         description = schemas[name]["properties"]["values"]["description"]
         assert "`\\pi/2`" in description and "`pi/2`" in description, name
+
+
+def test_the_contract_bounds_the_values_by_count_and_by_key_length() -> None:
+    schemas = json.loads(openapi_document())["components"]["schemas"]
+    for name in ("RunRequest", "CheckRequest", "QasmRequest", "PaperQasmRequest"):
+        values = next(
+            branch
+            for branch in schemas[name]["properties"]["values"]["anyOf"]
+            if branch.get("type") == "object"
+        )
+        assert values["maxProperties"] == MAX_VALUES, name
+        assert values["propertyNames"] == {"maxLength": MAX_VALUE_CHARS}, name
+        assert "maxLength" not in values, name
 
 
 # --- OpenQASM 3 export of a pasted circuit -----------------------------------------------------

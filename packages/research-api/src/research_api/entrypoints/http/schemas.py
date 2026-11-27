@@ -238,7 +238,11 @@ def _values_are_short(values: dict[str, str | int | float]) -> dict[str, str | i
 
 
 Values = Annotated[
-    dict[str, StrictStr | StrictInt | StrictFloat], AfterValidator(_values_are_short)
+    dict[str, StrictStr | StrictInt | StrictFloat],
+    Field(
+        max_length=MAX_VALUES, json_schema_extra={"propertyNames": {"maxLength": MAX_VALUE_CHARS}}
+    ),
+    AfterValidator(_values_are_short),
 ]
 VALUES = (
     "A value for each symbol of the circuit, a number or an angle as text such as `\\pi/2` or "
@@ -251,7 +255,7 @@ VALUES = (
 class RunRequest(Request):
     circuit_json: str = Field(description=CIRCUIT_JSON)
     input: str | list[Any] | None = Field(default=None, description=STATE_INPUT)
-    values: Values | None = Field(default=None, max_length=MAX_VALUES, description=VALUES)
+    values: Values | None = Field(default=None, description=VALUES)
     unitary: StrictBool = Field(
         default=False, description="Also list the unitary (up to 8 wires). `true` or `false` only."
     )
@@ -296,7 +300,7 @@ class CheckRequest(Request):
         json_schema_extra=_not_nullable,
     )
     input: str | list[Any] | None = Field(default=None, description=STATE_INPUT)
-    values: Values | None = Field(default=None, max_length=MAX_VALUES, description=VALUES)
+    values: Values | None = Field(default=None, description=VALUES)
 
     @field_validator("target", mode="before")
     @classmethod
@@ -318,13 +322,12 @@ QASM_VALUES = (
 
 class QasmRequest(Request):
     circuit_json: str = Field(description=CIRCUIT_JSON)
-    values: Values | None = Field(default=None, max_length=MAX_VALUES, description=QASM_VALUES)
+    values: Values | None = Field(default=None, description=QASM_VALUES)
 
 
 class PaperQasmRequest(Request):
     values: Values | None = Field(
         default=None,
-        max_length=MAX_VALUES,
         description=QASM_VALUES + " The same values go to every circuit of the paper, as "
         "`--set` does.",
     )

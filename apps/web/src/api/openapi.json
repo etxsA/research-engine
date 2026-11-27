@@ -485,7 +485,10 @@
                     }
                   ]
                 },
-                "maxLength": 64,
+                "maxProperties": 64,
+                "propertyNames": {
+                  "maxLength": 500
+                },
                 "type": "object"
               },
               {
@@ -1840,7 +1843,10 @@
                     }
                   ]
                 },
-                "maxLength": 64,
+                "maxProperties": 64,
+                "propertyNames": {
+                  "maxLength": 500
+                },
                 "type": "object"
               },
               {
@@ -2158,7 +2164,10 @@
                     }
                   ]
                 },
-                "maxLength": 64,
+                "maxProperties": 64,
+                "propertyNames": {
+                  "maxLength": 500
+                },
                 "type": "object"
               },
               {
@@ -2764,7 +2773,10 @@
                     }
                   ]
                 },
-                "maxLength": 64,
+                "maxProperties": 64,
+                "propertyNames": {
+                  "maxLength": 500
+                },
                 "type": "object"
               },
               {
