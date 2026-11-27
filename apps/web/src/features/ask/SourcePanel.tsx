@@ -9,6 +9,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Skeleton } from "@/shared/ui/skeleton";
 import { useDocument, useDocumentPage } from "./api";
 import { usePagesLabel } from "./CitationButtons";
+import { openInCircuits, PaperCircuitsLink } from "./CircuitLinks";
 import { useAskStore, type SourceTarget } from "./store";
 
 /** Puts focus back on the element that opened the panel, or on the question box if it is gone. */
@@ -98,6 +99,7 @@ function SourceView({ target }: { target: SourceTarget }) {
         <p className="text-xs text-muted-foreground">
           {t("source.cited", { pages: pagesLabel(kind, target.first, target.last) })}
         </p>
+        {summary ? <PaperCircuitsLink docId={summary.doc_id} /> : null}
       </SheetHeader>
 
       <div
@@ -129,7 +131,7 @@ function SourceView({ target }: { target: SourceTarget }) {
             </AlertDescription>
           </Alert>
         ) : page.data ? (
-          <MarkdownMath>{page.data.markdown}</MarkdownMath>
+          <MarkdownMath latexBlockAction={openInCircuits}>{page.data.markdown}</MarkdownMath>
         ) : (
           <div className="grid gap-3" aria-hidden="true">
             <Skeleton className="h-5 w-2/3" />

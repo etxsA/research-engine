@@ -236,6 +236,10 @@
       "ambiguous": "That short id names more than one paper.",
       "error": "The page could not be loaded.",
       "retry": "Try again"
+    },
+    "circuits": {
+      "open": "Open in Circuits",
+      "paper": "Circuits of this paper"
     }
   },
   "benchmarks": {
@@ -939,7 +943,8 @@
       "reading": "Reading",
       "clear": "Clear",
       "example": "Try an example",
-      "examplePick": "Choose one"
+      "examplePick": "Choose one",
+      "paper": "Paper"
     },
     "examples": {
       "bell": "Bell pair (quantikz)",
@@ -1002,13 +1007,17 @@
       "barrier": "barrier",
       "text": "text"
     },
+    "values": {
+      "title": "Values",
+      "description": "The values of the circuit's symbols. Simulate, Check and Export use them.",
+      "label": "Parameter values",
+      "hint": "One per line, name = value. A name is one symbol, such as theta, \\theta or \\theta_{1}. A value is a number or an angle such as \\pi/2 or pi/2."
+    },
     "run": {
       "title": "Simulate",
       "description": "The final state and the outcome probabilities, up to 12 wires.",
       "input": "Input state",
       "inputHint": "A basis label such as 010 (wire 1 first) or a list of amplitudes such as [0, 1]. Empty means all wires in 0.",
-      "values": "Parameter values",
-      "valuesHint": "One per line, name = value. A value is a number or an angle such as \\pi/2.",
       "unitary": "Also show the unitary (up to 8 wires)",
       "simulate": "Simulate",
       "running": "Simulating"
@@ -1042,6 +1051,69 @@
       "drawnNone": "The circuit read has no equality drawn in it.",
       "submit": "Check",
       "checking": "Checking"
+    },
+    "export": {
+      "title": "Export",
+      "description": "Writes the circuit as OpenQASM 3, one program per part of the drawing, as docingest circuits export does. Nothing is saved on the server.",
+      "submit": "Export",
+      "exporting": "Exporting",
+      "resultTitle": "OpenQASM 3 programs",
+      "resultDescription": "Each part of the drawing is one program. Copy it, or save it as a .qasm file.",
+      "ofCircuit": "Circuit {{n}} of the reading.",
+      "part": "Part {{part}}",
+      "partAfter": "Part {{part}}, after \"{{sign}}\"",
+      "size": "Qubits: {{qubits}}. Classical bits: {{clbits}}.",
+      "program": "OpenQASM 3 program {{file}}",
+      "copy": "Copy",
+      "copyFile": "Copy {{file}}",
+      "download": "Download",
+      "downloadFile": "Download {{file}}",
+      "copied": {
+        "copied": "{{file}} copied.",
+        "selected": "{{file}} is selected: the browser did not allow copying. Press Ctrl+C (Cmd+C on a Mac) to copy it.",
+        "failed": "{{file}} could not be copied. Select its text and copy it."
+      },
+      "refusedTitle": "Refused",
+      "refusedBody": "The export did not write this circuit as OpenQASM 3, so there is no program. These are its reasons.",
+      "reasons": "Reasons",
+      "unboundTitle": "Values are missing",
+      "unboundBody": "The circuit has symbols with no value: {{names}}. Give each a value and export again.",
+      "addNames": "Add the names to the values",
+      "unmatchedTitle": "Values not used",
+      "unmatchedBody": "These names match no symbol of the circuit, so their values were not used: {{names}}.",
+      "notes": "Notes",
+      "live": "Export finished. Programs: {{programs}}."
+    },
+    "paper": {
+      "description": "Find a stored paper, list its circuit blocks, read one of them here, or export every circuit of the paper as OpenQASM 3.",
+      "searchLabel": "Find a stored paper",
+      "query": "Title or id",
+      "queryHint": "Part of a title, or the start of a paper's id. Leave it empty to list the first papers.",
+      "search": "Find papers",
+      "searching": "Finding",
+      "found": "Papers found",
+      "showing": "Showing {{shown}} of {{total}}. Write more of the title to narrow the search.",
+      "none": "No stored paper matches.",
+      "loading": "Reading the paper's circuit blocks",
+      "id": "Id: {{id}}",
+      "blocks": "Circuit blocks ({{count}})",
+      "noBlocks": "This paper has no circuit blocks: its text has no fenced latex block.",
+      "block": "Block {{block}}",
+      "circuitsRead": "Circuits read: {{count}}",
+      "latex": "LaTeX of block {{block}}",
+      "read": "Read this block",
+      "readBlock": "Read this block: block {{block}}",
+      "exportHint": "Exports every circuit of the paper with the values below, under the file names docingest circuits export --doc writes. Nothing is written on the server.",
+      "export": "Export this paper",
+      "exporting": "Exporting the paper",
+      "exportTitle": "Programs of {{source}}",
+      "exportSummary": "Programs: {{programs}}. Refused circuits: {{refused}}.",
+      "warnings": "Warnings",
+      "circuit": "Block {{block}}, circuit {{circuit}}",
+      "live": {
+        "circuits": "Circuit blocks of the paper: {{blocks}}.",
+        "export": "Export of the paper finished. Programs: {{programs}}. Refused circuits: {{refused}}."
+      }
     },
     "result": {
       "runTitle": "Simulation",
@@ -1131,6 +1203,8 @@
       "notAllowed": "You are not allowed to do this",
       "failed": "The request failed",
       "malformed": "The server's answer could not be read",
+      "notFound": "Not found",
+      "ambiguous": "More than one paper matches",
       "retry": "Try again in {{seconds}} seconds."
     },
     "local": {
@@ -1158,6 +1232,10 @@
         "title": "A parameter value is not valid",
         "detail": "Line {{line}} ({{name}}): write name = value, once per name."
       },
+      "badName": {
+        "title": "A parameter name is not valid",
+        "detail": "Line {{line}}: \"{{name}}\" is not a parameter name. Write one symbol, such as theta, \\theta or \\theta_{1}."
+      },
       "badState": {
         "title": "The state is not valid",
         "detail": "Write a basis label such as 010, or a list of amplitudes such as [0, 1]."
@@ -1177,6 +1255,14 @@
       "secondMany": {
         "title": "More than one circuit in the second text",
         "detail": "The second text holds {{count}} circuits. Keep one."
+      },
+      "noPaper": {
+        "title": "No paper chosen",
+        "detail": "Choose a paper first."
+      },
+      "unknownPaper": {
+        "title": "Not found",
+        "detail": "No stored paper has this id. An id is 16 to 64 characters, each a digit or a letter from a to f."
       },
       "network": {
         "title": "The server could not be reached",

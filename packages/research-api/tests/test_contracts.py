@@ -168,6 +168,93 @@ CASES = {
         "import quantum_sim\nimport docingest",
         set(),
     ),
+    # The OpenQASM export: rules, port and use cases stay pure; only the circuits adapter reaches
+    # docingest's export and quantum-sim's emitter.
+    "the export use cases import docingest's export": (
+        "application/circuits.py",
+        "import docingest.application.qasm",
+        {PORTS_ONLY, DOCINGEST},
+    ),
+    "the export use cases import the circuits adapter": (
+        "application/circuits.py",
+        "from ..adapters import circuits",
+        {LAYERS, PROTECTED, PORTS_ONLY},  # and docingest and quantum_sim, through the chain
+    ),
+    "the export rules import quantum_sim's emitter": (
+        "domain/circuits.py",
+        "import quantum_sim.qasm",
+        {PURE, PORTS_ONLY, QUANTUM},
+    ),
+    "the paper text rules import docingest": (
+        "domain/documents.py",
+        "import docingest.domain.circuits",
+        {PURE, PORTS_ONLY, DOCINGEST},
+    ),
+    "the circuit port imports docingest": (
+        "ports/circuits.py",
+        "import docingest.domain.circuits",
+        {PORTS_ONLY, DOCINGEST},
+    ),
+    "the paper reader port imports quantum_sim": (
+        "ports/documents.py",
+        "import quantum_sim.angles",
+        {PORTS_ONLY, QUANTUM},
+    ),
+    "the circuit routes import quantum_sim's emitter themselves": (
+        "entrypoints/http/circuits.py",
+        "import quantum_sim.qasm",
+        {QUANTUM},
+    ),
+    "the circuit routes import docingest themselves": (
+        "entrypoints/http/circuits.py",
+        "import docingest.application.qasm",
+        {DOCINGEST},
+    ),
+    "the fake paper reader imports quantum_sim": (
+        "adapters/fake/ask.py",
+        "import quantum_sim.qasm",
+        {QUANTUM},
+    ),
+    "the docingest paper reader imports quantum_sim": (
+        "adapters/docingest_ask/documents.py",
+        "import quantum_sim.qasm",
+        {QUANTUM},
+    ),
+    "the circuits adapter imports the docingest paper reader": (
+        "adapters/circuits/__init__.py",
+        "from .. import docingest_ask",
+        {INDEPENDENT},
+    ),
+    "the circuits adapter imports the fake paper reader": (
+        "adapters/circuits/__init__.py",
+        "from ..fake import ask",
+        {INDEPENDENT},
+    ),
+    "a new module inside the circuits adapter imports qa_bench": (
+        "adapters/circuits/qasm.py",
+        "import qa_bench",
+        {QA_BENCH},
+    ),
+    "control: the circuits adapter imports docingest's export and quantum_sim's emitter": (
+        "adapters/circuits/__init__.py",
+        "import docingest.adapters.qasm\nimport quantum_sim.qasm",
+        set(),
+    ),
+    "control: a new module inside the circuits adapter imports docingest and quantum_sim": (
+        "adapters/circuits/qasm.py",
+        "import docingest.domain.circuits\nimport quantum_sim.angles",
+        set(),
+    ),
+    "control: the export use cases import the paper reader port and the domain": (
+        "application/circuits.py",
+        "from ..ports import documents\nfrom ..domain import documents as rules",
+        set(),
+    ),
+    "control: the circuit routes import the export use cases": (
+        "entrypoints/http/circuits.py",
+        "from ...application import circuits",
+        set(),
+    ),
     "domain imports pwdlib": ("domain/status.py", "import pwdlib", {PURE, PORTS_ONLY, HASHING}),
     "domain imports argon2": ("domain/status.py", "import argon2", {PURE, PORTS_ONLY, HASHING}),
     "the persistence adapter imports pwdlib": (

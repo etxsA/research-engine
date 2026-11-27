@@ -3,14 +3,20 @@ from __future__ import annotations
 import json
 
 import pytest
+from docingest.application.qasm import _filename as docingest_filename
 
 from research_api.domain.circuits import (
     MAX_STATE_WIRES,
     MAX_UNITARY_WIRES,
     CircuitCaps,
+    ensure_paper_within_caps,
     ensure_within_caps,
     operation_count,
+    paper_origin,
+    pasted_qasm_filename,
+    qasm_filename,
     read_json_strict,
+    values_pointer,
     wire_count,
 )
 from research_api.domain.errors import BadRequestError, InvalidInputError
@@ -153,3 +159,64 @@ def test_operations_are_added_up_over_the_circuits() -> None:
 
 def test_a_document_that_is_not_a_circuit_is_left_to_the_simulator() -> None:
     ensure_within_caps([("/c", [1, 2, 3])], CAPS, max_wires=12)
+
+
+# --- the OpenQASM 3 export -------------------------------------------------------------------
+
+
+def test_the_export_has_no_wire_cap_but_keeps_the_operation_cap() -> None:
+    ensure_within_caps([("/c", circuit(40, 5))], CAPS, max_wires=None)
+    with pytest.raises(InvalidInputError, match="6 operations") as stop:
+        ensure_within_caps([("/c", circuit(40, 6))], CAPS, max_wires=None)
+    assert [e.path for e in stop.value.errors] == ["/c"]
+    assert "quantum-sim" in stop.value.detail
+
+
+def test_the_circuits_of_a_paper_share_one_operation_budget() -> None:
+    ensure_paper_within_caps([circuit(2, 3), circuit(2, 2)], CAPS)
+    with pytest.raises(InvalidInputError) as stop:
+        ensure_paper_within_caps([circuit(2, 3), circuit(2, 3)], CAPS)
+    assert stop.value.detail.startswith(
+        "The paper's circuits ask for 6 operations; this endpoint takes at most 5."
+    )
+    assert "`docingest circuits export --doc`" in stop.value.detail
+    assert stop.value.errors == ()
+
+
+def test_a_paper_has_no_wire_cap_and_a_paper_with_no_circuit_passes() -> None:
+    ensure_paper_within_caps([circuit(40, 5)], CAPS)
+    ensure_paper_within_caps([], CAPS)
+
+
+@pytest.mark.parametrize(
+    ("block", "circuit_no", "part"), [(1, 1, 1), (2, 10, 3), (12, 1, 2), (100, 7, 100)]
+)
+def test_a_papers_program_is_named_as_docingest_names_it(
+    block: int, circuit_no: int, part: int
+) -> None:
+    doc_id = "0123456789abcdef" + "f" * 48
+    name = qasm_filename(doc_id, block, circuit_no, part)
+    assert name == docingest_filename(doc_id, block, circuit_no, part)
+    assert name.startswith("0123456789abcdef-b") and name.endswith(".qasm")
+
+
+def test_the_file_names_are_zero_padded_to_two_digits() -> None:
+    assert qasm_filename("a" * 64, 1, 2, 3) == "aaaaaaaaaaaaaaaa-b01-c02-p03.qasm"
+    assert pasted_qasm_filename(1) == "circuit-p01.qasm"
+    assert pasted_qasm_filename(12) == "circuit-p12.qasm"
+
+
+def test_the_source_line_of_a_paper_names_the_file_block_and_circuit() -> None:
+    assert paper_origin("paper.tex", 2, 1) == "paper.tex, block 2, circuit 1"
+
+
+@pytest.mark.parametrize(
+    ("key", "pointer"),
+    [
+        ("theta", "/values/theta"),
+        ("\\theta_{1}", "/values/\\theta_{1}"),
+        ("a/b~c", "/values/a~1b~0c"),
+    ],
+)
+def test_a_values_key_is_pointed_at_with_json_pointer_escapes(key: str, pointer: str) -> None:
+    assert values_pointer(key) == pointer

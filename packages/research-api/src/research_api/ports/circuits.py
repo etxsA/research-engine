@@ -1,10 +1,12 @@
-"""Port: reading circuit sources and simulating circuits."""
+"""Port: reading circuit sources, simulating circuits and exporting them as OpenQASM 3."""
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
+
+from ..domain.circuits import QasmExport
 
 
 @dataclass(frozen=True)
@@ -18,6 +20,23 @@ class GateListReading:
     status: str
     text: str
     circuits: tuple[Mapping[str, Any], ...]
+
+
+@dataclass(frozen=True)
+class LatexBlock:
+    """One fenced ``latex`` block of a Markdown text: its body and what docingest read in it."""
+
+    source: str
+    reading: GateListReading
+
+
+@dataclass(frozen=True)
+class CircuitQasm:
+    """The export of circuit ``circuit`` (from 1) of fenced ``latex`` block ``block`` (from 1)."""
+
+    block: int
+    circuit: int
+    export: QasmExport
 
 
 class CircuitEngine(Protocol):
@@ -50,4 +69,48 @@ class CircuitEngine(Protocol):
 
     def conventions(self) -> Mapping[str, Any]:
         """The conventions, the gate table and the limits, as ``quantum-sim conventions``."""
+        ...
+
+    async def blocks(self, markdown: str) -> tuple[LatexBlock, ...]:
+        """The fenced ``latex`` blocks of a Markdown text, in order, each read as ``parse``
+        reads LaTeX: the blocks docingest's export numbers from 1. Over the time limit, the
+        ``InvalidInputError`` points to ``docingest circuits export --doc``."""
+        ...
+
+    async def check_values(self, values: Mapping[str, Any] | None) -> None:
+        """Refuse binding keys and values the export cannot use, before any circuit is
+        exported: an ``InvalidInputError`` with the emitter's message, pointing to the key in
+        ``values`` when one key is the cause. Cheap, so it is never refused for a busy engine."""
+        ...
+
+    async def qasm(
+        self,
+        document: object,
+        *,
+        values: Mapping[str, Any] | None = None,
+        origin: str = "",
+        tool: str,
+    ) -> QasmExport:
+        """The OpenQASM 3 export of a ``circuit/1`` document. ``origin`` is the source line of
+        the header (none when empty) and ``tool`` the generated-by name. A circuit the emitter
+        refuses comes back with status ``refused`` and its reasons, never as an error. Over the
+        time limit, the ``InvalidInputError`` points to the library function
+        ``quantum_sim.to_qasm``."""
+        ...
+
+    async def qasm_blocks(
+        self,
+        markdown: str,
+        *,
+        values: Mapping[str, Any] | None = None,
+        origin: Callable[[int, int], str],
+        tool: str,
+        admit: Callable[[Sequence[object]], None],
+    ) -> tuple[CircuitQasm, ...]:
+        """Export every circuit of the fenced ``latex`` blocks of a Markdown text, as one job:
+        one slot and one time limit for the whole text. The blocks are read as ``blocks`` reads
+        them; ``admit`` gets every circuit document first and raises to refuse the whole job
+        before any circuit is exported; then each circuit is exported as ``qasm`` exports it,
+        with the source line ``origin(block, circuit)``. A job over the time limit is an
+        ``InvalidInputError`` that points to ``docingest circuits export --doc``."""
         ...

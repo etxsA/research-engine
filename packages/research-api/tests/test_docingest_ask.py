@@ -286,6 +286,51 @@ def test_the_text_of_a_paper_that_is_not_utf8_is_not_found(
         reader.page(doc_id("alpha.pdf"), 1)
 
 
+def test_the_whole_text_of_a_paper_is_its_document_md(
+    store: FilesystemStore, tmp_path: Path
+) -> None:
+    reader = reader_for(store)
+    text = reader.text(doc_id("delta.tex")[:16])
+    on_disk = tmp_path / "normalized" / doc_id("delta.tex")[:16] / "document.md"
+    assert text.markdown == on_disk.read_text(encoding="utf-8")
+    assert "<!-- page 3 | method=latex -->\nresults" in text.markdown
+    assert (text.doc_id, text.source_name) == (doc_id("delta.tex"), "delta.tex")
+
+
+def test_the_whole_text_is_read_again_each_time(store: FilesystemStore) -> None:
+    counted = CountingStore(store)
+    reader = reader_for(counted)
+    reader.text(doc_id("beta.pdf"))
+    reader.text(doc_id("beta.pdf"))
+    assert counted.reads == 2
+
+
+def test_the_whole_text_of_a_missing_or_unreadable_paper_is_not_found(
+    store: FilesystemStore, tmp_path: Path
+) -> None:
+    reader = reader_for(store)
+    with pytest.raises(NotFoundError, match="No such document"):
+        reader.text("f" * 16)
+    folder = tmp_path / "normalized"
+    (folder / doc_id("alpha.pdf")[:16] / "document.md").unlink()
+    with pytest.raises(NotFoundError, match="not available"):
+        reader.text(doc_id("alpha.pdf"))
+    (folder / doc_id("beta.pdf")[:16] / "document.md").write_bytes(b"\xff\xfe caf\xe9\n")
+    with pytest.raises(NotFoundError, match="not available"):
+        reader.text(doc_id("beta.pdf"))
+
+
+def test_the_whole_text_of_an_ambiguous_prefix_is_a_conflict() -> None:
+    first = manifest("one.pdf").model_copy(update={"doc_id": "ab" * 8 + "0" * 48})
+    second = manifest("two.pdf").model_copy(update={"doc_id": "ab" * 8 + "1" * 48})
+    reader = reader_for(
+        ListStore([StoredDocument(first, "/a", True), StoredDocument(second, "/b", True)])
+    )
+    with pytest.raises(ConflictError):
+        reader.text("ab" * 8)
+    assert reader.text(second.doc_id[:17]).source_name == "two.pdf"
+
+
 class BrokenListing:
     def corpus(self) -> tuple[list[StoredDocument], list[str]]:
         raise OSError("the papers folder is gone")
@@ -300,6 +345,7 @@ def test_a_papers_folder_that_cannot_be_read_is_a_retry_later_not_a_crash() -> N
         lambda: reader.search("", 5),
         lambda: reader.get("a" * 16),
         lambda: reader.page("a" * 16, 1),
+        lambda: reader.text("a" * 16),
     ):
         with pytest.raises(UnavailableError) as raised:
             read()
@@ -1036,6 +1082,8 @@ def test_the_offline_reader_has_no_papers() -> None:
         reader.get("a" * 16)
     with pytest.raises(NotFoundError):
         reader.page("a" * 16, 1)
+    with pytest.raises(NotFoundError):
+        reader.text("a" * 16)
 
 
 def test_open_docingest_reads_the_settings_and_opens_nothing(tmp_path: Path) -> None:

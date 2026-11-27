@@ -15,6 +15,8 @@ import pytest
 from fastapi.testclient import TestClient
 from helpers import MovableClock, live_settings, make_wav, prepare_live
 
+from research_api.adapters.fake import FakeDocumentReader
+from research_api.adapters.fake.corpus import FakePage, FakePaper
 from research_api.adapters.fake.synthesis import tone
 from research_api.adapters.models import OpenAiSynthesizer, OpenAiTranscriber
 from research_api.bootstrap import Settings, build_container
@@ -447,3 +449,82 @@ def test_the_clock_of_fake_mode_does_not_break_the_log(
         Settings.defaults(), fake=True, seed=seed, cheap_hashing=True, clock=MovableClock()
     )
     assert client_for(build_app(container)).get("/api/v1/health").status_code == 200
+
+
+def test_neither_a_circuit_nor_a_value_of_the_export_reaches_the_log(
+    tmp_path: Path, seed: list[SeedUser], client_for: Callable[..., TestClient]
+) -> None:
+    secret_paper = FakePaper(
+        key="private-circuits",
+        title="A private paper (synthetic)",
+        source_name="private-source-name.tex",
+        source_kind="latex",
+        authors=("A. Example",),
+        year=2026,
+        pages=(
+            FakePage(
+                "```latex\n\\begin{quantikz} \\lstick{private-wire-legend} & "
+                "\\gate{R_y(\\theta)} & \\qw \\end{quantikz}\n```",
+                title="Private",
+            ),
+        ),
+    )
+    container = build_container(
+        Settings.defaults(),
+        fake=True,
+        seed=seed,
+        cheap_hashing=True,
+        document_reader=FakeDocumentReader((secret_paper,)),
+    )
+    configure_logging(tmp_path)
+    client = client_for(build_app(container))
+    client.post("/api/v1/auth/login", json=ANA)
+    headers = {CSRF_HEADER: client.cookies[CSRF_COOKIE]}
+    pasted = {
+        "format": "circuit/1",
+        "wires": 1,
+        "wire_labels": ["1 = pasted-private-legend"],
+        "parts": [[[{"kind": "gate", "label": "R_y(\\theta)", "targets": [1]}]]],
+    }
+    calls = [
+        ("post", "/api/v1/circuits/qasm", {"circuit_json": json.dumps(pasted)}),
+        (
+            "post",
+            "/api/v1/circuits/qasm",
+            {"circuit_json": json.dumps(pasted), "values": {"theta": "0.123456789"}},
+        ),
+        (
+            "post",
+            "/api/v1/circuits/qasm",
+            {"circuit_json": json.dumps(pasted), "values": {"private-bad-key": "1"}},
+        ),
+        ("get", f"/api/v1/documents/{secret_paper.short_id}/circuits", None),
+        (
+            "post",
+            f"/api/v1/documents/{secret_paper.short_id}/qasm",
+            {"values": {"theta": "0.987654321"}},
+        ),
+        ("post", f"/api/v1/documents/{secret_paper.short_id}/qasm", {"values": {"x": "1 +"}}),
+    ]
+    for method, url, body in calls:
+        assert client.request(method, url, json=body, headers=headers).status_code in (200, 422)
+    path = tmp_path / LOG_NAME
+    routes = {line.get("route") for line in lines(path) if line.get("event") == "request"}
+    assert {
+        "/api/v1/circuits/qasm",
+        "/api/v1/documents/{doc_id}/circuits",
+        "/api/v1/documents/{doc_id}/qasm",
+    } <= routes
+    text = path.read_text(encoding="utf-8")
+    for secret in (
+        "private-wire-legend",
+        "pasted-private-legend",
+        "R_y",
+        "0.123456789",
+        "0.987654321",
+        "private-bad-key",
+        "private-source-name",
+        secret_paper.short_id,
+        "OPENQASM",
+    ):
+        assert secret not in text, secret

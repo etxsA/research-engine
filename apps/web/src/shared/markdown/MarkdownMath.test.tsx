@@ -422,3 +422,64 @@ describe("pipe tables", () => {
     }
   });
 });
+
+describe("an action under each latex block", () => {
+  const CIRCUIT = "\\begin{quantikz}\n& \\gate{H} & \\qw\n\\end{quantikz}";
+  const action = (source: string) => (
+    <button type="button" data-source={source}>
+      Use it
+    </button>
+  );
+
+  it("is shown under a fenced latex block, with the block's source as written", () => {
+    const { container } = render(
+      <MarkdownMath latexBlockAction={action}>
+        {`Before.\n\n\`\`\`latex\n${CIRCUIT}\n\`\`\`\n\nAfter.`}
+      </MarkdownMath>,
+    );
+    const buttons = screen.getAllByRole("button", { name: "Use it" });
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0]).toHaveAttribute("data-source", CIRCUIT);
+    // the block itself is still there, above its action
+    const pre = container.querySelector("pre")!;
+    expect(pre.textContent).toBe(`${CIRCUIT}\n`);
+    expect(
+      pre.compareDocumentPosition(buttons[0]!) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(container.querySelector("[node]")).toBeNull();
+  });
+
+  it("is shown once per latex block", () => {
+    render(
+      <MarkdownMath latexBlockAction={action}>
+        {`\`\`\`latex\n${CIRCUIT}\n\`\`\`\n\ntext\n\n\`\`\`latex\nsecond\n\`\`\``}
+      </MarkdownMath>,
+    );
+    expect(screen.getAllByRole("button", { name: "Use it" }).map((b) => b.dataset.source)).toEqual([
+      CIRCUIT,
+      "second",
+    ]);
+  });
+
+  it("is not shown for code in another language, code with no language, or inline code", () => {
+    const { container } = render(
+      <MarkdownMath latexBlockAction={action}>
+        {[
+          "```python\nprint(1)\n```",
+          "```tex\n\\begin{quantikz}\\end{quantikz}\n```",
+          "```\nplain\n```",
+          "    indented code",
+          "Inline `\\begin{quantikz}` and `latex` code.",
+        ].join("\n\n")}
+      </MarkdownMath>,
+    );
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(container.querySelectorAll("pre")).toHaveLength(4);
+  });
+
+  it("is not shown when no action is given", () => {
+    const { container } = render(<MarkdownMath>{`\`\`\`latex\n${CIRCUIT}\n\`\`\``}</MarkdownMath>);
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(container.querySelector("pre")?.textContent).toBe(`${CIRCUIT}\n`);
+  });
+});

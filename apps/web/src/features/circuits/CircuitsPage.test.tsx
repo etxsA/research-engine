@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { ANA } from "@/test/auth-mock";
@@ -287,6 +287,26 @@ describe("the circuit check screen", () => {
       expect(
         await screen.findByText("Line 1 (theta): write name = value, once per name."),
       ).toBeInTheDocument();
+    });
+
+    it("refuses a key that is not one symbol before sending anything", async () => {
+      const user = await openPage();
+      await readExample(user, "rotation");
+      await screen.findByText("Read in full");
+      const sent: string[] = [];
+      server.events.on("request:start", ({ request }) => void sent.push(request.url));
+      try {
+        await user.type(screen.getByLabelText("Parameter values"), "thetta = 1");
+        await user.click(screen.getByRole("button", { name: "Simulate" }));
+        expect(
+          await screen.findByText(
+            'Line 1: "thetta" is not a parameter name. Write one symbol, such as theta, \\theta or \\theta_{1}.',
+          ),
+        ).toBeInTheDocument();
+        expect(sent.filter((url) => url.includes("/circuits/run"))).toEqual([]);
+      } finally {
+        server.events.removeAllListeners();
+      }
     });
 
     it("refuses an input state that is not a label or a list", async () => {
@@ -836,5 +856,153 @@ describe("the circuit check screen", () => {
     expect(
       await screen.findByText("Estado final (cables: 2). El cable 1 es el bit más significativo."),
     ).toBeInTheDocument();
+  });
+});
+
+describe("a circuit sent by another screen", () => {
+  const BELL = exampleById("bell")!.text;
+  const TELEPORT_ID = "c7f460355b1958c3e6cf45b6d3234766cd8c9d49a5a9265864030a0606907a44";
+
+  /** Opens the app at `/ask`, then at the Circuits screen as a link with `state` leaves it. */
+  async function arrive(search: string, state: unknown) {
+    const app = renderApp(["/ask", { pathname: "/circuits", search, state }]);
+    await screen.findByRole("heading", { level: 1, name: "Circuits" });
+    return { app, user: userEvent.setup() };
+  }
+
+  it("is put in the LaTeX tab and read", async () => {
+    const { app } = await arrive("", { latex: BELL });
+    expect(screen.getByRole("tab", { name: "LaTeX", selected: true })).toBeInTheDocument();
+    expect(screen.getByLabelText("LaTeX code of one circuit")).toHaveValue(BELL);
+    expect(await screen.findByText("Read in full")).toBeInTheDocument();
+    expect(app.router.state.location.state).toBeNull();
+  });
+
+  it("is read once: coming back to the entry does not read it again", async () => {
+    const parsed: string[] = [];
+    server.events.on("request:start", ({ request }) => {
+      if (request.url.endsWith("/circuits/parse")) parsed.push(request.url);
+    });
+    try {
+      const { app, user } = await arrive("", { latex: BELL });
+      await screen.findByText("Read in full");
+      await user.click(screen.getByRole("button", { name: "Clear" }));
+      await act(() => app.router.navigate(-1));
+      await screen.findByRole("heading", { level: 1, name: "Ask" });
+      await act(() => app.router.navigate(1));
+      await screen.findByRole("heading", { level: 1, name: "Circuits" });
+      expect(screen.getByLabelText("LaTeX code of one circuit")).toHaveValue("");
+      expect(parsed).toHaveLength(1);
+    } finally {
+      server.events.removeAllListeners();
+    }
+  });
+
+  it("ignores a state that holds no LaTeX", async () => {
+    await arrive("", { latex: 3 });
+    expect(screen.getByLabelText("LaTeX code of one circuit")).toHaveValue("");
+    expect(screen.queryByText("Read in full")).not.toBeInTheDocument();
+  });
+
+  it("opens a paper named by ?doc= when no LaTeX comes with it", async () => {
+    await arrive("?doc=c7f460355b1958c3e6cf45b6d3234766cd8c9d49a5a9265864030a0606907a44", null);
+    expect(screen.getByRole("tab", { name: "Paper", selected: true })).toBeInTheDocument();
+    expect(await screen.findAllByTestId("paper-block")).toHaveLength(2);
+  });
+
+  it("says Not found for a ?doc= that is not a document id, without asking the API", async () => {
+    const sent: string[] = [];
+    server.events.on("request:start", ({ request }) => void sent.push(request.url));
+    try {
+      await arrive("?doc=not-a-paper", null);
+      const problem = await screen.findByTestId("problem");
+      expect(within(problem).getByText("Not found")).toBeInTheDocument();
+      expect(within(problem).getByText(/No stored paper has this id\./)).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Paper", selected: true })).toBeInTheDocument();
+      expect(sent.filter((url) => url.includes("/documents/"))).toEqual([]);
+    } finally {
+      server.events.removeAllListeners();
+    }
+  });
+
+  it("names a 409 as an id prefix that more than one paper starts with, in both languages", async () => {
+    const detail = "More than one document starts with that id; give more characters.";
+    server.use(
+      http.get("*/api/v1/documents/:docId/circuits", ({ request }) =>
+        HttpResponse.json(
+          { type: "about:blank", title: "Conflict", status: 409, detail, instance: request.url },
+          { status: 409, headers: { "content-type": "application/problem+json" } },
+        ),
+      ),
+    );
+    const { user } = await arrive("?doc=abcdef0123456789", null);
+    const problem = await screen.findByTestId("problem");
+    expect(within(problem).getByText("More than one paper matches")).toBeInTheDocument();
+    expect(within(problem).getByText(detail)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Language: English" }));
+    await user.click(screen.getByRole("menuitemradio", { name: "Español" }));
+    expect(
+      await within(screen.getByTestId("problem")).findByText("Más de un artículo coincide"),
+    ).toBeInTheDocument();
+  });
+
+  it("reads the LaTeX rather than the paper when both come", async () => {
+    const { app } = await arrive("?doc=ffffffffffffffff", { latex: BELL });
+    expect(await screen.findByText("Read in full")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "LaTeX", selected: true })).toBeInTheDocument();
+    expect(screen.queryByTestId("problem")).not.toBeInTheDocument();
+    expect(app.router.state.location.search).toBe("?doc=ffffffffffffffff");
+  });
+
+  /**
+   * Starts a reading that the server holds until `release` is called, then leaves the screen: a
+   * request of an earlier visit is still running when a link brings the person back.
+   */
+  async function leaveWithAReadingRunning() {
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const parsed: string[] = [];
+    server.use(
+      http.post("*/api/v1/circuits/parse", async ({ request }) => {
+        const { latex } = (await request.clone().json()) as { latex: string };
+        parsed.push(latex);
+        if (latex !== "slow") return undefined; // the recordings answer
+        await held;
+        return HttpResponse.json(capturedAnswer("parse unparsed").response);
+      }),
+    );
+    const app = renderApp("/circuits");
+    await screen.findByRole("heading", { level: 1, name: "Circuits" });
+    const user = userEvent.setup();
+    await paste(user, screen.getByLabelText("LaTeX code of one circuit"), "slow");
+    await user.click(screen.getByRole("button", { name: "Read circuit" }));
+    await waitFor(() => expect(useCircuitStore.getState().busy).toBe("read"));
+    await act(() => app.router.navigate("/ask"));
+    await screen.findByRole("heading", { level: 1, name: "Ask" });
+    return { app, release, parsed };
+  }
+
+  it("waits for a request of an earlier visit, then reads the LaTeX it was sent", async () => {
+    const { app, release, parsed } = await leaveWithAReadingRunning();
+    await act(() => app.router.navigate("/circuits", { state: { latex: BELL } }));
+    await screen.findByRole("heading", { level: 1, name: "Circuits" });
+    expect(parsed).toEqual(["slow"]);
+    release();
+    expect(await screen.findByText("Read in full")).toBeInTheDocument();
+    expect(screen.getByLabelText("LaTeX code of one circuit")).toHaveValue(BELL);
+    expect(parsed).toEqual(["slow", BELL]);
+    expect(app.router.state.location.state).toBeNull();
+  });
+
+  it("waits for a request of an earlier visit, then lists the paper of ?doc=", async () => {
+    const { app, release } = await leaveWithAReadingRunning();
+    await act(() => app.router.navigate(`/circuits?doc=${TELEPORT_ID}`));
+    await screen.findByRole("heading", { level: 1, name: "Circuits" });
+    expect(screen.queryByTestId("paper-block")).not.toBeInTheDocument();
+    release();
+    expect(await screen.findAllByTestId("paper-block")).toHaveLength(2);
+    expect(screen.getByRole("tab", { name: "Paper", selected: true })).toBeInTheDocument();
   });
 });

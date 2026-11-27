@@ -1378,3 +1378,111 @@ describe("reading the answer to a spoken question", () => {
     }
   });
 });
+
+describe("opening a circuit in the Circuits screen", () => {
+  const BELL_BLOCK = String.raw`\begin{quantikz}
+\lstick{$|0\rangle$} & \gate{H} & \ctrl{1} & \qw \\
+\lstick{$|0\rangle$} & \qw & \targ{} & \qw
+\end{quantikz}`;
+
+  async function openAskApp() {
+    authMock.handle({
+      method: "POST",
+      path: "/api/v1/auth/login",
+      body: { username: ANA.username, password: ANA.password },
+    });
+    const app = renderApp("/ask");
+    await screen.findByRole("heading", { name: "Ask", level: 1 });
+    return { app, user: userEvent.setup() };
+  }
+
+  /** The teleportation paper at its page 2, which has two fenced latex blocks. */
+  async function openTeleportationPage(user: User) {
+    await answered(user, "teleportation");
+    const sources = await screen.findByRole("region", { name: "Sources" });
+    await user.click(within(sources).getAllByRole("button")[0]!);
+    const dialog = await screen.findByRole("dialog");
+    const text = within(dialog).getByRole("region", { name: "Text of the page" });
+    await within(text).findAllByRole("link", { name: "Open in Circuits" });
+    return { dialog, text };
+  }
+
+  it("offers it under a latex block of an answer, and the screen reads that block", async () => {
+    const { app, user } = await openAskApp();
+    takeAsks();
+    await ask(user, "Which circuit prepares the Bell pair?");
+    const response: AskResponse = {
+      ...TELEPORT,
+      answer: `${TELEPORT.answer}\n\nThe Bell pair:\n\n\`\`\`latex\n${BELL_BLOCK}\n\`\`\`\n\nSee also \`\\gate{H}\`.`,
+    };
+    serve((source) => source.emit("answer", response));
+    const answer = (await screen.findByRole("heading", { name: "Answer" })).closest(
+      "div",
+    )!.parentElement!;
+    const links = within(answer).getAllByRole("link", { name: "Open in Circuits" });
+    // one block, one link: inline code gets none
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAttribute("href", "/circuits");
+    await user.click(links[0]!);
+    await screen.findByRole("heading", { name: "Circuits", level: 1 });
+    expect(screen.getByLabelText("LaTeX code of one circuit")).toHaveValue(BELL_BLOCK);
+    expect(await screen.findByText("Read in full")).toBeInTheDocument();
+    // read once: the state is gone from the history entry, so a reload does not read it again
+    expect(app.router.state.location.pathname).toBe("/circuits");
+    expect(app.router.state.location.state).toBeNull();
+  });
+
+  it("sends the LaTeX in the router state, not in the address", async () => {
+    const { app, user } = await openAskApp();
+    const { text } = await openTeleportationPage(user);
+    const links = within(text).getAllByRole("link", { name: "Open in Circuits" });
+    expect(links).toHaveLength(2);
+    const seen: { path: string; state: unknown }[] = [];
+    const stop = app.router.subscribe(
+      ({ location }) =>
+        void seen.push({ path: location.pathname + location.search, state: location.state }),
+    );
+    try {
+      await user.click(links[1]!);
+      await screen.findByRole("heading", { name: "Circuits", level: 1 });
+    } finally {
+      stop();
+    }
+    // the screen opens at a bare /circuits with the LaTeX in the state, then drops the state
+    const visits = seen.filter((visit) => visit.path !== "/ask");
+    expect(visits[0]).toEqual({ path: "/circuits", state: { latex: BELL_BLOCK } });
+    expect(visits.at(-1)).toEqual({ path: "/circuits", state: null });
+    expect(await screen.findByText("Read in full")).toBeInTheDocument();
+  });
+
+  it("offers the paper's circuits from the paper panel, by the paper's full id", async () => {
+    const { user } = await openAskApp();
+    const { dialog } = await openTeleportationPage(user);
+    const link = within(dialog).getByRole("link", { name: "Circuits of this paper" });
+    expect(link).toHaveAttribute("href", `/circuits?doc=${TELEPORT_DOC}`);
+    await user.click(link);
+    await screen.findByRole("heading", { name: "Circuits", level: 1 });
+    expect(screen.getByRole("tab", { name: "Paper", selected: true })).toBeInTheDocument();
+    expect(await screen.findAllByTestId("paper-block")).toHaveLength(2);
+  });
+
+  it("is in Spanish when the language is", async () => {
+    const { user } = await openAskApp();
+    await user.click(screen.getByRole("button", { name: "Language: English" }));
+    await user.click(screen.getByRole("menuitemradio", { name: "Español" }));
+    takeAsks();
+    await user.type(screen.getByLabelText("Tu pregunta"), "Q");
+    await user.click(screen.getByRole("button", { name: "Preguntar" }));
+    await waitFor(() => expect(FakeEventSource.instances.length).toBeGreaterThan(0));
+    serve((source) => replay(source, capturedAsk("teleportation").events));
+    const sources = await screen.findByRole("region", { name: "Fuentes" });
+    await user.click(within(sources).getAllByRole("button")[0]!);
+    const dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findAllByRole("link", { name: "Abrir en Circuitos" })).toHaveLength(
+      2,
+    );
+    expect(
+      within(dialog).getByRole("link", { name: "Circuitos de este artículo" }),
+    ).toBeInTheDocument();
+  });
+});

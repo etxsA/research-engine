@@ -51,6 +51,9 @@ from ..application.auth import (
 )
 from ..application.circuits import (
     CheckCircuit,
+    ExportPaperQasm,
+    ExportQasm,
+    ListPaperCircuits,
     ParseCircuit,
     RunCircuit,
     ShowCircuitConventions,
@@ -112,6 +115,9 @@ class Container:
     run_circuit: RunCircuit
     check_circuit: CheckCircuit
     circuit_conventions: ShowCircuitConventions
+    export_qasm: ExportQasm
+    list_paper_circuits: ListPaperCircuits
+    export_paper_qasm: ExportPaperQasm
     auth: AuthServices
     asks: AskDesk
     documents: DocumentServices
@@ -430,6 +436,9 @@ def build_container(
             run_circuit=RunCircuit(engine=circuits, caps=caps),
             check_circuit=CheckCircuit(engine=circuits, caps=caps),
             circuit_conventions=ShowCircuitConventions(engine=circuits),
+            export_qasm=ExportQasm(engine=circuits, caps=caps),
+            list_paper_circuits=ListPaperCircuits(engine=circuits, reader=reader),
+            export_paper_qasm=ExportPaperQasm(engine=circuits, reader=reader, caps=caps),
             auth=auth,
             asks=asks,
             documents=DocumentServices(reader=reader),

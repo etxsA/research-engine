@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 from helpers import arun
 
-from research_api.adapters.fake import FakeAskEngine
+from research_api.adapters.fake import FakeAskEngine, FakeDocumentReader
 from research_api.adapters.fake.answers import (
     BY_KEY,
     NO_EVIDENCE_EN,
@@ -19,7 +19,7 @@ from research_api.adapters.fake.answers import (
     pick_topic,
     render,
 )
-from research_api.adapters.fake.corpus import PAPERS, TELEPORT, TRANSMON
+from research_api.adapters.fake.corpus import PAPERS, TELEPORT, TRANSMON, FakePaper
 from research_api.domain.ask import (
     AskAnswer,
     AskOptions,
@@ -27,7 +27,7 @@ from research_api.domain.ask import (
     GoldPassage,
     read_formatted_answer,
 )
-from research_api.domain.errors import UnavailableError, UpstreamError
+from research_api.domain.errors import NotFoundError, UnavailableError, UpstreamError
 
 HEX64 = re.compile(r"[0-9a-f]{64}")
 
@@ -231,3 +231,20 @@ async def test_the_fake_engine_answers_from_passages_by_echoing_them() -> None:
     nothing = await engine.answer_from("What is it?", [])
     assert nothing.answer == "I cannot answer this question due to having no papers."
     assert nothing.contexts == () and nothing.citations == () and nothing.sources == ()
+
+
+@pytest.mark.parametrize("paper", PAPERS, ids=lambda p: p.key)
+def test_the_whole_text_of_a_fake_paper_is_its_pages_joined(paper: FakePaper) -> None:
+    text = FakeDocumentReader().text(paper.short_id)
+    assert (text.doc_id, text.source_name) == (paper.doc_id, paper.source_name)
+    assert text.markdown == "\n\n".join(page.markdown for page in paper.pages)
+
+
+def test_the_whole_text_keeps_the_circuit_of_the_latex_paper() -> None:
+    markdown = FakeDocumentReader().text(TELEPORT.doc_id).markdown
+    assert "```latex\n\\begin{quantikz}" in markdown
+
+
+def test_the_whole_text_of_an_unknown_fake_paper_is_not_found() -> None:
+    with pytest.raises(NotFoundError):
+        FakeDocumentReader().text("f" * 64)

@@ -15,6 +15,7 @@ from ...domain.documents import (
     DocumentList,
     DocumentPage,
     DocumentSummary,
+    DocumentText,
     PageInfo,
     page_kind_of,
     resolve_doc_id,
@@ -145,3 +146,13 @@ class DocingestDocumentReader:
             title=titles.get(page),
             markdown=pages[page],
         )
+
+    def text(self, doc_id: str) -> DocumentText:
+        """The whole ``document.md``, read fresh each time (the export reads a paper once)."""
+        document = self._document(doc_id)
+        try:
+            markdown = self._store.markdown(document)
+        except (OSError, UnicodeDecodeError):  # gone, unreadable, or not UTF-8
+            raise NotFoundError("This paper's text is not available.") from None
+        m = document.manifest
+        return DocumentText(doc_id=m.doc_id, source_name=m.source_name, markdown=markdown)
