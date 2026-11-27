@@ -9,11 +9,10 @@ export interface ValueError {
 }
 
 export interface ParsedValues {
-  values: Record<string, string | number>;
+  /** Each value as typed (trimmed): the API reads it with quantum-sim's one value rule. */
+  values: Record<string, string>;
   errors: ValueError[];
 }
-
-const NUMBER = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
 
 // A copy of quantum-sim's binding-name rule (`quantum_sim/angles.py`: `symbol_name`, `GREEK`,
 // `MAX_CHARS`, `_BINDING_KEY`); `values.test.ts` holds the cases of its tests, `test_angles.py`.
@@ -80,9 +79,14 @@ export function bindingKey(name: string): string {
   return name;
 }
 
-/** Lines of `name = value`. A number stays a number; anything else is an angle written as text. */
+/**
+ * Lines of `name = value`. Each value is sent as the text typed, trimmed, numbers too: the API
+ * reads every value with quantum-sim's `parse_value`, as `--set` does, so `0.50` stays `0.50` in
+ * an export's `// bound:` line and `1e3` is refused there (no exponent notation), not turned
+ * into 1000 here.
+ */
 export function parseValues(text: string): ParsedValues {
-  const values: Record<string, string | number> = {};
+  const values: Record<string, string> = {};
   const errors: ValueError[] = [];
   const seen = new Set<string>();
   text.split(/\r?\n/).forEach((raw, index) => {
@@ -113,7 +117,7 @@ export function parseValues(text: string): ParsedValues {
       return;
     }
     seen.add(key);
-    values[name] = NUMBER.test(value) ? Number(value) : value;
+    values[name] = value;
   });
   return { values, errors };
 }

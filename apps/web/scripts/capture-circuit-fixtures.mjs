@@ -200,7 +200,8 @@ await add("check unitary wrong size", "check", {
   },
 });
 
-// The OpenQASM 3 export of a pasted circuit, as the screen sends it (`values` only when given).
+// The OpenQASM 3 export of a pasted circuit, as the screen sends it (`values` only when given,
+// each value as the text typed).
 const subscript = await text("subscript");
 await add("qasm bell", "qasm", { circuit_json: bell });
 await add("qasm bell json", "qasm", { circuit_json: BELL_JSON_TEXT });
@@ -216,9 +217,20 @@ await add("qasm two-character subscript bound", "qasm", {
   circuit_json: subscript,
   values: { "theta_{12}": "\\pi/2" },
 });
-await add("qasm stray key", "qasm", { circuit_json: bell, values: { theta: 1 } });
+await add("qasm stray key", "qasm", { circuit_json: bell, values: { theta: "1" } });
 await add("qasm partial refused", "qasm", { circuit_json: await text("partial") });
-await add("qasm bad key", "qasm", { circuit_json: await text("rotation"), values: { thetta: 1 } });
+await add("qasm bad key", "qasm", {
+  circuit_json: await text("rotation"),
+  values: { thetta: "1" },
+});
+await add("qasm bound as typed", "qasm", {
+  circuit_json: await text("rotation"),
+  values: { theta: "0.50" },
+});
+await add("qasm exponent", "qasm", {
+  circuit_json: await text("rotation"),
+  values: { theta: "1e3" },
+});
 
 // A paper's circuits: the fake teleportation paper has a refused block and one that exports.
 const teleportation = await paperId("teleportation");
@@ -229,8 +241,8 @@ await addPaper("paper circuits none", transmon, "circuits");
 await addPaper("paper circuits unknown", unknown, "circuits");
 await addPaper("paper qasm teleportation", teleportation, "qasm", {});
 await addPaper("paper qasm none", transmon, "qasm", {});
-await addPaper("paper qasm stray key", teleportation, "qasm", { values: { theta: 1 } });
-await addPaper("paper qasm bad key", teleportation, "qasm", { values: { pi: 1 } });
+await addPaper("paper qasm stray key", teleportation, "qasm", { values: { theta: "1" } });
+await addPaper("paper qasm bad key", teleportation, "qasm", { values: { pi: "1" } });
 await addPaper("paper qasm unknown", unknown, "qasm", {});
 
 // "Read this block" sends a block of the paper to the reader as LaTeX, and the cards then work on

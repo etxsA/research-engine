@@ -60,6 +60,22 @@ async function requestsDuring(work: () => Promise<void>): Promise<string[]> {
   return sent;
 }
 
+/** The JSON bodies of the export requests the screen sends while `work` runs. */
+async function bodiesDuring(work: () => Promise<void>): Promise<{ values?: unknown }[]> {
+  const sent: Promise<{ values?: unknown }>[] = [];
+  server.events.on("request:start", ({ request }) => {
+    if (request.url.includes("/circuits/qasm")) {
+      sent.push(request.clone().json() as Promise<{ values?: unknown }>);
+    }
+  });
+  try {
+    await work();
+  } finally {
+    server.events.removeAllListeners();
+  }
+  return Promise.all(sent);
+}
+
 describe("the values card", () => {
   it("sits above Simulate, Check and Export, which all use it", async () => {
     await openPage();
@@ -231,6 +247,34 @@ describe("the export card", () => {
     await user.click(exportButton());
     await screen.findByTestId("qasm-program");
     await user.type(screen.getByLabelText("LaTeX code of one circuit"), " ");
+    expect(screen.queryByTestId("qasm-program")).not.toBeInTheDocument();
+  });
+
+  it("sends a value as typed, so 0.50 stays 0.50 in the bound line, as with --set", async () => {
+    const user = await openPage();
+    await readExample(user, "rotation");
+    await user.type(screen.getByLabelText("Parameter values"), "theta = 0.50 ");
+    const sent = await bodiesDuring(async () => {
+      await user.click(exportButton());
+      await screen.findByTestId("qasm-program");
+    });
+    expect(sent.map((body) => body.values)).toEqual([{ theta: "0.50" }]);
+    const text = programBox("circuit-p01.qasm").textContent;
+    expect(text).toBe(programs("qasm bound as typed")[0]!.text);
+    expect(text).toContain("// bound: theta = 0.50\n");
+  });
+
+  it("sends exponent notation as text and shows the server's refusal of it", async () => {
+    const user = await openPage();
+    await readExample(user, "rotation");
+    await user.type(screen.getByLabelText("Parameter values"), "theta = 1e3");
+    const sent = await bodiesDuring(async () => {
+      await user.click(exportButton());
+      await screen.findByTestId("problem");
+    });
+    expect(sent.map((body) => body.values)).toEqual([{ theta: "1e3" }]);
+    const recorded = capturedAnswer("qasm exponent").response as { detail: string };
+    expect(within(screen.getByTestId("problem")).getByText(recorded.detail)).toBeInTheDocument();
     expect(screen.queryByTestId("qasm-program")).not.toBeInTheDocument();
   });
 });

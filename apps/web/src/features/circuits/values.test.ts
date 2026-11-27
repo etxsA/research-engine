@@ -8,16 +8,17 @@ import {
 } from "./values";
 
 describe("parseValues", () => {
-  it("reads numbers as numbers and angles as text", () => {
-    expect(parseValues("theta = \\pi/2\nphi=0.5\n\n k = -3 ")).toEqual({
-      values: { theta: "\\pi/2", phi: 0.5, k: -3 },
+  it("keeps every value as the text typed, numbers too, trimmed", () => {
+    expect(parseValues("theta = \\pi/2\nphi=0.50\n\n k = -3 \nm = 1.0")).toEqual({
+      values: { theta: "\\pi/2", phi: "0.50", k: "-3", m: "1.0" },
       errors: [],
     });
   });
 
-  it("keeps an angle that only looks like a number", () => {
+  it("leaves exponent notation and huge numbers to the API's value rule", () => {
     expect(parseValues("a = 1/2").values).toEqual({ a: "1/2" });
-    expect(parseValues("a = 1e-3").values).toEqual({ a: 0.001 });
+    expect(parseValues("a = 1e-3").values).toEqual({ a: "1e-3" });
+    expect(parseValues("a = 1e400").values).toEqual({ a: "1e400" });
   });
 
   it("reports a line with no equals sign, no name or no value", () => {
@@ -31,7 +32,7 @@ describe("parseValues", () => {
 
   it("refuses a key that is not one symbol before the request, as the API would", () => {
     const { values, errors } = parseValues("thetta = 1\npi = 2\ne = 3\ntheta_12 = 4\ntheta = 5");
-    expect(values).toEqual({ theta: 5 });
+    expect(values).toEqual({ theta: "5" });
     expect(errors).toEqual([
       { line: 1, code: "notName", name: "thetta" },
       { line: 2, code: "notName", name: "pi" },
@@ -51,7 +52,7 @@ describe("parseValues", () => {
     const { values, errors } = parseValues(
       "theta = 1\n\\theta = 2\n{theta} = 3\n\\theta_{1} = 4\ntheta_1 = 5",
     );
-    expect(values).toEqual({ theta: 1, "\\theta_{1}": 4 });
+    expect(values).toEqual({ theta: "1", "\\theta_{1}": "4" });
     expect(errors.map((error) => error.code)).toEqual(["duplicate", "duplicate", "duplicate"]);
   });
 });

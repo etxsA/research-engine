@@ -27,7 +27,8 @@ const DOCUMENTS = "/api/v1/documents";
 /** How many papers a search lists; the answer says how many more match. */
 export const PAPER_SEARCH_LIMIT = 20;
 
-type Values = Record<string, string | number> | undefined;
+/** Each value as the text typed: the API reads it with quantum-sim's one value rule. */
+type Values = Record<string, string> | undefined;
 
 export interface RunInput {
   circuitJson: string;

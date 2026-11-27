@@ -52,7 +52,7 @@ function circuitJson(): Picked<string> {
 }
 
 /** The values typed, or the problem with the first bad line. Simulate, Check and both exports use them. */
-function valuesOption(): Picked<Record<string, string | number> | undefined> {
+function valuesOption(): Picked<Record<string, string> | undefined> {
   const values = parseValues(useCircuitStore.getState().valuesText);
   const firstError = values.errors[0];
   if (firstError?.code === "notName") {
