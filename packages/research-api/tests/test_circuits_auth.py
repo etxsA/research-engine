@@ -9,6 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 from helpers import BELL, MEMBER, sign_in_as_member
 
+from research_api.adapters.fake.corpus import TELEPORT
 from research_api.application.auth import Authenticate, Authenticated
 from research_api.entrypoints.cli import openapi_document
 from research_api.entrypoints.http.security import CSRF_HEADER, SESSION_COOKIE
@@ -27,7 +28,14 @@ ROUTES = [
         {"circuit_json": BELL_TEXT, "target": {"state": BELL_STATE}},
     ),
     ("get", "/api/v1/circuits/conventions", None),
+    ("post", "/api/v1/circuits/qasm", {"circuit_json": BELL_TEXT}),
+    ("get", f"/api/v1/documents/{TELEPORT.short_id}/circuits", None),
+    ("post", f"/api/v1/documents/{TELEPORT.short_id}/qasm", {}),
 ]
+TEMPLATES = {
+    f"/api/v1/documents/{TELEPORT.short_id}/circuits": "/api/v1/documents/{doc_id}/circuits",
+    f"/api/v1/documents/{TELEPORT.short_id}/qasm": "/api/v1/documents/{doc_id}/qasm",
+}
 
 
 def send(client: TestClient, method: str, path: str, body: Any, **kwargs: Any) -> Any:
@@ -123,5 +131,17 @@ def test_the_session_is_read_once_per_request(
 def test_the_contract_lists_the_session_cookie_on_the_circuit_operations() -> None:
     spec = json.loads(openapi_document())
     for _, path, _ in ROUTES:
-        for operation in spec["paths"][path].values():
+        for operation in spec["paths"][TEMPLATES.get(path, path)].values():
             assert operation["security"] == [{"sessionCookie": []}]
+
+
+def test_a_caller_with_no_session_gets_the_401_before_a_paper_is_read(
+    client: TestClient,
+) -> None:
+    for body in (b"not json", b'{"values": {}, "values": {}}', b"x" * 2_000_000):
+        response = client.post(
+            f"/api/v1/documents/{TELEPORT.short_id}/qasm",
+            content=body,
+            headers={"content-type": "application/json"},
+        )
+        assert response.status_code == 401

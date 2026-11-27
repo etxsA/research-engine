@@ -1,8 +1,13 @@
-"""Routes of the circuit check: read LaTeX, simulate, compare.
+"""Routes of the circuit check: read LaTeX, simulate, compare, export as OpenQASM 3.
 
-The answers are quantum-sim's own ``quantum-sim-result/1`` documents, passed through as JSON. A
-circuit the simulator refuses is a 200 with ``status: refused`` and the reasons, as the command's
-exit status 1; it is not an HTTP error.
+The answers of run and check are quantum-sim's own ``quantum-sim-result/1`` documents, passed
+through as JSON. A circuit the simulator refuses is a 200 with ``status: refused`` and the
+reasons, as the command's exit status 1; it is not an HTTP error.
+
+The OpenQASM 3 export answers typed documents, and a refused circuit is a 200 too. A paper's
+circuits are listed and exported under ``/documents/{doc_id}`` (a second router, with the same
+route class), read only: the programs come back to the caller and nothing is written on the
+server. Neither a circuit nor a value is logged; the access log has the route template only.
 """
 
 from __future__ import annotations
@@ -17,7 +22,19 @@ from starlette.concurrency import run_in_threadpool
 from ...bootstrap import Container
 from ...domain.circuits import USE_THE_CLI, read_json_strict
 from ...domain.errors import TooLargeError
-from .schemas import CheckRequest, GateListResponse, ParseRequest, Problem, RunRequest
+from .asks import DocId
+from .schemas import (
+    CheckRequest,
+    GateListResponse,
+    PaperCircuitsResponse,
+    PaperQasmRequest,
+    PaperQasmResponse,
+    ParseRequest,
+    Problem,
+    QasmRequest,
+    QasmResponse,
+    RunRequest,
+)
 from .security import SESSION_COOKIE, member, signed_in
 
 SIMULATOR_NOTE = (
@@ -90,6 +107,14 @@ router = APIRouter(
     dependencies=[Depends(member)],
     responses={"default": {"model": Problem, "description": "A problem."}},
 )
+# A paper's circuits: the same checks, under the paper's path.
+papers_router = APIRouter(
+    prefix="/documents",
+    tags=["circuits"],
+    route_class=CircuitRoute,
+    dependencies=[Depends(member)],
+    responses={"default": {"model": Problem, "description": "A problem."}},
+)
 
 _SIZE_PROBLEMS: dict[int | str, dict[str, Any]] = {
     400: {
@@ -104,6 +129,18 @@ _SIZE_PROBLEMS: dict[int | str, dict[str, Any]] = {
         "(wires, operations, time); `detail` points to the `quantum-sim` command.",
     },
     503: {"model": Problem, "description": "Circuit jobs are all busy; see `Retry-After`."},
+}
+
+
+_PAPER_PROBLEMS: dict[int | str, dict[str, Any]] = {
+    **_SIZE_PROBLEMS,
+    404: {"model": Problem, "description": "No such document, or its text cannot be read."},
+    409: {"model": Problem, "description": "The id prefix names more than one paper."},
+    422: {
+        "model": Problem,
+        "description": "The request is not valid, or the paper's circuits are over the "
+        "operation cap or the time; `detail` points to `docingest circuits export --doc`.",
+    },
 }
 
 
@@ -173,3 +210,54 @@ async def check_circuit(request: Request, body: CheckRequest) -> dict[str, Any]:
 )
 async def circuit_conventions(request: Request) -> dict[str, Any]:
     return dict(_container(request).circuit_conventions())
+
+
+QASM_NOTE = (
+    "Each program is OpenQASM 3 with `stdgates.inc` only: wire `i` (1 at the top) is `q[i-1]` "
+    "and a measurement writes `c[i-1]`. A drawn equality gives one program per side. A circuit "
+    "the export cannot express is a 200 with `status: refused` and the reasons, word for word. "
+    "No wire cap; the operation cap and the time limit apply."
+)
+
+
+@router.post(
+    "/qasm",
+    operation_id="exportQasm",
+    summary="Export a circuit as OpenQASM 3",
+    description="The OpenQASM 3 program of each part of a `circuit/1` document, named "
+    "`circuit-pNN.qasm`, with `research-api` in the generated-by line and no source line. "
+    + QASM_NOTE,
+    responses=_SIZE_PROBLEMS,
+)
+async def export_qasm(request: Request, body: QasmRequest) -> QasmResponse:
+    done = await _container(request).export_qasm(circuit_json=body.circuit_json, values=body.values)
+    return QasmResponse.from_domain(done)
+
+
+@papers_router.get(
+    "/{doc_id}/circuits",
+    operation_id="listDocumentCircuits",
+    summary="The circuit blocks of a paper",
+    description="Every fenced `latex` block of the paper, numbered from 1 over its whole text as "
+    "`docingest circuits export` numbers them, with what docingest read in it and each circuit "
+    "as a `circuit/1` document.",
+    responses=_PAPER_PROBLEMS,
+)
+async def list_document_circuits(doc_id: DocId, request: Request) -> PaperCircuitsResponse:
+    return PaperCircuitsResponse.from_domain(await _container(request).list_paper_circuits(doc_id))
+
+
+@papers_router.post(
+    "/{doc_id}/qasm",
+    operation_id="exportDocumentQasm",
+    summary="Export every circuit of a paper as OpenQASM 3",
+    description="The files `docingest circuits export --doc` would write for the paper, byte for "
+    "byte and under the same names, returned instead of written: nothing changes on the server. "
+    "All the circuits of the paper share one operation cap. " + QASM_NOTE,
+    responses=_PAPER_PROBLEMS,
+)
+async def export_document_qasm(
+    doc_id: DocId, request: Request, body: PaperQasmRequest
+) -> PaperQasmResponse:
+    done = await _container(request).export_paper_qasm(doc_id, values=body.values)
+    return PaperQasmResponse.from_domain(done)
