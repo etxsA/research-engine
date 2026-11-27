@@ -316,7 +316,7 @@
       "pages": 3,
       "kind": "section",
       "title": "The circuit",
-      "markdown": "Qubits 2 and 3 start in the Bell state $(|00\\rangle + |11\\rangle)/\\sqrt{2}$. The sender applies a CNOT from qubit 1 to qubit 2, then a Hadamard on qubit 1, and measures both. The receiver applies $X$ if the second outcome is 1 and $Z$ if the first outcome is 1.\n\n```latex\n\\begin{quantikz}\n\\lstick{$|\\psi\\rangle$} & \\ctrl{1} & \\gate{H} & \\meter{} & \\cw & \\cwbend{2} \\\\\n\\lstick{$|0\\rangle$} & \\targ{} & \\ctrl{1} & \\qw & \\meter{} & \\cwbend{1} \\\\\n\\lstick{$|0\\rangle$} & \\qw & \\targ{} & \\qw & \\qw & \\gate{X^{m_2} Z^{m_1}}\n\\end{quantikz}\n```"
+      "markdown": "Qubits 2 and 3 start in the Bell state $(|00\\rangle + |11\\rangle)/\\sqrt{2}$. The sender applies a CNOT from qubit 1 to qubit 2, then a Hadamard on qubit 1, and measures both. The receiver applies $X$ if the second outcome is 1 and $Z$ if the first outcome is 1.\n\n```latex\n\\begin{quantikz}\n\\lstick{$|\\psi\\rangle$} & \\ctrl{1} & \\gate{H} & \\meter{} & \\cw & \\cwbend{2} \\\\\n\\lstick{$|0\\rangle$} & \\targ{} & \\ctrl{1} & \\qw & \\meter{} & \\cwbend{1} \\\\\n\\lstick{$|0\\rangle$} & \\qw & \\targ{} & \\qw & \\qw & \\gate{X^{m_2} Z^{m_1}}\n\\end{quantikz}\n```\n\nThe Bell pair itself is prepared with a Hadamard and a CNOT:\n\n```latex\n\\begin{quantikz}\n\\lstick{$|0\\rangle$} & \\gate{H} & \\ctrl{1} & \\qw \\\\\n\\lstick{$|0\\rangle$} & \\qw & \\targ{} & \\qw\n\\end{quantikz}\n```"
     },
     "c7f460355b1958c3e6cf45b6d3234766cd8c9d49a5a9265864030a0606907a44:3": {
       "doc_id": "c7f460355b1958c3e6cf45b6d3234766cd8c9d49a5a9265864030a0606907a44",
@@ -413,6 +413,16 @@
       "index_generation": "fake-0001",
       "queued": 0,
       "busy": false
+    },
+    "bench": {
+      "running_job": null,
+      "queued_runs": 0,
+      "scoring": false,
+      "queued_scores": 0
+    },
+    "speech": {
+      "stt": "ready",
+      "tts": "ready"
     }
   },
   "asks": [
@@ -426,38 +436,38 @@
         "question": "What limits T1 in transmons?"
       },
       "accepted": {
-        "ask_id": "WsxIN8qzfRvG6VzXXNQgAg",
+        "ask_id": "jXG7e9MQ4LMyabHj5MWNZA",
         "position": 0
       },
       "events": [
         {
           "event": "queued",
-          "data": "{\"ask_id\": \"WsxIN8qzfRvG6VzXXNQgAg\", \"position\": 0}",
+          "data": "{\"ask_id\": \"jXG7e9MQ4LMyabHj5MWNZA\", \"position\": 0}",
           "id": "0"
         },
         {
           "event": "retrieving",
-          "data": "{\"ask_id\": \"WsxIN8qzfRvG6VzXXNQgAg\"}",
+          "data": "{\"ask_id\": \"jXG7e9MQ4LMyabHj5MWNZA\"}",
           "id": "1"
         },
         {
           "event": "answering",
-          "data": "{\"ask_id\": \"WsxIN8qzfRvG6VzXXNQgAg\"}",
+          "data": "{\"ask_id\": \"jXG7e9MQ4LMyabHj5MWNZA\"}",
           "id": "2"
         },
         {
           "event": "answer",
-          "data": "{\"ask_id\":\"WsxIN8qzfRvG6VzXXNQgAg\",\"answer\":\"In fixed-frequency transmons $T_1$ is limited mostly by dielectric loss at the substrate-metal interface, which sets the loss rate $1/T_1^{\\\\mathrm{diel}} = \\\\omega\\\\, p_{\\\\mathrm{surf}} \\\\tan\\\\delta$ (93a7c5f67472745e pages 2-2). Two-level systems add a drifting term that can halve $T_1$ for hours, and the Purcell effect matters only for the strongest readout couplings (93a7c5f67472745e pages 1-2). Dephasing is dominated by residual thermal photons in the readout resonator, so $T_2$ improves with filtering, and an echo sequence gives a $T_2$ about 1.6 times the Ramsey value (93a7c5f67472745e pages 3-3).\",\"references_text\":\"1. (93a7c5f67472745e pages 2-2): Example et al. (2025). Coherence limits of fixed-frequency transmon qubits (synthetic).\\n2. (93a7c5f67472745e pages 1-2): Example et al. (2025). Coherence limits of fixed-frequency transmon qubits (synthetic).\\n3. (93a7c5f67472745e pages 3-3): Example et al. (2025). Coherence limits of fixed-frequency transmon qubits (synthetic).\",\"citations\":[{\"key\":\"93a7c5f67472745e pages 2-2\",\"doc_id\":\"93a7c5f67472745e2a8f2a0f153e44cd66c90936f1b74c81eec6b587c46130ce\",\"first_page\":2,\"last_page\":2},{\"key\":\"93a7c5f67472745e pages 1-2\",\"doc_id\":\"93a7c5f67472745e2a8f2a0f153e44cd66c90936f1b74c81eec6b587c46130ce\",\"first_page\":1,\"last_page\":2},{\"key\":\"93a7c5f67472745e pages 3-3\",\"doc_id\":\"93a7c5f67472745e2a8f2a0f153e44cd66c90936f1b74c81eec6b587c46130ce\",\"first_page\":3,\"last_page\":3}],\"contexts\":[{\"doc_id\":\"93a7c5f67472745e2a8f2a0f153e44cd66c90936f1b74c81eec6b587c46130ce\",\"name\":\"93a7c5f67472745e pages 2-2\",\"start\":479,\"first_page\":2,\"last_page\":2,\"is_reference\":false,\"text\":\"## 2. Loss channels\\n\\nThe relaxation rate is the sum of the rates of the channels that carry energy away from the qubit:\\n\\n$$\\\\frac{1}{T_1} = \\\\frac{1}{T_1^{\\\\mathrm{diel}}} + \\\\frac{1}{T_1^{\\\\mathrm{Purcell}}} + \\\\frac{1}{T_1^{\\\\mathrm{TLS}}}.$$\\n\\nDielectric loss follows the loss tangent, $1/T_1^{\\\\mathrm{diel}} = \\\\omega\\\\, p_{\\\\mathrm{surf}} \\\\tan\\\\delta$, where $p_{\\\\mathrm{surf}}$ is the participation of the lossy surface. Two-level systems (TLS) in the oxide add a slowly drifting term: a qubit that crosses a TLS during a measurement loses a factor of two in $T_1$ for hours.\",\"score\":null},{\"doc_id\":\"93a7c5f67472745e2a8f2a0f153e44cd66c90936f1b74c81eec6b587c46130ce\",\"name\":\"93a7c5f67472745e pages 1-2\",\"start\":0,\"first_page\":1,\"last_page\":2,\"is_reference\":false,\"text\":\"# Coherence limits of fixed-frequency transmon qubits\\n\\n## Abstract\\n\\nWe study what limits the energy relaxation time $T_1$ and the dephasing time $T_2$ of a fixed-frequency transmon on a sapphire substrate. Across 40 simulated devices the median $T_1$ is 110 us and the best is 310 us. Dielectric loss in the substrate-metal interface explains most of the spread, while radiative decay through the readout resonator (the Purcell effect) matters only for the strongest couplings.\\n\\n## 2. Loss channels\\n\\nThe relaxation rate is the sum of the rates of the channels that carry energy away from the qubit:\\n\\n$$\\\\frac{1}{T_1} = \\\\frac{1}{T_1^{\\\\mathrm{diel}}} + \\\\frac{1}{T_1^{\\\\mathrm{Purcell}}} + \\\\frac{1}{T_1^{\\\\mathrm{TLS}}}.$$\\n\\nDielectric loss follows the loss tangent, $1/T_1^{\\\\mathrm{diel}} = \\\\omega\\\\, p_{\\\\mathrm{surf}} \\\\tan\\\\delta$, where $p_{\\\\mathrm{surf}}$ is the participation of the lossy surface. Two-le\",\"score\":null},{\"doc_id\":\"93a7c5f67472745e2a8f2a0f153e44cd66c90936f1b74c81eec6b587c46130ce\",\"name\":\"93a7c5f67472745e pages 3-3\",\"start\":1050,\"first_page\":3,\"last_page\":3,\"is_reference\":false,\"text\":\"## 3. Dephasing\\n\\nPure dephasing adds to relaxation in the coherence time,\\n\\n$$\\\\frac{1}{T_2} = \\\\frac{1}{2T_1} + \\\\frac{1}{T_\\\\phi}.$$\\n\\nFor a fixed-frequency device the main source of $T_\\\\phi$ is residual thermal photons in the readout resonator. An echo sequence removes the slow part of the noise: in our data $T_2^{\\\\mathrm{echo}}$ is 1.6 times the Ramsey $T_2^*$. We conclude that improving the substrate surface raises $T_1$, and that filtering the readout line raises $T_2$.\",\"score\":null}],\"sources\":[\"93a7c5f67472745e2a8f2a0f153e44cd66c90936f1b74c81eec6b587c46130ce\"],\"warnings\":[],\"index_generation\":\"fake-0001\",\"timings\":{\"retrieve_s\":0.0,\"answer_s\":0.0002,\"wall_s\":0.0002}}",
+          "data": "{\"ask_id\":\"jXG7e9MQ4LMyabHj5MWNZA\",\"answer\":\"In fixed-frequency transmons $T_1$ is limited mostly by dielectric loss at the substrate-metal interface, which sets the loss rate $1/T_1^{\\\\mathrm{diel}} = \\\\omega\\\\, p_{\\\\mathrm{surf}} \\\\tan\\\\delta$ (93a7c5f67472745e pages 2-2). Two-level systems add a drifting term that can halve $T_1$ for hours, and the Purcell effect matters only for the strongest readout couplings (93a7c5f67472745e pages 1-2). Dephasing is dominated by residual thermal photons in the readout resonator, so $T_2$ improves with filtering, and an echo sequence gives a $T_2$ about 1.6 times the Ramsey value (93a7c5f67472745e pages 3-3).\",\"references_text\":\"1. (93a7c5f67472745e pages 2-2): Example et al. (2025). Coherence limits of fixed-frequency transmon qubits (synthetic).\\n2. (93a7c5f67472745e pages 1-2): Example et al. (2025). Coherence limits of fixed-frequency transmon qubits (synthetic).\\n3. (93a7c5f67472745e pages 3-3): Example et al. (2025). Coherence limits of fixed-frequency transmon qubits (synthetic).\",\"citations\":[{\"key\":\"93a7c5f67472745e pages 2-2\",\"doc_id\":\"93a7c5f67472745e2a8f2a0f153e44cd66c90936f1b74c81eec6b587c46130ce\",\"first_page\":2,\"last_page\":2},{\"key\":\"93a7c5f67472745e pages 1-2\",\"doc_id\":\"93a7c5f67472745e2a8f2a0f153e44cd66c90936f1b74c81eec6b587c46130ce\",\"first_page\":1,\"last_page\":2},{\"key\":\"93a7c5f67472745e pages 3-3\",\"doc_id\":\"93a7c5f67472745e2a8f2a0f153e44cd66c90936f1b74c81eec6b587c46130ce\",\"first_page\":3,\"last_page\":3}],\"contexts\":[{\"doc_id\":\"93a7c5f67472745e2a8f2a0f153e44cd66c90936f1b74c81eec6b587c46130ce\",\"name\":\"93a7c5f67472745e pages 2-2\",\"start\":479,\"first_page\":2,\"last_page\":2,\"is_reference\":false,\"text\":\"## 2. Loss channels\\n\\nThe relaxation rate is the sum of the rates of the channels that carry energy away from the qubit:\\n\\n$$\\\\frac{1}{T_1} = \\\\frac{1}{T_1^{\\\\mathrm{diel}}} + \\\\frac{1}{T_1^{\\\\mathrm{Purcell}}} + \\\\frac{1}{T_1^{\\\\mathrm{TLS}}}.$$\\n\\nDielectric loss follows the loss tangent, $1/T_1^{\\\\mathrm{diel}} = \\\\omega\\\\, p_{\\\\mathrm{surf}} \\\\tan\\\\delta$, where $p_{\\\\mathrm{surf}}$ is the participation of the lossy surface. Two-level systems (TLS) in the oxide add a slowly drifting term: a qubit that crosses a TLS during a measurement loses a factor of two in $T_1$ for hours.\",\"score\":null},{\"doc_id\":\"93a7c5f67472745e2a8f2a0f153e44cd66c90936f1b74c81eec6b587c46130ce\",\"name\":\"93a7c5f67472745e pages 1-2\",\"start\":0,\"first_page\":1,\"last_page\":2,\"is_reference\":false,\"text\":\"# Coherence limits of fixed-frequency transmon qubits\\n\\n## Abstract\\n\\nWe study what limits the energy relaxation time $T_1$ and the dephasing time $T_2$ of a fixed-frequency transmon on a sapphire substrate. Across 40 simulated devices the median $T_1$ is 110 us and the best is 310 us. Dielectric loss in the substrate-metal interface explains most of the spread, while radiative decay through the readout resonator (the Purcell effect) matters only for the strongest couplings.\\n\\n## 2. Loss channels\\n\\nThe relaxation rate is the sum of the rates of the channels that carry energy away from the qubit:\\n\\n$$\\\\frac{1}{T_1} = \\\\frac{1}{T_1^{\\\\mathrm{diel}}} + \\\\frac{1}{T_1^{\\\\mathrm{Purcell}}} + \\\\frac{1}{T_1^{\\\\mathrm{TLS}}}.$$\\n\\nDielectric loss follows the loss tangent, $1/T_1^{\\\\mathrm{diel}} = \\\\omega\\\\, p_{\\\\mathrm{surf}} \\\\tan\\\\delta$, where $p_{\\\\mathrm{surf}}$ is the participation of the lossy surface. Two-le\",\"score\":null},{\"doc_id\":\"93a7c5f67472745e2a8f2a0f153e44cd66c90936f1b74c81eec6b587c46130ce\",\"name\":\"93a7c5f67472745e pages 3-3\",\"start\":1050,\"first_page\":3,\"last_page\":3,\"is_reference\":false,\"text\":\"## 3. Dephasing\\n\\nPure dephasing adds to relaxation in the coherence time,\\n\\n$$\\\\frac{1}{T_2} = \\\\frac{1}{2T_1} + \\\\frac{1}{T_\\\\phi}.$$\\n\\nFor a fixed-frequency device the main source of $T_\\\\phi$ is residual thermal photons in the readout resonator. An echo sequence removes the slow part of the noise: in our data $T_2^{\\\\mathrm{echo}}$ is 1.6 times the Ramsey $T_2^*$. We conclude that improving the substrate surface raises $T_1$, and that filtering the readout line raises $T_2$.\",\"score\":null}],\"sources\":[\"93a7c5f67472745e2a8f2a0f153e44cd66c90936f1b74c81eec6b587c46130ce\"],\"warnings\":[],\"index_generation\":\"fake-0001\",\"timings\":{\"retrieve_s\":0.0,\"answer_s\":0.0001,\"wall_s\":0.0001}}",
           "id": "3"
         }
       ],
       "view": {
-        "ask_id": "WsxIN8qzfRvG6VzXXNQgAg",
+        "ask_id": "jXG7e9MQ4LMyabHj5MWNZA",
         "state": "done",
         "position": null,
         "phase": null,
         "response": {
-          "ask_id": "WsxIN8qzfRvG6VzXXNQgAg",
+          "ask_id": "jXG7e9MQ4LMyabHj5MWNZA",
           "answer": "In fixed-frequency transmons $T_1$ is limited mostly by dielectric loss at the substrate-metal interface, which sets the loss rate $1/T_1^{\\mathrm{diel}} = \\omega\\, p_{\\mathrm{surf}} \\tan\\delta$ (93a7c5f67472745e pages 2-2). Two-level systems add a drifting term that can halve $T_1$ for hours, and the Purcell effect matters only for the strongest readout couplings (93a7c5f67472745e pages 1-2). Dephasing is dominated by residual thermal photons in the readout resonator, so $T_2$ improves with filtering, and an echo sequence gives a $T_2$ about 1.6 times the Ramsey value (93a7c5f67472745e pages 3-3).",
           "references_text": "1. (93a7c5f67472745e pages 2-2): Example et al. (2025). Coherence limits of fixed-frequency transmon qubits (synthetic).\n2. (93a7c5f67472745e pages 1-2): Example et al. (2025). Coherence limits of fixed-frequency transmon qubits (synthetic).\n3. (93a7c5f67472745e pages 3-3): Example et al. (2025). Coherence limits of fixed-frequency transmon qubits (synthetic).",
           "citations": [
@@ -517,8 +527,8 @@
           "index_generation": "fake-0001",
           "timings": {
             "retrieve_s": 0,
-            "answer_s": 0.0002,
-            "wall_s": 0.0002
+            "answer_s": 0.0001,
+            "wall_s": 0.0001
           }
         },
         "error": null
@@ -534,38 +544,38 @@
         "question": "surface code threshold"
       },
       "accepted": {
-        "ask_id": "aC7LwztZo-Rw9Mt6zAI-7g",
+        "ask_id": "dawic98F0o2KY2fhT9cI1w",
         "position": 0
       },
       "events": [
         {
           "event": "queued",
-          "data": "{\"ask_id\": \"aC7LwztZo-Rw9Mt6zAI-7g\", \"position\": 0}",
+          "data": "{\"ask_id\": \"dawic98F0o2KY2fhT9cI1w\", \"position\": 0}",
           "id": "0"
         },
         {
           "event": "retrieving",
-          "data": "{\"ask_id\": \"aC7LwztZo-Rw9Mt6zAI-7g\"}",
+          "data": "{\"ask_id\": \"dawic98F0o2KY2fhT9cI1w\"}",
           "id": "1"
         },
         {
           "event": "answering",
-          "data": "{\"ask_id\": \"aC7LwztZo-Rw9Mt6zAI-7g\"}",
+          "data": "{\"ask_id\": \"dawic98F0o2KY2fhT9cI1w\"}",
           "id": "2"
         },
         {
           "event": "answer",
-          "data": "{\"ask_id\":\"aC7LwztZo-Rw9Mt6zAI-7g\",\"answer\":\"A rotated surface code of distance $d$ has a threshold near 0.9% per operation under circuit-level noise (112a0e0629186874 pages 1-1). Below threshold the logical error per round scales as $A\\\\,(p/p_{\\\\mathrm{th}})^{\\\\lfloor (d+1)/2\\\\rfloor}$, so each step of two in the distance buys about a factor of eight at $p = 0.1\\\\%$ (112a0e0629186874 pages 2-2). The price is $d^2$ data qubits plus $d^2-1$ measurement qubits: 337 physical qubits per logical qubit for $d = 13$ (112a0e0629186874 pages 3-3).\",\"references_text\":\"1. (112a0e0629186874 pages 1-1): Placeholder et al. (2024). Surface-code memories under circuit-level noise (synthetic).\\n2. (112a0e0629186874 pages 2-2): Placeholder et al. (2024). Surface-code memories under circuit-level noise (synthetic).\\n3. (112a0e0629186874 pages 3-3): Placeholder et al. (2024). Surface-code memories under circuit-level noise (synthetic).\",\"citations\":[{\"key\":\"112a0e0629186874 pages 1-1\",\"doc_id\":\"112a0e0629186874853e635417ae99fcfa1a93a11cea7a8a9fbec008a70185e3\",\"first_page\":1,\"last_page\":1},{\"key\":\"112a0e0629186874 pages 2-2\",\"doc_id\":\"112a0e0629186874853e635417ae99fcfa1a93a11cea7a8a9fbec008a70185e3\",\"first_page\":2,\"last_page\":2},{\"key\":\"112a0e0629186874 pages 3-3\",\"doc_id\":\"112a0e0629186874853e635417ae99fcfa1a93a11cea7a8a9fbec008a70185e3\",\"first_page\":3,\"last_page\":3}],\"contexts\":[{\"doc_id\":\"112a0e0629186874853e635417ae99fcfa1a93a11cea7a8a9fbec008a70185e3\",\"name\":\"112a0e0629186874 pages 1-1\",\"start\":0,\"first_page\":1,\"last_page\":1,\"is_reference\":false,\"text\":\"# Surface-code memories under circuit-level noise\\n\\n## Abstract\\n\\nWe simulate a rotated surface code of distance $d$ with depolarizing noise on every gate, idle step and measurement, decoded with minimum-weight matching. The threshold is close to 0.9% per operation. Below it, the logical error rate per round falls exponentially with the distance.\",\"score\":null},{\"doc_id\":\"112a0e0629186874853e635417ae99fcfa1a93a11cea7a8a9fbec008a70185e3\",\"name\":\"112a0e0629186874 pages 2-2\",\"start\":348,\"first_page\":2,\"last_page\":2,\"is_reference\":false,\"text\":\"## 2. Results\\n\\nLet $p$ be the physical error rate and $p_{\\\\mathrm{th}}$ the threshold. Below threshold the logical error rate per round behaves as\\n\\n$$p_L \\\\approx A \\\\left(\\\\frac{p}{p_{\\\\mathrm{th}}}\\\\right)^{\\\\lfloor (d+1)/2 \\\\rfloor},$$\\n\\nwith $A \\\\approx 0.1$ in our fits. At $p = 0.1\\\\%$ the distance-5 code reaches $p_L = 3\\\\times 10^{-5}$ and the distance-7 code reaches $4\\\\times 10^{-6}$, so each step of two in the distance buys about a factor of eight.\",\"score\":null},{\"doc_id\":\"112a0e0629186874853e635417ae99fcfa1a93a11cea7a8a9fbec008a70185e3\",\"name\":\"112a0e0629186874 pages 3-3\",\"start\":800,\"first_page\":3,\"last_page\":3,\"is_reference\":false,\"text\":\"## 3. Overhead\\n\\nA rotated code of distance $d$ uses $d^2$ data qubits and $d^2 - 1$ measurement qubits. To keep the logical error of a computation of $10^{9}$ rounds below $10^{-3}$ at $p = 0.1\\\\%$ we need $d \\\\ge 13$, which is 337 physical qubits per logical qubit. A leakage-reduction step every round lowers the threshold by about a tenth of a percentage point if it is left out.\",\"score\":null}],\"sources\":[\"112a0e0629186874853e635417ae99fcfa1a93a11cea7a8a9fbec008a70185e3\"],\"warnings\":[\"1 of 6 documents of the corpus is not in the index and cannot be used for this answer; run `docingest index build`\"],\"index_generation\":\"fake-0001\",\"timings\":{\"retrieve_s\":0.0,\"answer_s\":0.0001,\"wall_s\":0.0001}}",
+          "data": "{\"ask_id\":\"dawic98F0o2KY2fhT9cI1w\",\"answer\":\"A rotated surface code of distance $d$ has a threshold near 0.9% per operation under circuit-level noise (112a0e0629186874 pages 1-1). Below threshold the logical error per round scales as $A\\\\,(p/p_{\\\\mathrm{th}})^{\\\\lfloor (d+1)/2\\\\rfloor}$, so each step of two in the distance buys about a factor of eight at $p = 0.1\\\\%$ (112a0e0629186874 pages 2-2). The price is $d^2$ data qubits plus $d^2-1$ measurement qubits: 337 physical qubits per logical qubit for $d = 13$ (112a0e0629186874 pages 3-3).\",\"references_text\":\"1. (112a0e0629186874 pages 1-1): Placeholder et al. (2024). Surface-code memories under circuit-level noise (synthetic).\\n2. (112a0e0629186874 pages 2-2): Placeholder et al. (2024). Surface-code memories under circuit-level noise (synthetic).\\n3. (112a0e0629186874 pages 3-3): Placeholder et al. (2024). Surface-code memories under circuit-level noise (synthetic).\",\"citations\":[{\"key\":\"112a0e0629186874 pages 1-1\",\"doc_id\":\"112a0e0629186874853e635417ae99fcfa1a93a11cea7a8a9fbec008a70185e3\",\"first_page\":1,\"last_page\":1},{\"key\":\"112a0e0629186874 pages 2-2\",\"doc_id\":\"112a0e0629186874853e635417ae99fcfa1a93a11cea7a8a9fbec008a70185e3\",\"first_page\":2,\"last_page\":2},{\"key\":\"112a0e0629186874 pages 3-3\",\"doc_id\":\"112a0e0629186874853e635417ae99fcfa1a93a11cea7a8a9fbec008a70185e3\",\"first_page\":3,\"last_page\":3}],\"contexts\":[{\"doc_id\":\"112a0e0629186874853e635417ae99fcfa1a93a11cea7a8a9fbec008a70185e3\",\"name\":\"112a0e0629186874 pages 1-1\",\"start\":0,\"first_page\":1,\"last_page\":1,\"is_reference\":false,\"text\":\"# Surface-code memories under circuit-level noise\\n\\n## Abstract\\n\\nWe simulate a rotated surface code of distance $d$ with depolarizing noise on every gate, idle step and measurement, decoded with minimum-weight matching. The threshold is close to 0.9% per operation. Below it, the logical error rate per round falls exponentially with the distance.\",\"score\":null},{\"doc_id\":\"112a0e0629186874853e635417ae99fcfa1a93a11cea7a8a9fbec008a70185e3\",\"name\":\"112a0e0629186874 pages 2-2\",\"start\":348,\"first_page\":2,\"last_page\":2,\"is_reference\":false,\"text\":\"## 2. Results\\n\\nLet $p$ be the physical error rate and $p_{\\\\mathrm{th}}$ the threshold. Below threshold the logical error rate per round behaves as\\n\\n$$p_L \\\\approx A \\\\left(\\\\frac{p}{p_{\\\\mathrm{th}}}\\\\right)^{\\\\lfloor (d+1)/2 \\\\rfloor},$$\\n\\nwith $A \\\\approx 0.1$ in our fits. At $p = 0.1\\\\%$ the distance-5 code reaches $p_L = 3\\\\times 10^{-5}$ and the distance-7 code reaches $4\\\\times 10^{-6}$, so each step of two in the distance buys about a factor of eight.\",\"score\":null},{\"doc_id\":\"112a0e0629186874853e635417ae99fcfa1a93a11cea7a8a9fbec008a70185e3\",\"name\":\"112a0e0629186874 pages 3-3\",\"start\":800,\"first_page\":3,\"last_page\":3,\"is_reference\":false,\"text\":\"## 3. Overhead\\n\\nA rotated code of distance $d$ uses $d^2$ data qubits and $d^2 - 1$ measurement qubits. To keep the logical error of a computation of $10^{9}$ rounds below $10^{-3}$ at $p = 0.1\\\\%$ we need $d \\\\ge 13$, which is 337 physical qubits per logical qubit. A leakage-reduction step every round lowers the threshold by about a tenth of a percentage point if it is left out.\",\"score\":null}],\"sources\":[\"112a0e0629186874853e635417ae99fcfa1a93a11cea7a8a9fbec008a70185e3\"],\"warnings\":[\"1 of 6 documents of the corpus is not in the index and cannot be used for this answer; run `docingest index build`\"],\"index_generation\":\"fake-0001\",\"timings\":{\"retrieve_s\":0.0,\"answer_s\":0.0001,\"wall_s\":0.0001}}",
           "id": "3"
         }
       ],
       "view": {
-        "ask_id": "aC7LwztZo-Rw9Mt6zAI-7g",
+        "ask_id": "dawic98F0o2KY2fhT9cI1w",
         "state": "done",
         "position": null,
         "phase": null,
         "response": {
-          "ask_id": "aC7LwztZo-Rw9Mt6zAI-7g",
+          "ask_id": "dawic98F0o2KY2fhT9cI1w",
           "answer": "A rotated surface code of distance $d$ has a threshold near 0.9% per operation under circuit-level noise (112a0e0629186874 pages 1-1). Below threshold the logical error per round scales as $A\\,(p/p_{\\mathrm{th}})^{\\lfloor (d+1)/2\\rfloor}$, so each step of two in the distance buys about a factor of eight at $p = 0.1\\%$ (112a0e0629186874 pages 2-2). The price is $d^2$ data qubits plus $d^2-1$ measurement qubits: 337 physical qubits per logical qubit for $d = 13$ (112a0e0629186874 pages 3-3).",
           "references_text": "1. (112a0e0629186874 pages 1-1): Placeholder et al. (2024). Surface-code memories under circuit-level noise (synthetic).\n2. (112a0e0629186874 pages 2-2): Placeholder et al. (2024). Surface-code memories under circuit-level noise (synthetic).\n3. (112a0e0629186874 pages 3-3): Placeholder et al. (2024). Surface-code memories under circuit-level noise (synthetic).",
           "citations": [
@@ -644,38 +654,38 @@
         "question": "teleportation circuit"
       },
       "accepted": {
-        "ask_id": "s99p_K8ci822H62AKt46lw",
+        "ask_id": "lj0SirPV7LzmFcEs9l1LUQ",
         "position": 0
       },
       "events": [
         {
           "event": "queued",
-          "data": "{\"ask_id\": \"s99p_K8ci822H62AKt46lw\", \"position\": 0}",
+          "data": "{\"ask_id\": \"lj0SirPV7LzmFcEs9l1LUQ\", \"position\": 0}",
           "id": "0"
         },
         {
           "event": "retrieving",
-          "data": "{\"ask_id\": \"s99p_K8ci822H62AKt46lw\"}",
+          "data": "{\"ask_id\": \"lj0SirPV7LzmFcEs9l1LUQ\"}",
           "id": "1"
         },
         {
           "event": "answering",
-          "data": "{\"ask_id\": \"s99p_K8ci822H62AKt46lw\"}",
+          "data": "{\"ask_id\": \"lj0SirPV7LzmFcEs9l1LUQ\"}",
           "id": "2"
         },
         {
           "event": "answer",
-          "data": "{\"ask_id\":\"s99p_K8ci822H62AKt46lw\",\"answer\":\"The circuit teleports the top qubit with a CNOT, a Hadamard and two mid-circuit measurements on the sender's side, and a classically controlled $X^{m_2} Z^{m_1}$ on the receiver's qubit (c7f460355b1958c3 pages 2-2). Each of the four outcomes occurs with probability $1/4$ and the corrected output equals $|\\\\psi\\\\rangle$ in every case (c7f460355b1958c3 pages 3-3). Preparing the Bell pair on the receiver's hardware saves one two-qubit gate compared with the textbook version (c7f460355b1958c3 pages 3-3).\",\"references_text\":\"1. (c7f460355b1958c3 pages 2-2): Fictional et al. (2025). A compact teleportation circuit with mid-circuit measurement (synthetic).\\n2. (c7f460355b1958c3 pages 3-3): Fictional et al. (2025). A compact teleportation circuit with mid-circuit measurement (synthetic).\",\"citations\":[{\"key\":\"c7f460355b1958c3 pages 2-2\",\"doc_id\":\"c7f460355b1958c3e6cf45b6d3234766cd8c9d49a5a9265864030a0606907a44\",\"first_page\":2,\"last_page\":2},{\"key\":\"c7f460355b1958c3 pages 3-3\",\"doc_id\":\"c7f460355b1958c3e6cf45b6d3234766cd8c9d49a5a9265864030a0606907a44\",\"first_page\":3,\"last_page\":3}],\"contexts\":[{\"doc_id\":\"c7f460355b1958c3e6cf45b6d3234766cd8c9d49a5a9265864030a0606907a44\",\"name\":\"c7f460355b1958c3 pages 2-2\",\"start\":230,\"first_page\":2,\"last_page\":2,\"is_reference\":false,\"text\":\"Qubits 2 and 3 start in the Bell state $(|00\\\\rangle + |11\\\\rangle)/\\\\sqrt{2}$. The sender applies a CNOT from qubit 1 to qubit 2, then a Hadamard on qubit 1, and measures both. The receiver applies $X$ if the second outcome is 1 and $Z$ if the first outcome is 1.\\n\\n```latex\\n\\\\begin{quantikz}\\n\\\\lstick{$|\\\\psi\\\\rangle$} & \\\\ctrl{1} & \\\\gate{H} & \\\\meter{} & \\\\cw & \\\\cwbend{2} \\\\\\\\\\n\\\\lstick{$|0\\\\rangle$} & \\\\targ{} & \\\\ctrl{1} & \\\\qw & \\\\meter{} & \\\\cwbend{1} \\\\\\\\\\n\\\\lstick{$|0\\\\rangle$} & \\\\qw & \\\\targ{} & \\\\qw & \\\\qw & \\\\gate{X^{m_2} Z^{m_1}}\\n\\\\end{quantikz}\\n```\",\"score\":null},{\"doc_id\":\"c7f460355b1958c3e6cf45b6d3234766cd8c9d49a5a9265864030a0606907a44\",\"name\":\"c7f460355b1958c3 pages 3-3\",\"start\":767,\"first_page\":3,\"last_page\":3,\"is_reference\":false,\"text\":\"The corrected output equals $|\\\\psi\\\\rangle$ for every one of the four outcomes, each of which occurs with probability $1/4$:\\n\\n$$|\\\\psi_{\\\\mathrm{out}}\\\\rangle = X^{m_2} Z^{m_1} \\\\, \\\\bigl(\\\\,\\\\text{state after outcomes } m_1 m_2\\\\bigr) = |\\\\psi\\\\rangle.$$\\n\\nThe circuit uses one two-qubit gate fewer than the textbook version because the Bell pair is prepared on the hardware that holds qubits 2 and 3.\",\"score\":null}],\"sources\":[\"c7f460355b1958c3e6cf45b6d3234766cd8c9d49a5a9265864030a0606907a44\"],\"warnings\":[],\"index_generation\":\"fake-0001\",\"timings\":{\"retrieve_s\":0.0,\"answer_s\":0.0001,\"wall_s\":0.0001}}",
+          "data": "{\"ask_id\":\"lj0SirPV7LzmFcEs9l1LUQ\",\"answer\":\"The circuit teleports the top qubit with a CNOT, a Hadamard and two mid-circuit measurements on the sender's side, and a classically controlled $X^{m_2} Z^{m_1}$ on the receiver's qubit (c7f460355b1958c3 pages 2-2). Each of the four outcomes occurs with probability $1/4$ and the corrected output equals $|\\\\psi\\\\rangle$ in every case (c7f460355b1958c3 pages 3-3). Preparing the Bell pair on the receiver's hardware saves one two-qubit gate compared with the textbook version (c7f460355b1958c3 pages 3-3).\",\"references_text\":\"1. (c7f460355b1958c3 pages 2-2): Fictional et al. (2025). A compact teleportation circuit with mid-circuit measurement (synthetic).\\n2. (c7f460355b1958c3 pages 3-3): Fictional et al. (2025). A compact teleportation circuit with mid-circuit measurement (synthetic).\",\"citations\":[{\"key\":\"c7f460355b1958c3 pages 2-2\",\"doc_id\":\"c7f460355b1958c3e6cf45b6d3234766cd8c9d49a5a9265864030a0606907a44\",\"first_page\":2,\"last_page\":2},{\"key\":\"c7f460355b1958c3 pages 3-3\",\"doc_id\":\"c7f460355b1958c3e6cf45b6d3234766cd8c9d49a5a9265864030a0606907a44\",\"first_page\":3,\"last_page\":3}],\"contexts\":[{\"doc_id\":\"c7f460355b1958c3e6cf45b6d3234766cd8c9d49a5a9265864030a0606907a44\",\"name\":\"c7f460355b1958c3 pages 2-2\",\"start\":230,\"first_page\":2,\"last_page\":2,\"is_reference\":false,\"text\":\"Qubits 2 and 3 start in the Bell state $(|00\\\\rangle + |11\\\\rangle)/\\\\sqrt{2}$. The sender applies a CNOT from qubit 1 to qubit 2, then a Hadamard on qubit 1, and measures both. The receiver applies $X$ if the second outcome is 1 and $Z$ if the first outcome is 1.\\n\\n```latex\\n\\\\begin{quantikz}\\n\\\\lstick{$|\\\\psi\\\\rangle$} & \\\\ctrl{1} & \\\\gate{H} & \\\\meter{} & \\\\cw & \\\\cwbend{2} \\\\\\\\\\n\\\\lstick{$|0\\\\rangle$} & \\\\targ{} & \\\\ctrl{1} & \\\\qw & \\\\meter{} & \\\\cwbend{1} \\\\\\\\\\n\\\\lstick{$|0\\\\rangle$} & \\\\qw & \\\\targ{} & \\\\qw & \\\\qw & \\\\gate{X^{m_2} Z^{m_1}}\\n\\\\end{quantikz}\\n```\\n\\nThe Bell pair itself is prepared with a Hadamard and a CNOT:\\n\\n```latex\\n\\\\begin{quantikz}\\n\\\\lstick{$|0\\\\rangle$} & \\\\gate{H} & \\\\ctrl{1} & \\\\qw \\\\\\\\\\n\\\\lstick{$|0\\\\rangle$} & \\\\qw & \\\\targ{} & \\\\qw\\n\\\\end{quantikz}\\n```\",\"score\":null},{\"doc_id\":\"c7f460355b1958c3e6cf45b6d3234766cd8c9d49a5a9265864030a0606907a44\",\"name\":\"c7f460355b1958c3 pages 3-3\",\"start\":970,\"first_page\":3,\"last_page\":3,\"is_reference\":false,\"text\":\"The corrected output equals $|\\\\psi\\\\rangle$ for every one of the four outcomes, each of which occurs with probability $1/4$:\\n\\n$$|\\\\psi_{\\\\mathrm{out}}\\\\rangle = X^{m_2} Z^{m_1} \\\\, \\\\bigl(\\\\,\\\\text{state after outcomes } m_1 m_2\\\\bigr) = |\\\\psi\\\\rangle.$$\\n\\nThe circuit uses one two-qubit gate fewer than the textbook version because the Bell pair is prepared on the hardware that holds qubits 2 and 3.\",\"score\":null}],\"sources\":[\"c7f460355b1958c3e6cf45b6d3234766cd8c9d49a5a9265864030a0606907a44\"],\"warnings\":[],\"index_generation\":\"fake-0001\",\"timings\":{\"retrieve_s\":0.0,\"answer_s\":0.0001,\"wall_s\":0.0001}}",
           "id": "3"
         }
       ],
       "view": {
-        "ask_id": "s99p_K8ci822H62AKt46lw",
+        "ask_id": "lj0SirPV7LzmFcEs9l1LUQ",
         "state": "done",
         "position": null,
         "phase": null,
         "response": {
-          "ask_id": "s99p_K8ci822H62AKt46lw",
+          "ask_id": "lj0SirPV7LzmFcEs9l1LUQ",
           "answer": "The circuit teleports the top qubit with a CNOT, a Hadamard and two mid-circuit measurements on the sender's side, and a classically controlled $X^{m_2} Z^{m_1}$ on the receiver's qubit (c7f460355b1958c3 pages 2-2). Each of the four outcomes occurs with probability $1/4$ and the corrected output equals $|\\psi\\rangle$ in every case (c7f460355b1958c3 pages 3-3). Preparing the Bell pair on the receiver's hardware saves one two-qubit gate compared with the textbook version (c7f460355b1958c3 pages 3-3).",
           "references_text": "1. (c7f460355b1958c3 pages 2-2): Fictional et al. (2025). A compact teleportation circuit with mid-circuit measurement (synthetic).\n2. (c7f460355b1958c3 pages 3-3): Fictional et al. (2025). A compact teleportation circuit with mid-circuit measurement (synthetic).",
           "citations": [
@@ -700,13 +710,13 @@
               "first_page": 2,
               "last_page": 2,
               "is_reference": false,
-              "text": "Qubits 2 and 3 start in the Bell state $(|00\\rangle + |11\\rangle)/\\sqrt{2}$. The sender applies a CNOT from qubit 1 to qubit 2, then a Hadamard on qubit 1, and measures both. The receiver applies $X$ if the second outcome is 1 and $Z$ if the first outcome is 1.\n\n```latex\n\\begin{quantikz}\n\\lstick{$|\\psi\\rangle$} & \\ctrl{1} & \\gate{H} & \\meter{} & \\cw & \\cwbend{2} \\\\\n\\lstick{$|0\\rangle$} & \\targ{} & \\ctrl{1} & \\qw & \\meter{} & \\cwbend{1} \\\\\n\\lstick{$|0\\rangle$} & \\qw & \\targ{} & \\qw & \\qw & \\gate{X^{m_2} Z^{m_1}}\n\\end{quantikz}\n```",
+              "text": "Qubits 2 and 3 start in the Bell state $(|00\\rangle + |11\\rangle)/\\sqrt{2}$. The sender applies a CNOT from qubit 1 to qubit 2, then a Hadamard on qubit 1, and measures both. The receiver applies $X$ if the second outcome is 1 and $Z$ if the first outcome is 1.\n\n```latex\n\\begin{quantikz}\n\\lstick{$|\\psi\\rangle$} & \\ctrl{1} & \\gate{H} & \\meter{} & \\cw & \\cwbend{2} \\\\\n\\lstick{$|0\\rangle$} & \\targ{} & \\ctrl{1} & \\qw & \\meter{} & \\cwbend{1} \\\\\n\\lstick{$|0\\rangle$} & \\qw & \\targ{} & \\qw & \\qw & \\gate{X^{m_2} Z^{m_1}}\n\\end{quantikz}\n```\n\nThe Bell pair itself is prepared with a Hadamard and a CNOT:\n\n```latex\n\\begin{quantikz}\n\\lstick{$|0\\rangle$} & \\gate{H} & \\ctrl{1} & \\qw \\\\\n\\lstick{$|0\\rangle$} & \\qw & \\targ{} & \\qw\n\\end{quantikz}\n```",
               "score": null
             },
             {
               "doc_id": "c7f460355b1958c3e6cf45b6d3234766cd8c9d49a5a9265864030a0606907a44",
               "name": "c7f460355b1958c3 pages 3-3",
-              "start": 767,
+              "start": 970,
               "first_page": 3,
               "last_page": 3,
               "is_reference": false,
@@ -736,38 +746,38 @@
         "question": "¿Qué limita la coherencia de los transmones?"
       },
       "accepted": {
-        "ask_id": "ks3sk0HwKfs3tPECCsG_1A",
+        "ask_id": "1j9ztyoegPzG2HcGRk6u0A",
         "position": 0
       },
       "events": [
         {
           "event": "queued",
-          "data": "{\"ask_id\": \"ks3sk0HwKfs3tPECCsG_1A\", \"position\": 0}",
+          "data": "{\"ask_id\": \"1j9ztyoegPzG2HcGRk6u0A\", \"position\": 0}",
           "id": "0"
         },
         {
           "event": "retrieving",
-          "data": "{\"ask_id\": \"ks3sk0HwKfs3tPECCsG_1A\"}",
+          "data": "{\"ask_id\": \"1j9ztyoegPzG2HcGRk6u0A\"}",
           "id": "1"
         },
         {
           "event": "answering",
-          "data": "{\"ask_id\": \"ks3sk0HwKfs3tPECCsG_1A\"}",
+          "data": "{\"ask_id\": \"1j9ztyoegPzG2HcGRk6u0A\"}",
           "id": "2"
         },
         {
           "event": "answer",
-          "data": "{\"ask_id\":\"ks3sk0HwKfs3tPECCsG_1A\",\"answer\":\"En los transmones de frecuencia fija $T_1$ queda limitado sobre todo por las pérdidas dieléctricas en la interfaz sustrato-metal, con una tasa $1/T_1^{\\\\mathrm{diel}} = \\\\omega\\\\, p_{\\\\mathrm{surf}} \\\\tan\\\\delta$ (93a7c5f67472745e pages 2-2). Los sistemas de dos niveles añaden un término variable que puede reducir $T_1$ a la mitad durante horas, y el efecto Purcell solo importa con los acoples de lectura más fuertes (93a7c5f67472745e pages 1-2). El desfase lo domina el resto de fotones térmicos del resonador de lectura, y una secuencia de eco da un $T_2$ unas 1.6 veces mayor que el de Ramsey (93a7c5f67472745e pages 3-3).\",\"references_text\":\"1. (93a7c5f67472745e pages 2-2): Example et al. (2025). Coherence limits of fixed-frequency transmon qubits (synthetic).\\n2. (93a7c5f67472745e pages 1-2): Example et al. (2025). Coherence limits of fixed-frequency transmon qubits (synthetic).\\n3. (93a7c5f67472745e pages 3-3): Example et al. (2025). Coherence limits of fixed-frequency transmon qubits (synthetic).\",\"citations\":[{\"key\":\"93a7c5f67472745e pages 2-2\",\"doc_id\":\"93a7c5f67472745e2a8f2a0f153e44cd66c90936f1b74c81eec6b587c46130ce\",\"first_page\":2,\"last_page\":2},{\"key\":\"93a7c5f67472745e pages 1-2\",\"doc_id\":\"93a7c5f67472745e2a8f2a0f153e44cd66c90936f1b74c81eec6b587c46130ce\",\"first_page\":1,\"last_page\":2},{\"key\":\"93a7c5f67472745e pages 3-3\",\"doc_id\":\"93a7c5f67472745e2a8f2a0f153e44cd66c90936f1b74c81eec6b587c46130ce\",\"first_page\":3,\"last_page\":3}],\"contexts\":[{\"doc_id\":\"93a7c5f67472745e2a8f2a0f153e44cd66c90936f1b74c81eec6b587c46130ce\",\"name\":\"93a7c5f67472745e pages 2-2\",\"start\":479,\"first_page\":2,\"last_page\":2,\"is_reference\":false,\"text\":\"## 2. Loss channels\\n\\nThe relaxation rate is the sum of the rates of the channels that carry energy away from the qubit:\\n\\n$$\\\\frac{1}{T_1} = \\\\frac{1}{T_1^{\\\\mathrm{diel}}} + \\\\frac{1}{T_1^{\\\\mathrm{Purcell}}} + \\\\frac{1}{T_1^{\\\\mathrm{TLS}}}.$$\\n\\nDielectric loss follows the loss tangent, $1/T_1^{\\\\mathrm{diel}} = \\\\omega\\\\, p_{\\\\mathrm{surf}} \\\\tan\\\\delta$, where $p_{\\\\mathrm{surf}}$ is the participation of the lossy surface. Two-level systems (TLS) in the oxide add a slowly drifting term: a qubit that crosses a TLS during a measurement loses a factor of two in $T_1$ for hours.\",\"score\":null},{\"doc_id\":\"93a7c5f67472745e2a8f2a0f153e44cd66c90936f1b74c81eec6b587c46130ce\",\"name\":\"93a7c5f67472745e pages 1-2\",\"start\":0,\"first_page\":1,\"last_page\":2,\"is_reference\":false,\"text\":\"# Coherence limits of fixed-frequency transmon qubits\\n\\n## Abstract\\n\\nWe study what limits the energy relaxation time $T_1$ and the dephasing time $T_2$ of a fixed-frequency transmon on a sapphire substrate. Across 40 simulated devices the median $T_1$ is 110 us and the best is 310 us. Dielectric loss in the substrate-metal interface explains most of the spread, while radiative decay through the readout resonator (the Purcell effect) matters only for the strongest couplings.\\n\\n## 2. Loss channels\\n\\nThe relaxation rate is the sum of the rates of the channels that carry energy away from the qubit:\\n\\n$$\\\\frac{1}{T_1} = \\\\frac{1}{T_1^{\\\\mathrm{diel}}} + \\\\frac{1}{T_1^{\\\\mathrm{Purcell}}} + \\\\frac{1}{T_1^{\\\\mathrm{TLS}}}.$$\\n\\nDielectric loss follows the loss tangent, $1/T_1^{\\\\mathrm{diel}} = \\\\omega\\\\, p_{\\\\mathrm{surf}} \\\\tan\\\\delta$, where $p_{\\\\mathrm{surf}}$ is the participation of the lossy surface. Two-le\",\"score\":null},{\"doc_id\":\"93a7c5f67472745e2a8f2a0f153e44cd66c90936f1b74c81eec6b587c46130ce\",\"name\":\"93a7c5f67472745e pages 3-3\",\"start\":1050,\"first_page\":3,\"last_page\":3,\"is_reference\":false,\"text\":\"## 3. Dephasing\\n\\nPure dephasing adds to relaxation in the coherence time,\\n\\n$$\\\\frac{1}{T_2} = \\\\frac{1}{2T_1} + \\\\frac{1}{T_\\\\phi}.$$\\n\\nFor a fixed-frequency device the main source of $T_\\\\phi$ is residual thermal photons in the readout resonator. An echo sequence removes the slow part of the noise: in our data $T_2^{\\\\mathrm{echo}}$ is 1.6 times the Ramsey $T_2^*$. We conclude that improving the substrate surface raises $T_1$, and that filtering the readout line raises $T_2$.\",\"score\":null}],\"sources\":[\"93a7c5f67472745e2a8f2a0f153e44cd66c90936f1b74c81eec6b587c46130ce\"],\"warnings\":[],\"index_generation\":\"fake-0001\",\"timings\":{\"retrieve_s\":0.0,\"answer_s\":0.0001,\"wall_s\":0.0001}}",
+          "data": "{\"ask_id\":\"1j9ztyoegPzG2HcGRk6u0A\",\"answer\":\"En los transmones de frecuencia fija $T_1$ queda limitado sobre todo por las pérdidas dieléctricas en la interfaz sustrato-metal, con una tasa $1/T_1^{\\\\mathrm{diel}} = \\\\omega\\\\, p_{\\\\mathrm{surf}} \\\\tan\\\\delta$ (93a7c5f67472745e pages 2-2). Los sistemas de dos niveles añaden un término variable que puede reducir $T_1$ a la mitad durante horas, y el efecto Purcell solo importa con los acoples de lectura más fuertes (93a7c5f67472745e pages 1-2). El desfase lo domina el resto de fotones térmicos del resonador de lectura, y una secuencia de eco da un $T_2$ unas 1.6 veces mayor que el de Ramsey (93a7c5f67472745e pages 3-3).\",\"references_text\":\"1. (93a7c5f67472745e pages 2-2): Example et al. (2025). Coherence limits of fixed-frequency transmon qubits (synthetic).\\n2. (93a7c5f67472745e pages 1-2): Example et al. (2025). Coherence limits of fixed-frequency transmon qubits (synthetic).\\n3. (93a7c5f67472745e pages 3-3): Example et al. (2025). Coherence limits of fixed-frequency transmon qubits (synthetic).\",\"citations\":[{\"key\":\"93a7c5f67472745e pages 2-2\",\"doc_id\":\"93a7c5f67472745e2a8f2a0f153e44cd66c90936f1b74c81eec6b587c46130ce\",\"first_page\":2,\"last_page\":2},{\"key\":\"93a7c5f67472745e pages 1-2\",\"doc_id\":\"93a7c5f67472745e2a8f2a0f153e44cd66c90936f1b74c81eec6b587c46130ce\",\"first_page\":1,\"last_page\":2},{\"key\":\"93a7c5f67472745e pages 3-3\",\"doc_id\":\"93a7c5f67472745e2a8f2a0f153e44cd66c90936f1b74c81eec6b587c46130ce\",\"first_page\":3,\"last_page\":3}],\"contexts\":[{\"doc_id\":\"93a7c5f67472745e2a8f2a0f153e44cd66c90936f1b74c81eec6b587c46130ce\",\"name\":\"93a7c5f67472745e pages 2-2\",\"start\":479,\"first_page\":2,\"last_page\":2,\"is_reference\":false,\"text\":\"## 2. Loss channels\\n\\nThe relaxation rate is the sum of the rates of the channels that carry energy away from the qubit:\\n\\n$$\\\\frac{1}{T_1} = \\\\frac{1}{T_1^{\\\\mathrm{diel}}} + \\\\frac{1}{T_1^{\\\\mathrm{Purcell}}} + \\\\frac{1}{T_1^{\\\\mathrm{TLS}}}.$$\\n\\nDielectric loss follows the loss tangent, $1/T_1^{\\\\mathrm{diel}} = \\\\omega\\\\, p_{\\\\mathrm{surf}} \\\\tan\\\\delta$, where $p_{\\\\mathrm{surf}}$ is the participation of the lossy surface. Two-level systems (TLS) in the oxide add a slowly drifting term: a qubit that crosses a TLS during a measurement loses a factor of two in $T_1$ for hours.\",\"score\":null},{\"doc_id\":\"93a7c5f67472745e2a8f2a0f153e44cd66c90936f1b74c81eec6b587c46130ce\",\"name\":\"93a7c5f67472745e pages 1-2\",\"start\":0,\"first_page\":1,\"last_page\":2,\"is_reference\":false,\"text\":\"# Coherence limits of fixed-frequency transmon qubits\\n\\n## Abstract\\n\\nWe study what limits the energy relaxation time $T_1$ and the dephasing time $T_2$ of a fixed-frequency transmon on a sapphire substrate. Across 40 simulated devices the median $T_1$ is 110 us and the best is 310 us. Dielectric loss in the substrate-metal interface explains most of the spread, while radiative decay through the readout resonator (the Purcell effect) matters only for the strongest couplings.\\n\\n## 2. Loss channels\\n\\nThe relaxation rate is the sum of the rates of the channels that carry energy away from the qubit:\\n\\n$$\\\\frac{1}{T_1} = \\\\frac{1}{T_1^{\\\\mathrm{diel}}} + \\\\frac{1}{T_1^{\\\\mathrm{Purcell}}} + \\\\frac{1}{T_1^{\\\\mathrm{TLS}}}.$$\\n\\nDielectric loss follows the loss tangent, $1/T_1^{\\\\mathrm{diel}} = \\\\omega\\\\, p_{\\\\mathrm{surf}} \\\\tan\\\\delta$, where $p_{\\\\mathrm{surf}}$ is the participation of the lossy surface. Two-le\",\"score\":null},{\"doc_id\":\"93a7c5f67472745e2a8f2a0f153e44cd66c90936f1b74c81eec6b587c46130ce\",\"name\":\"93a7c5f67472745e pages 3-3\",\"start\":1050,\"first_page\":3,\"last_page\":3,\"is_reference\":false,\"text\":\"## 3. Dephasing\\n\\nPure dephasing adds to relaxation in the coherence time,\\n\\n$$\\\\frac{1}{T_2} = \\\\frac{1}{2T_1} + \\\\frac{1}{T_\\\\phi}.$$\\n\\nFor a fixed-frequency device the main source of $T_\\\\phi$ is residual thermal photons in the readout resonator. An echo sequence removes the slow part of the noise: in our data $T_2^{\\\\mathrm{echo}}$ is 1.6 times the Ramsey $T_2^*$. We conclude that improving the substrate surface raises $T_1$, and that filtering the readout line raises $T_2$.\",\"score\":null}],\"sources\":[\"93a7c5f67472745e2a8f2a0f153e44cd66c90936f1b74c81eec6b587c46130ce\"],\"warnings\":[],\"index_generation\":\"fake-0001\",\"timings\":{\"retrieve_s\":0.0,\"answer_s\":0.0001,\"wall_s\":0.0001}}",
           "id": "3"
         }
       ],
       "view": {
-        "ask_id": "ks3sk0HwKfs3tPECCsG_1A",
+        "ask_id": "1j9ztyoegPzG2HcGRk6u0A",
         "state": "done",
         "position": null,
         "phase": null,
         "response": {
-          "ask_id": "ks3sk0HwKfs3tPECCsG_1A",
+          "ask_id": "1j9ztyoegPzG2HcGRk6u0A",
           "answer": "En los transmones de frecuencia fija $T_1$ queda limitado sobre todo por las pérdidas dieléctricas en la interfaz sustrato-metal, con una tasa $1/T_1^{\\mathrm{diel}} = \\omega\\, p_{\\mathrm{surf}} \\tan\\delta$ (93a7c5f67472745e pages 2-2). Los sistemas de dos niveles añaden un término variable que puede reducir $T_1$ a la mitad durante horas, y el efecto Purcell solo importa con los acoples de lectura más fuertes (93a7c5f67472745e pages 1-2). El desfase lo domina el resto de fotones térmicos del resonador de lectura, y una secuencia de eco da un $T_2$ unas 1.6 veces mayor que el de Ramsey (93a7c5f67472745e pages 3-3).",
           "references_text": "1. (93a7c5f67472745e pages 2-2): Example et al. (2025). Coherence limits of fixed-frequency transmon qubits (synthetic).\n2. (93a7c5f67472745e pages 1-2): Example et al. (2025). Coherence limits of fixed-frequency transmon qubits (synthetic).\n3. (93a7c5f67472745e pages 3-3): Example et al. (2025). Coherence limits of fixed-frequency transmon qubits (synthetic).",
           "citations": [
@@ -844,38 +854,38 @@
         "question": "How do octopuses taste?"
       },
       "accepted": {
-        "ask_id": "Aw75dOiUaINhJMpH-CV_aw",
+        "ask_id": "l7uvZgJ-f5UmPe2HHVgo0g",
         "position": 0
       },
       "events": [
         {
           "event": "queued",
-          "data": "{\"ask_id\": \"Aw75dOiUaINhJMpH-CV_aw\", \"position\": 0}",
+          "data": "{\"ask_id\": \"l7uvZgJ-f5UmPe2HHVgo0g\", \"position\": 0}",
           "id": "0"
         },
         {
           "event": "retrieving",
-          "data": "{\"ask_id\": \"Aw75dOiUaINhJMpH-CV_aw\"}",
+          "data": "{\"ask_id\": \"l7uvZgJ-f5UmPe2HHVgo0g\"}",
           "id": "1"
         },
         {
           "event": "answering",
-          "data": "{\"ask_id\": \"Aw75dOiUaINhJMpH-CV_aw\"}",
+          "data": "{\"ask_id\": \"l7uvZgJ-f5UmPe2HHVgo0g\"}",
           "id": "2"
         },
         {
           "event": "answer",
-          "data": "{\"ask_id\":\"Aw75dOiUaINhJMpH-CV_aw\",\"answer\":\"The papers in this demonstration corpus do not contain enough information to answer this question. It covers transmon coherence, surface-code memories, a teleportation circuit, Grover search with a noisy oracle, variational eigensolvers and cross-resonance gates.\",\"references_text\":\"\",\"citations\":[],\"contexts\":[],\"sources\":[],\"warnings\":[],\"index_generation\":\"fake-0001\",\"timings\":{\"retrieve_s\":0.0,\"answer_s\":0.0001,\"wall_s\":0.0001}}",
+          "data": "{\"ask_id\":\"l7uvZgJ-f5UmPe2HHVgo0g\",\"answer\":\"The papers in this demonstration corpus do not contain enough information to answer this question. It covers transmon coherence, surface-code memories, a teleportation circuit, Grover search with a noisy oracle, variational eigensolvers and cross-resonance gates.\",\"references_text\":\"\",\"citations\":[],\"contexts\":[],\"sources\":[],\"warnings\":[],\"index_generation\":\"fake-0001\",\"timings\":{\"retrieve_s\":0.0,\"answer_s\":0.0001,\"wall_s\":0.0001}}",
           "id": "3"
         }
       ],
       "view": {
-        "ask_id": "Aw75dOiUaINhJMpH-CV_aw",
+        "ask_id": "l7uvZgJ-f5UmPe2HHVgo0g",
         "state": "done",
         "position": null,
         "phase": null,
         "response": {
-          "ask_id": "Aw75dOiUaINhJMpH-CV_aw",
+          "ask_id": "l7uvZgJ-f5UmPe2HHVgo0g",
           "answer": "The papers in this demonstration corpus do not contain enough information to answer this question. It covers transmon coherence, surface-code memories, a teleportation circuit, Grover search with a noisy oracle, variational eigensolvers and cross-resonance gates.",
           "references_text": "",
           "citations": [],
@@ -902,33 +912,33 @@
         "question": "Grover search noisy oracle"
       },
       "accepted": {
-        "ask_id": "weQ_cwfF5LuQIlvBlxBYGw",
+        "ask_id": "j2L0falPrVQM0tCMAsyAaw",
         "position": 0
       },
       "events": [
         {
           "event": "queued",
-          "data": "{\"ask_id\": \"weQ_cwfF5LuQIlvBlxBYGw\", \"position\": 0}",
+          "data": "{\"ask_id\": \"j2L0falPrVQM0tCMAsyAaw\", \"position\": 0}",
           "id": "0"
         },
         {
           "event": "answering",
-          "data": "{\"ask_id\": \"weQ_cwfF5LuQIlvBlxBYGw\"}",
+          "data": "{\"ask_id\": \"j2L0falPrVQM0tCMAsyAaw\"}",
           "id": "1"
         },
         {
           "event": "answer",
-          "data": "{\"ask_id\":\"weQ_cwfF5LuQIlvBlxBYGw\",\"answer\":\"Grover's algorithm needs $O(\\\\sqrt{N})$ oracle calls, and after $k$ iterations the success probability is $\\\\sin^2((2k+1)\\\\theta)$ with $\\\\sin\\\\theta = 1/\\\\sqrt{N}$ (b4fe1c77ea1021b0 pages 1-1). If the oracle fails with probability $\\\\epsilon$ per call, the best number of iterations is smaller: for $N = 2^{10}$ and $\\\\epsilon = 0.5\\\\%$ it is 21 instead of 25, and the best success probability falls from 0.999 to 0.82 (b4fe1c77ea1021b0 pages 2-2). With a noisy oracle it pays to stop early and repeat the search (b4fe1c77ea1021b0 pages 3-3).\",\"references_text\":\"1. (b4fe1c77ea1021b0 pages 1-1): Demo et al. (2023). Grover search with a noisy oracle (synthetic).\\n2. (b4fe1c77ea1021b0 pages 2-2): Demo et al. (2023). Grover search with a noisy oracle (synthetic).\\n3. (b4fe1c77ea1021b0 pages 3-3): Demo et al. (2023). Grover search with a noisy oracle (synthetic).\",\"citations\":[{\"key\":\"b4fe1c77ea1021b0 pages 1-1\",\"doc_id\":\"b4fe1c77ea1021b0782b07eaa545ce427b237ffcd188f5104c546b10db423752\",\"first_page\":1,\"last_page\":1},{\"key\":\"b4fe1c77ea1021b0 pages 2-2\",\"doc_id\":\"b4fe1c77ea1021b0782b07eaa545ce427b237ffcd188f5104c546b10db423752\",\"first_page\":2,\"last_page\":2},{\"key\":\"b4fe1c77ea1021b0 pages 3-3\",\"doc_id\":\"b4fe1c77ea1021b0782b07eaa545ce427b237ffcd188f5104c546b10db423752\",\"first_page\":3,\"last_page\":3}],\"contexts\":[],\"sources\":[],\"warnings\":[],\"index_generation\":null,\"timings\":{\"retrieve_s\":0.0,\"answer_s\":0.0001,\"wall_s\":0.0001}}",
+          "data": "{\"ask_id\":\"j2L0falPrVQM0tCMAsyAaw\",\"answer\":\"Grover's algorithm needs $O(\\\\sqrt{N})$ oracle calls, and after $k$ iterations the success probability is $\\\\sin^2((2k+1)\\\\theta)$ with $\\\\sin\\\\theta = 1/\\\\sqrt{N}$ (b4fe1c77ea1021b0 pages 1-1). If the oracle fails with probability $\\\\epsilon$ per call, the best number of iterations is smaller: for $N = 2^{10}$ and $\\\\epsilon = 0.5\\\\%$ it is 21 instead of 25, and the best success probability falls from 0.999 to 0.82 (b4fe1c77ea1021b0 pages 2-2). With a noisy oracle it pays to stop early and repeat the search (b4fe1c77ea1021b0 pages 3-3).\",\"references_text\":\"1. (b4fe1c77ea1021b0 pages 1-1): Demo et al. (2023). Grover search with a noisy oracle (synthetic).\\n2. (b4fe1c77ea1021b0 pages 2-2): Demo et al. (2023). Grover search with a noisy oracle (synthetic).\\n3. (b4fe1c77ea1021b0 pages 3-3): Demo et al. (2023). Grover search with a noisy oracle (synthetic).\",\"citations\":[{\"key\":\"b4fe1c77ea1021b0 pages 1-1\",\"doc_id\":\"b4fe1c77ea1021b0782b07eaa545ce427b237ffcd188f5104c546b10db423752\",\"first_page\":1,\"last_page\":1},{\"key\":\"b4fe1c77ea1021b0 pages 2-2\",\"doc_id\":\"b4fe1c77ea1021b0782b07eaa545ce427b237ffcd188f5104c546b10db423752\",\"first_page\":2,\"last_page\":2},{\"key\":\"b4fe1c77ea1021b0 pages 3-3\",\"doc_id\":\"b4fe1c77ea1021b0782b07eaa545ce427b237ffcd188f5104c546b10db423752\",\"first_page\":3,\"last_page\":3}],\"contexts\":[],\"sources\":[],\"warnings\":[],\"index_generation\":null,\"timings\":{\"retrieve_s\":0.0,\"answer_s\":0.0001,\"wall_s\":0.0001}}",
           "id": "2"
         }
       ],
       "view": {
-        "ask_id": "weQ_cwfF5LuQIlvBlxBYGw",
+        "ask_id": "j2L0falPrVQM0tCMAsyAaw",
         "state": "done",
         "position": null,
         "phase": null,
         "response": {
-          "ask_id": "weQ_cwfF5LuQIlvBlxBYGw",
+          "ask_id": "j2L0falPrVQM0tCMAsyAaw",
           "answer": "Grover's algorithm needs $O(\\sqrt{N})$ oracle calls, and after $k$ iterations the success probability is $\\sin^2((2k+1)\\theta)$ with $\\sin\\theta = 1/\\sqrt{N}$ (b4fe1c77ea1021b0 pages 1-1). If the oracle fails with probability $\\epsilon$ per call, the best number of iterations is smaller: for $N = 2^{10}$ and $\\epsilon = 0.5\\%$ it is 21 instead of 25, and the best success probability falls from 0.999 to 0.82 (b4fe1c77ea1021b0 pages 2-2). With a noisy oracle it pays to stop early and repeat the search (b4fe1c77ea1021b0 pages 3-3).",
           "references_text": "1. (b4fe1c77ea1021b0 pages 1-1): Demo et al. (2023). Grover search with a noisy oracle (synthetic).\n2. (b4fe1c77ea1021b0 pages 2-2): Demo et al. (2023). Grover search with a noisy oracle (synthetic).\n3. (b4fe1c77ea1021b0 pages 3-3): Demo et al. (2023). Grover search with a noisy oracle (synthetic).",
           "citations": [
@@ -974,38 +984,38 @@
         "question": "VQE barren plateau"
       },
       "accepted": {
-        "ask_id": "xzEj5MoqVRtW__ZMwhz1qw",
+        "ask_id": "rz-GrqFAbVl0sWVKxcMp7Q",
         "position": 0
       },
       "events": [
         {
           "event": "queued",
-          "data": "{\"ask_id\": \"xzEj5MoqVRtW__ZMwhz1qw\", \"position\": 0}",
+          "data": "{\"ask_id\": \"rz-GrqFAbVl0sWVKxcMp7Q\", \"position\": 0}",
           "id": "0"
         },
         {
           "event": "retrieving",
-          "data": "{\"ask_id\": \"xzEj5MoqVRtW__ZMwhz1qw\"}",
+          "data": "{\"ask_id\": \"rz-GrqFAbVl0sWVKxcMp7Q\"}",
           "id": "1"
         },
         {
           "event": "answering",
-          "data": "{\"ask_id\": \"xzEj5MoqVRtW__ZMwhz1qw\"}",
+          "data": "{\"ask_id\": \"rz-GrqFAbVl0sWVKxcMp7Q\"}",
           "id": "2"
         },
         {
           "event": "answer",
-          "data": "{\"ask_id\":\"xzEj5MoqVRtW__ZMwhz1qw\",\"answer\":\"A variational eigensolver minimizes $E(\\\\boldsymbol\\\\theta)$ over circuit parameters (0aac85046a4bd537 pages 1-1). A hardware-efficient ansatz reaches the ground energy at depth 6 for 4 qubits but shows a barren plateau at 12 qubits, where the gradient variance shrinks like $2^{-n}$ (0aac85046a4bd537 pages 2-2). Starting from a shallow ansatz with parameters near zero avoided the plateau up to 16 qubits (0aac85046a4bd537 pages 3-3).\",\"references_text\":\"1. (0aac85046a4bd537 pages 1-1): Invented et al. (2024). Ansatz depth and barren plateaus in variational eigensolvers (synthetic).\\n2. (0aac85046a4bd537 pages 2-2): Invented et al. (2024). Ansatz depth and barren plateaus in variational eigensolvers (synthetic).\\n3. (0aac85046a4bd537 pages 3-3): Invented et al. (2024). Ansatz depth and barren plateaus in variational eigensolvers (synthetic).\",\"citations\":[{\"key\":\"0aac85046a4bd537 pages 1-1\",\"doc_id\":\"0aac85046a4bd53711e94927c2741b4c1aed1658d9ebdd93166763f875431bfc\",\"first_page\":1,\"last_page\":1},{\"key\":\"0aac85046a4bd537 pages 2-2\",\"doc_id\":\"0aac85046a4bd53711e94927c2741b4c1aed1658d9ebdd93166763f875431bfc\",\"first_page\":2,\"last_page\":2},{\"key\":\"0aac85046a4bd537 pages 3-3\",\"doc_id\":\"0aac85046a4bd53711e94927c2741b4c1aed1658d9ebdd93166763f875431bfc\",\"first_page\":3,\"last_page\":3}],\"contexts\":[{\"doc_id\":\"0aac85046a4bd53711e94927c2741b4c1aed1658d9ebdd93166763f875431bfc\",\"name\":\"0aac85046a4bd537 pages 1-1\",\"start\":0,\"first_page\":1,\"last_page\":1,\"is_reference\":false,\"text\":\"# Ansatz depth and barren plateaus in variational eigensolvers\\n\\n## 1. Method\\n\\nA variational quantum eigensolver minimizes the energy $E(\\\\boldsymbol\\\\theta) = \\\\langle\\\\psi(\\\\boldsymbol\\\\theta)|H|\\\\psi(\\\\boldsymbol\\\\theta)\\\\rangle$ over the parameters of a circuit. We compare a hardware-efficient ansatz with a chemistry-inspired one on a four-site Heisenberg chain, for depths from 1 to 12 layers.\",\"score\":null},{\"doc_id\":\"0aac85046a4bd53711e94927c2741b4c1aed1658d9ebdd93166763f875431bfc\",\"name\":\"0aac85046a4bd537 pages 2-2\",\"start\":391,\"first_page\":2,\"last_page\":2,\"is_reference\":false,\"text\":\"## 2. Results\\n\\nThe hardware-efficient ansatz reaches the ground energy within $10^{-3}$ at depth 6 for 4 qubits, but at 12 qubits the variance of the gradient shrinks like $2^{-n}$ once the depth passes about $n$, the signature of a barren plateau. The chemistry-inspired ansatz keeps a gradient variance above $10^{-2}$ at every size we tried, at the price of 3 times as many two-qubit gates.\",\"score\":null},{\"doc_id\":\"0aac85046a4bd53711e94927c2741b4c1aed1658d9ebdd93166763f875431bfc\",\"name\":\"0aac85046a4bd537 pages 3-3\",\"start\":786,\"first_page\":3,\"last_page\":3,\"is_reference\":false,\"text\":\"## 3. Recommendation\\n\\nStart from a shallow, problem-shaped ansatz and add layers only while the energy keeps falling. Initializing the parameters near zero, so that the circuit starts close to the identity, avoided the plateau in all our runs with up to 16 qubits.\",\"score\":null}],\"sources\":[\"0aac85046a4bd53711e94927c2741b4c1aed1658d9ebdd93166763f875431bfc\"],\"warnings\":[],\"index_generation\":\"fake-0001\",\"timings\":{\"retrieve_s\":0.0,\"answer_s\":0.0001,\"wall_s\":0.0001}}",
+          "data": "{\"ask_id\":\"rz-GrqFAbVl0sWVKxcMp7Q\",\"answer\":\"A variational eigensolver minimizes $E(\\\\boldsymbol\\\\theta)$ over circuit parameters (0aac85046a4bd537 pages 1-1). A hardware-efficient ansatz reaches the ground energy at depth 6 for 4 qubits but shows a barren plateau at 12 qubits, where the gradient variance shrinks like $2^{-n}$ (0aac85046a4bd537 pages 2-2). Starting from a shallow ansatz with parameters near zero avoided the plateau up to 16 qubits (0aac85046a4bd537 pages 3-3).\",\"references_text\":\"1. (0aac85046a4bd537 pages 1-1): Invented et al. (2024). Ansatz depth and barren plateaus in variational eigensolvers (synthetic).\\n2. (0aac85046a4bd537 pages 2-2): Invented et al. (2024). Ansatz depth and barren plateaus in variational eigensolvers (synthetic).\\n3. (0aac85046a4bd537 pages 3-3): Invented et al. (2024). Ansatz depth and barren plateaus in variational eigensolvers (synthetic).\",\"citations\":[{\"key\":\"0aac85046a4bd537 pages 1-1\",\"doc_id\":\"0aac85046a4bd53711e94927c2741b4c1aed1658d9ebdd93166763f875431bfc\",\"first_page\":1,\"last_page\":1},{\"key\":\"0aac85046a4bd537 pages 2-2\",\"doc_id\":\"0aac85046a4bd53711e94927c2741b4c1aed1658d9ebdd93166763f875431bfc\",\"first_page\":2,\"last_page\":2},{\"key\":\"0aac85046a4bd537 pages 3-3\",\"doc_id\":\"0aac85046a4bd53711e94927c2741b4c1aed1658d9ebdd93166763f875431bfc\",\"first_page\":3,\"last_page\":3}],\"contexts\":[{\"doc_id\":\"0aac85046a4bd53711e94927c2741b4c1aed1658d9ebdd93166763f875431bfc\",\"name\":\"0aac85046a4bd537 pages 1-1\",\"start\":0,\"first_page\":1,\"last_page\":1,\"is_reference\":false,\"text\":\"# Ansatz depth and barren plateaus in variational eigensolvers\\n\\n## 1. Method\\n\\nA variational quantum eigensolver minimizes the energy $E(\\\\boldsymbol\\\\theta) = \\\\langle\\\\psi(\\\\boldsymbol\\\\theta)|H|\\\\psi(\\\\boldsymbol\\\\theta)\\\\rangle$ over the parameters of a circuit. We compare a hardware-efficient ansatz with a chemistry-inspired one on a four-site Heisenberg chain, for depths from 1 to 12 layers.\",\"score\":null},{\"doc_id\":\"0aac85046a4bd53711e94927c2741b4c1aed1658d9ebdd93166763f875431bfc\",\"name\":\"0aac85046a4bd537 pages 2-2\",\"start\":391,\"first_page\":2,\"last_page\":2,\"is_reference\":false,\"text\":\"## 2. Results\\n\\nThe hardware-efficient ansatz reaches the ground energy within $10^{-3}$ at depth 6 for 4 qubits, but at 12 qubits the variance of the gradient shrinks like $2^{-n}$ once the depth passes about $n$, the signature of a barren plateau. The chemistry-inspired ansatz keeps a gradient variance above $10^{-2}$ at every size we tried, at the price of 3 times as many two-qubit gates.\",\"score\":null},{\"doc_id\":\"0aac85046a4bd53711e94927c2741b4c1aed1658d9ebdd93166763f875431bfc\",\"name\":\"0aac85046a4bd537 pages 3-3\",\"start\":786,\"first_page\":3,\"last_page\":3,\"is_reference\":false,\"text\":\"## 3. Recommendation\\n\\nStart from a shallow, problem-shaped ansatz and add layers only while the energy keeps falling. Initializing the parameters near zero, so that the circuit starts close to the identity, avoided the plateau in all our runs with up to 16 qubits.\",\"score\":null}],\"sources\":[\"0aac85046a4bd53711e94927c2741b4c1aed1658d9ebdd93166763f875431bfc\"],\"warnings\":[],\"index_generation\":\"fake-0001\",\"timings\":{\"retrieve_s\":0.0,\"answer_s\":0.0001,\"wall_s\":0.0001}}",
           "id": "3"
         }
       ],
       "view": {
-        "ask_id": "xzEj5MoqVRtW__ZMwhz1qw",
+        "ask_id": "rz-GrqFAbVl0sWVKxcMp7Q",
         "state": "done",
         "position": null,
         "phase": null,
         "response": {
-          "ask_id": "xzEj5MoqVRtW__ZMwhz1qw",
+          "ask_id": "rz-GrqFAbVl0sWVKxcMp7Q",
           "answer": "A variational eigensolver minimizes $E(\\boldsymbol\\theta)$ over circuit parameters (0aac85046a4bd537 pages 1-1). A hardware-efficient ansatz reaches the ground energy at depth 6 for 4 qubits but shows a barren plateau at 12 qubits, where the gradient variance shrinks like $2^{-n}$ (0aac85046a4bd537 pages 2-2). Starting from a shallow ansatz with parameters near zero avoided the plateau up to 16 qubits (0aac85046a4bd537 pages 3-3).",
           "references_text": "1. (0aac85046a4bd537 pages 1-1): Invented et al. (2024). Ansatz depth and barren plateaus in variational eigensolvers (synthetic).\n2. (0aac85046a4bd537 pages 2-2): Invented et al. (2024). Ansatz depth and barren plateaus in variational eigensolvers (synthetic).\n3. (0aac85046a4bd537 pages 3-3): Invented et al. (2024). Ansatz depth and barren plateaus in variational eigensolvers (synthetic).",
           "citations": [
@@ -1082,39 +1092,39 @@
         "question": "simulate-unavailable please"
       },
       "accepted": {
-        "ask_id": "8IrGZXzkTGkvbTzgLBTTyA",
+        "ask_id": "tcQntQJWc2Aq2KwlkOO9LA",
         "position": 0
       },
       "events": [
         {
           "event": "queued",
-          "data": "{\"ask_id\": \"8IrGZXzkTGkvbTzgLBTTyA\", \"position\": 0}",
+          "data": "{\"ask_id\": \"tcQntQJWc2Aq2KwlkOO9LA\", \"position\": 0}",
           "id": "0"
         },
         {
           "event": "retrieving",
-          "data": "{\"ask_id\": \"8IrGZXzkTGkvbTzgLBTTyA\"}",
+          "data": "{\"ask_id\": \"tcQntQJWc2Aq2KwlkOO9LA\"}",
           "id": "1"
         },
         {
           "event": "answering",
-          "data": "{\"ask_id\": \"8IrGZXzkTGkvbTzgLBTTyA\"}",
+          "data": "{\"ask_id\": \"tcQntQJWc2Aq2KwlkOO9LA\"}",
           "id": "2"
         },
         {
           "event": "error",
-          "data": "{\"ask_id\":\"8IrGZXzkTGkvbTzgLBTTyA\",\"kind\":\"unavailable\",\"status\":503,\"message\":\"The model server did not answer (a simulated failure). Try again in a moment.\",\"retry_after_s\":5}",
+          "data": "{\"ask_id\":\"tcQntQJWc2Aq2KwlkOO9LA\",\"kind\":\"unavailable\",\"status\":503,\"message\":\"The model server did not answer (a simulated failure). Try again in a moment.\",\"retry_after_s\":5}",
           "id": "3"
         }
       ],
       "view": {
-        "ask_id": "8IrGZXzkTGkvbTzgLBTTyA",
+        "ask_id": "tcQntQJWc2Aq2KwlkOO9LA",
         "state": "failed",
         "position": null,
         "phase": null,
         "response": null,
         "error": {
-          "ask_id": "8IrGZXzkTGkvbTzgLBTTyA",
+          "ask_id": "tcQntQJWc2Aq2KwlkOO9LA",
           "kind": "unavailable",
           "status": 503,
           "message": "The model server did not answer (a simulated failure). Try again in a moment.",
@@ -1132,39 +1142,39 @@
         "question": "simulate-upstream please"
       },
       "accepted": {
-        "ask_id": "R69wk64drD57_GfqciCtGw",
+        "ask_id": "ROu4ZMPibDIzvVJgOd1odQ",
         "position": 0
       },
       "events": [
         {
           "event": "queued",
-          "data": "{\"ask_id\": \"R69wk64drD57_GfqciCtGw\", \"position\": 0}",
+          "data": "{\"ask_id\": \"ROu4ZMPibDIzvVJgOd1odQ\", \"position\": 0}",
           "id": "0"
         },
         {
           "event": "retrieving",
-          "data": "{\"ask_id\": \"R69wk64drD57_GfqciCtGw\"}",
+          "data": "{\"ask_id\": \"ROu4ZMPibDIzvVJgOd1odQ\"}",
           "id": "1"
         },
         {
           "event": "answering",
-          "data": "{\"ask_id\": \"R69wk64drD57_GfqciCtGw\"}",
+          "data": "{\"ask_id\": \"ROu4ZMPibDIzvVJgOd1odQ\"}",
           "id": "2"
         },
         {
           "event": "error",
-          "data": "{\"ask_id\":\"R69wk64drD57_GfqciCtGw\",\"kind\":\"upstream-error\",\"status\":502,\"message\":\"The model server refused the request (a simulated failure).\",\"retry_after_s\":null}",
+          "data": "{\"ask_id\":\"ROu4ZMPibDIzvVJgOd1odQ\",\"kind\":\"upstream-error\",\"status\":502,\"message\":\"The model server refused the request (a simulated failure).\",\"retry_after_s\":null}",
           "id": "3"
         }
       ],
       "view": {
-        "ask_id": "R69wk64drD57_GfqciCtGw",
+        "ask_id": "ROu4ZMPibDIzvVJgOd1odQ",
         "state": "failed",
         "position": null,
         "phase": null,
         "response": null,
         "error": {
-          "ask_id": "R69wk64drD57_GfqciCtGw",
+          "ask_id": "ROu4ZMPibDIzvVJgOd1odQ",
           "kind": "upstream-error",
           "status": 502,
           "message": "The model server refused the request (a simulated failure).",
