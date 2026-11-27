@@ -45,6 +45,10 @@ async function choosePaper(user: User, title: string) {
   const results = await screen.findByRole("list", { name: "Papers found" });
   await user.click(within(results).getByRole("button", { name: title }));
   await screen.findByTestId("paper-blocks");
+  // Choosing a paper writes its id in the address, which is a navigation: the layout then moves
+  // focus to the page heading, in a later tick on a loaded machine. Wait for it, or it takes focus
+  // from whatever the test types or focuses next.
+  await waitFor(() => expect(screen.getByRole("heading", { level: 1 })).toHaveFocus());
 }
 
 const regions = () =>
