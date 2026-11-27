@@ -351,6 +351,10 @@ QASM_STATUS = (
 )
 QASM_REASONS = "Why the circuit was refused, in the emitter's words; empty when `ok`."
 QASM_NOTES = "The reader's notes about the drawing."
+QASM_UNBOUND = (
+    "For a refused circuit: the symbols with no value, as `values` keys (`theta_{12}`), listed "
+    "only when values for them alone would export it."
+)
 
 
 class QasmResponse(BaseModel):
@@ -367,6 +371,7 @@ class QasmResponse(BaseModel):
     unmatched: list[str] = Field(
         description="The keys of `values`, as sent, that name no symbol of the circuit."
     )
+    unbound: list[str] = Field(description=QASM_UNBOUND)
 
     @classmethod
     def from_domain(cls, done: PastedQasm) -> QasmResponse:
@@ -378,6 +383,7 @@ class QasmResponse(BaseModel):
             notes=list(export.notes),
             symbols=list(export.symbols),
             unmatched=list(export.unmatched),
+            unbound=list(export.unbound),
         )
 
 
@@ -426,10 +432,7 @@ class PaperCircuitQasmOut(BaseModel):
     programs: list[QasmProgramOut]
     reasons: list[str] = Field(description=QASM_REASONS)
     notes: list[str] = Field(description=QASM_NOTES)
-    unbound: list[str] = Field(
-        description="For a refused circuit: the symbols with no value, as `values` keys "
-        "(`theta_{12}`), listed only when values for them alone would export it."
-    )
+    unbound: list[str] = Field(description=QASM_UNBOUND)
 
     @classmethod
     def from_domain(cls, done: PaperCircuitQasm) -> PaperCircuitQasmOut:
