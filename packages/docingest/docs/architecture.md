@@ -679,7 +679,7 @@ sequenceDiagram
             Svc->>Conv: convert(path)
             Conv-->>Svc: Conversion with segments, method, engine, title, metadata, degraded
         end
-        Note over Svc: build DocumentManifest, render_markdown(manifest, texts)
+        Note over Svc: build DocumentManifest, render_markdown(manifest, texts), extract_artifacts(markdown) onto the manifest
         Svc->>Store: save(manifest, markdown, degraded)
         Store-->>Svc: StoredDocument
         Svc-->>Caller: StoredDocument
@@ -739,7 +739,26 @@ The LaTeX converter is the most involved adapter. In short, it unpacks archives 
 
 ### Building the result
 
-After the handler returns, the service builds one `DocumentManifest` (fields in [section 9](#9-the-manifest-and-page-records)) and renders the Markdown with `domain.text.render_markdown`. The title is the first available of: the metadata title, the title found in the document (PDF `Title` metadata or the converter's title), and the file name without its suffix. `ocr_model` is set only if at least one page used OCR. Finally `DocumentStore.save` writes both files and decides where they go ([section 8](#8-caching-and-fingerprints)).
+After the handler returns, the service builds one `DocumentManifest` (fields in [section 9](#9-the-manifest-and-page-records)) and renders the Markdown with `domain.text.render_markdown`. The title is the first available of: the metadata title, the title found in the document (PDF `Title` metadata or the converter's title), and the file name without its suffix. `ocr_model` is set only if at least one page used OCR. The service then extracts the layout artifacts of the rendered Markdown ([below](#layout-artifacts)). Finally `DocumentStore.save` writes both files and decides where they go ([section 8](#8-caching-and-fingerprints)).
+
+### Layout artifacts
+
+The manifest lists the display equations and the tables of `document.md`, so a consumer reaches them without parsing the Markdown again. `domain.artifacts.extract_artifacts` runs on the text `render_markdown` wrote, so every input kind is seen the same way and the page of an artifact is the marker above it (`page N` in the file is page `N - 1` in the manifest, like `PageRecord.index`). Each page is searched on its own, so an unclosed `$$` on a truncated page cannot pair with one of a later page. Inline `$x$` math and code blocks are not listed: a physics paper has thousands of inline formulas, and the manifest is read on every query. A confidence outside 0 to 1 is stored as `None` with a warning, never as an error. `figure` and `region` kinds exist for a future layout reader (see the [design note](../../../docs/rag-multimodal-upgrade.md)); today only equations and tables are filled.
+
+```mermaid
+flowchart TD
+    CONV["Converted pages or segments<br/>text layer, OCR, pandoc, docling, passthrough"] --> REN["render_markdown<br/>title line and page markers"]
+    REN --> MD["document.md"]
+    REN --> EXT["extract_artifacts (domain.artifacts)<br/>one page at a time: display equations, tables<br/>inline math and code are skipped"]
+    EXT --> ART["LayoutArtifact: kind, 0-based page,<br/>latex or text, optional confidence and bbox"]
+    ART --> MAN["manifest.json: artifacts list"]
+    MD --> SAVE["DocumentStore.save"]
+    MAN --> SAVE
+    SAVE --> USE["Consumers read equations and tables<br/>without parsing document.md again"]
+    SAVE -.->|"not in config_hash"| KEY["Cache key unchanged: no document is converted again"]
+```
+
+The field has a default, so older manifests still load, and it is an output of the run, not an input: it is not part of `config_hash`, and `PIPELINE_VERSION` did not change. A stored document gets its artifacts with `--force`, which for a scanned paper runs OCR again.
 
 ## 8. Caching and fingerprints
 
@@ -882,6 +901,7 @@ classDiagram
         +SourceMetadata metadata
         +str created_at
         +float total_seconds
+        +list~LayoutArtifact~ artifacts
         +ocr_pages() int
         +complete() bool
         +citation() str
@@ -947,7 +967,24 @@ classDiagram
         LATEX_PLAINTEXT
         PASSTHROUGH
     }
+    class LayoutArtifact {
+        +ArtifactKind kind
+        +int page
+        +str text
+        +str latex
+        +float confidence
+        +tuple bbox
+    }
+    class ArtifactKind {
+        <<enumeration>>
+        EQUATION
+        TABLE
+        FIGURE
+        REGION
+    }
     DocumentManifest "1" *-- "many" PageRecord : pages
+    DocumentManifest "1" *-- "many" LayoutArtifact : artifacts
+    LayoutArtifact --> ArtifactKind
     DocumentManifest o-- ModelRef : ocr_model
     DocumentManifest o-- SourceMetadata : metadata
     DocumentManifest --> SourceKind
@@ -969,6 +1006,7 @@ classDiagram
 | `pipeline_version`, `config_hash` | Which pipeline produced this result. `config_hash` is the cache key. |
 | `ocr_model` | The `ModelRef` of the OCR engine, set only when at least one page used OCR. |
 | `title`, `metadata` | Display title and optional bibliographic metadata (arXiv API, sidecar or converter). `citation()` builds the short citation used in QA answers and in `index.json`. |
+| `artifacts` | The display equations and tables of `document.md`, in order: `kind`, 0-based `page`, `latex` (equations) or `text` (tables as Markdown), optional `confidence` and `bbox`. Default empty, outside the cache key. See [Layout artifacts](#layout-artifacts). |
 | `created_at`, `total_seconds` | UTC timestamp, and the processing time of the handler (detection, hashing and the cache lookup are not included). |
 | `ocr_pages` | Computed property: the number of `vlm_ocr` records. |
 

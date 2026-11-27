@@ -14,7 +14,8 @@ The guide links to the reference for each part instead of repeating it:
 | Checking or converting a question set, a run, a score or a review file | [Check a question set with qa-bench](#check-a-question-set-with-qa-bench) below and [packages/qa-bench/README.md](../packages/qa-bench/README.md) |
 | Scoring runs against a question set and comparing two runs | [Score runs with qa-bench](#score-runs-with-qa-bench) below and [packages/qa-bench/README.md](../packages/qa-bench/README.md#the-scorer) |
 | Running the web app and its API for a team on a shared server, without sudo | [Run the web app on a shared server](#run-the-web-app-on-a-shared-server) below, [deploy/research-api.sh](../deploy/research-api.sh) and [packages/research-api/README.md](../packages/research-api/README.md) |
-| Asking by voice: the speech server, the settings, the microphone on a laptop | [Ask by voice](#ask-by-voice) below, [serving/README.md](../serving/README.md#speech-to-text-stt) and [apps/web/README.md](../apps/web/README.md#the-ask-screen) |
+| Asking by voice and hearing the answer: the speech and reading servers, the settings, the microphone on a laptop | [Ask by voice](#ask-by-voice) below, [serving/README.md](../serving/README.md#speech-to-text-stt) and [apps/web/README.md](../apps/web/README.md#the-ask-screen) |
+| Keeping the service up for a team: crontab keepalive, nightly backup, accounts | [Leave it running for the team](#leave-it-running-for-the-team) below |
 | Exporting a paper's circuits as OpenQASM 3 | [Export a paper's circuits as OpenQASM 3](#export-a-papers-circuits-as-openqasm-3) below and [ADR 0006](../packages/docingest/docs/adr/0006-openqasm-3-export.md) |
 
 If the three model servers already run on the machine you use, do steps 1 and 2 and skip step 3, then start at step 4; [Sharing a machine](#sharing-a-machine) shows how to check them.
@@ -425,6 +426,31 @@ This section puts the web app and its API on a Linux server that several people 
 
 Everything below uses placeholders: `<server>` for the machine, `<user>` for your account on it, `<tailscale-address>` for the server's Tailscale address and `/path/to/research-api` for the data folder. Replace them with your own values.
 
+### How it fits together
+
+```mermaid
+flowchart TB
+    BR["Team browser<br/>Tailscale on the laptop"]
+    TUN["SSH tunnel (alternative, one person)<br/>public_origin = http://localhost:8090"]
+    subgraph SERVER["Lab server, no sudo"]
+    HTTPS["Tailscale Serve (planned)<br/>HTTPS for the microphone"]
+        API["research-api on tailscale-address:8090<br/>public_origin = the team URL"]
+        DATA[("research-api folder<br/>config, db, data, logs, web, backups")]
+        MODELS["Model servers, 127.0.0.1 only<br/>llm 8001, embed 8002, rerank 8003, stt 8004, tts 8005"]
+        SCRIPT["deploy/research-api.sh"]
+        CRON["user crontab<br/>start every 5 minutes and at boot<br/>backup every night"]
+    end
+    BR -->|"tailnet (WireGuard), plain HTTP"| API
+    BR -.->|"HTTPS"| HTTPS -.-> API
+    BR -.-> TUN -.-> API
+    API --> DATA
+    API --> MODELS
+    CRON --> SCRIPT
+    SCRIPT -->|"start, backup"| API
+```
+
+Solid lines are what the team uses: laptops reach the service through the tailnet, and only the service talks to the model servers, which listen on loopback. Dotted lines are the two ways to open the microphone, which needs a secure page: a tunnel for one person today, and HTTPS in front of the service (Tailscale Serve, planned) for everyone. See [Open the app in a secure context](#open-the-app-in-a-secure-context). The crontab box is [Leave it running for the team](#leave-it-running-for-the-team).
+
 ### What you need
 
 - A Linux server with a clone of this repository and the workspace installed ([step 2](#2-install-the-workspace): `uv sync --locked --all-extras`, which creates `.venv` for the script). The server needs no Node.
@@ -524,7 +550,7 @@ The disk of a shared server is open to everyone, and so is the folder above it. 
 
 ### Open it from a laptop
 
-**Through Tailscale (the normal way).** With Tailscale running on the laptop, open exactly the `public_origin`, for example `http://<tailscale-address>:8090/`. The browser says "not secure" because the page is plain HTTP; inside a tailnet the traffic is already encrypted end to end by WireGuard, which is why release 1 does without HTTPS. Anyone in the tailnet can reach the port and try to sign in, so ask whoever manages the tailnet for an access rule that opens port 8090 only to the team's devices. If the team prefers the server's MagicDNS name, put that name in `public_origin` and use it everywhere: the sign-in is refused under any other spelling of the address, the IP address included.
+**Through Tailscale (the normal way).** With Tailscale running on the laptop, open exactly the `public_origin`, for example `http://<tailscale-address>:8090/`. The browser says "not secure" because the page is plain HTTP; inside a tailnet the traffic is already encrypted end to end by WireGuard, which is why the team URL is plain HTTP today (HTTPS for the microphone is described in [Open the app in a secure context](#open-the-app-in-a-secure-context)). Anyone in the tailnet can reach the port and try to sign in, so ask whoever manages the tailnet for an access rule that opens port 8090 only to the team's devices. If the team prefers the server's MagicDNS name, put that name in `public_origin` and use it everywhere: the sign-in is refused under any other spelling of the address, the IP address included.
 
 **Through an SSH tunnel.** Without Tailscale on the laptop, forward the port and open `localhost`:
 
@@ -552,17 +578,30 @@ Fake mode needs no settings file, no database to keep and no model server. It st
 | Stop | `deploy/research-api.sh stop` |
 | Update the code | `git pull && uv sync --locked --all-extras && deploy/research-api.sh stop && deploy/research-api.sh start` |
 | Update the web app | build, write `dist/version.json`, `rsync` to `incoming/`, `install-web` (no restart) |
-| Start or stop the speech server | `serving/serve.sh stt start`, `serving/serve.sh stt status`, `serving/serve.sh stt stop` (see [Ask by voice](#ask-by-voice)) |
+| Start or stop the speech servers | `serving/serve.sh stt start` and `serving/serve.sh tts start` (and `status`, `stop`; see [Ask by voice](#ask-by-voice)) |
+| Keep it running unattended | [Leave it running for the team](#leave-it-running-for-the-team) |
 
 `stop` sends SIGTERM to the service's own process group only, never to another process of yours or anyone's, waits up to 30 seconds so running requests finish and the database closes, and kills it only after that. If the pid file is stale or names another process (a recycled pid, or another copy of the service on another port), `stop` says "not running" and signals nothing. `start` and `stop` share one lock, so a `stop` that meets a `start` in progress waits for it and then stops what it started. The lock folder (`run/start.lock`) is made with the service's Python (`os.mkdir`), not with the `mkdir` command: the uutils `mkdir` that Ubuntu 26.04 ships (coreutils 0.8) can report success to two processes that make the same folder at once, which let two starts both launch. Both run with `umask 077`, so what they write is private whatever the umask of the shell or of the cron line.
 
-**Restart after a reboot.** The script does not install anything. If you want the service to come back after the server restarts, add this line yourself with `crontab -e` (it is a standing rule on the server, so it is your decision). The `sleep` gives the network, Tailscale and the disks time to come up; `umask 077` keeps the log file private, which `start` requires:
+### Leave it running for the team
+
+The script installs nothing on its own. To have the service come back after a crash or a reboot, and to have a backup every night, add three lines to your own user crontab with `crontab -e`. It is a standing rule on the server, so it is your decision; remove the lines with `crontab -e` when you no longer want them.
 
 ```cron
-@reboot umask 077; sleep 60; PATH=/usr/local/bin:/usr/bin:/bin /path/to/research-engine/deploy/research-api.sh start >> /path/to/research-api/logs/cron.log 2>&1
+*/5 * * * * umask 077; PATH=/usr/local/bin:/usr/bin:/bin /path/to/research-engine/deploy/research-api.sh start > /dev/null 2>> /path/to/research-api/logs/cron.log
+@reboot umask 077; sleep 60; PATH=/usr/local/bin:/usr/bin:/bin /path/to/research-engine/deploy/research-api.sh start > /dev/null 2>> /path/to/research-api/logs/cron.log
+17 3 * * * umask 077; PATH=/usr/local/bin:/usr/bin:/bin /path/to/research-engine/deploy/research-api.sh backup > /dev/null 2>> /path/to/research-api/logs/cron.log
 ```
 
-Remove the line with `crontab -e` when you no longer want it. If a manual `start` and this line meet, the second waits for the first and then reports "already running"; only one service starts.
+- **Why it is safe to run every 5 minutes.** `start` is idempotent: when the service already runs it prints "already running" and exits 0, and it takes the same lock as a manual `start` or `stop`, so a cron start that meets yours waits and then reports "already running". Only one service starts. Writing standard output to `/dev/null` keeps `cron.log` to errors only.
+- **`umask 077` is required.** `research-api` refuses to start when its log, database or settings can be read by another account, and the umask of a cron job can be looser than the one of your shell. `start` and `stop` also set it themselves; the line makes the files that the shell redirection creates (`cron.log`) private too.
+- **`sleep 60` at boot** gives the network, Tailscale and the disks time to come up before `bind_host` is looked up.
+- **Stopping on purpose.** A keepalive restarts what you stop. Take the `*/5` line out of the crontab (or comment it) before `deploy/research-api.sh stop` for maintenance, and put it back afterwards.
+- **The model servers.** If you own the speech servers, add one line each in the same way (`serving/serve.sh stt start` and `serving/serve.sh tts start` are idempotent too, with `@reboot` and a longer `sleep`). Servers that a teammate shares are theirs to keep up; the guide does not touch them ([Sharing a machine](#sharing-a-machine)).
+- **The nightly backup** is `deploy/research-api.sh backup` (see [Backups and restore](#backups-and-restore)). It keeps the newest 14 copies, and the copies stay on the same disk, so copy them elsewhere now and then.
+- **Check it.** `crontab -l` shows the lines, `deploy/research-api.sh status` the service, and `deploy/research-api.sh logs -n 20` what it has done.
+
+**Accounts.** There is no sign-up page. The person who runs the server makes each account in a terminal with `deploy/research-api.sh users add <username> --name "Their Name"` (add `--role admin` only for yourself). The command prints a random one-time password of 20 characters on standard output; give it to the person privately, never in a chat or a ticket. At the first sign-in the app forces them to choose their own password (at least 12 characters, not a common one) before anything else works. `users reset <username>` gives a lost password a new one-time password and ends that person's sessions, and `users disable <username>` closes an account at its next request. The steps with the first admin are in [First start](#first-start), and the other actions in the [research-api README](../packages/research-api/README.md#accounts).
 
 ### Backups and restore
 
@@ -570,11 +609,7 @@ Remove the line with `crontab -e` when you no longer want it. If a manual `start
 deploy/research-api.sh backup
 ```
 
-makes `backups/research-api-<UTC time>.sqlite3` with SQLite's own backup call, which gives a consistent copy while the service runs, and checks it with `PRAGMA integrity_check`. If `data/` holds files it also writes `research-api-<UTC time>-data.tar.gz`. It keeps the newest 14 copies (`RESEARCH_API_BACKUP_KEEP`). A daily backup is one more crontab line, which you add yourself:
-
-```cron
-17 3 * * * umask 077; /path/to/research-engine/deploy/research-api.sh backup >> /path/to/research-api/logs/cron.log 2>&1
-```
+makes `backups/research-api-<UTC time>.sqlite3` with SQLite's own backup call, which gives a consistent copy while the service runs, and checks it with `PRAGMA integrity_check`. If `data/` holds files it also writes `research-api-<UTC time>-data.tar.gz`. It keeps the newest 14 copies (`RESEARCH_API_BACKUP_KEEP`). A nightly backup is one crontab line, shown in [Leave it running for the team](#leave-it-running-for-the-team).
 
 The backups are on the same disk as the data. Copy them somewhere else now and then; they hold password hashes and, later, your sets and answers, so treat them as private.
 
@@ -631,17 +666,63 @@ To also sign in from a browser, open `http://<tailscale-address>:8091/` in a pri
 
 ## Ask by voice
 
-The Ask screen has a Speak button. You press it, say the question, and the text appears in the question box. You read it, fix it if needed and press Ask as usual. The text is never sent by itself. This is speech to text only: the app does not speak answers back.
+The Ask screen has a Speak button. You press it, say the question, and the text appears in the question box. You read it, fix it if needed and press Ask as usual. The text is never sent by itself. The answer can be read aloud too: each answer has a Read aloud button, and an answer to a spoken question is read by itself (a switch next to Speak turns that off). Qupi, the Pomeranian beside the question box, listens while you speak, thinks while the answer is written and moves its mouth while it is read.
 
-Three pieces make it work, and each one is started by a command in this section:
+Speaking to the app needs the speech server. Hearing the answer needs the reading server, or nothing at all: without it the browser's own voice reads the answer. Each piece is started by a command in this section:
 
 | Piece | What it is | Where it runs |
 |---|---|---|
-| Speech server | `serving/stt`, a small FastAPI wrapper over onnx-asr with the Parakeet-TDT-0.6B-v3 model and a Silero voice detector, started by `serving/serve.sh stt start` | CPU of the server, `127.0.0.1:8004`, protected by a key file |
-| Research API route | `POST /api/v1/speech/transcriptions`, which checks the session and the clip and passes it on | the service of [Run the web app on a shared server](#run-the-web-app-on-a-shared-server) |
-| Speak button | records the microphone in the browser, makes a WAV and shows the text | your browser |
+| Speech server (stt) | `serving/stt`, a small FastAPI wrapper over onnx-asr with the Parakeet-TDT-0.6B-v3 model and a Silero voice detector, started by `serving/serve.sh stt start` | CPU of the server, `127.0.0.1:8004`, protected by a key file |
+| Reading server (tts), optional | `serving/tts`, a small FastAPI wrapper over Qwen3-TTS 0.6B CustomVoice (default speaker `vivian`) with the faster-qwen3-tts backend, started by `serving/serve.sh tts start` | one GPU of the server (`TTS_GPU`, default 0), `127.0.0.1:8005`, protected by a key file |
+| Research API routes | `POST /api/v1/speech/transcriptions` and `POST /api/v1/speech/synthesis`, which check the session and the input, clean the text to read, and pass it on | the service of [Run the web app on a shared server](#run-the-web-app-on-a-shared-server) |
+| Speak, Read aloud and Qupi | record the microphone and make a WAV, play the answer with Web Audio (or the browser voice), and animate the pet | your browser |
 
-The details are in [Speech to text (stt)](../serving/README.md#speech-to-text-stt), [Speech to text](../packages/research-api/README.md#speech-to-text) and [Voice input](../apps/web/README.md#the-ask-screen). This section is the path from nothing to a spoken question.
+The details are in [Speech to text (stt)](../serving/README.md#speech-to-text-stt), [Text to speech (tts)](../serving/README.md#text-to-speech-tts), [Speech to text](../packages/research-api/README.md#speech-to-text), [Text to speech](../packages/research-api/README.md#text-to-speech) and [Voice input and Read aloud](../apps/web/README.md#the-ask-screen). This section is the path from nothing to a spoken question and a spoken answer.
+
+### How a spoken question travels
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor P as Person
+    participant W as Web app (Ask screen)
+    participant A as research-api
+    participant S as stt server (CPU)
+    participant T as tts server (GPU)
+    participant Q as Qupi
+    P->>W: press Speak
+    Note over Q: listening (glow follows the microphone level)
+    W->>W: AudioWorklet records, WAV 16 kHz mono
+    P->>W: press Stop (or 60 s)
+    Note over Q: transcribing
+    W->>A: POST /speech/transcriptions (WAV)
+    A->>S: POST /v1/audio/transcriptions
+    S-->>A: text
+    A-->>W: text, added to the question box
+    P->>W: edit the text, press Ask
+    W->>A: POST /asks, then GET /asks/id/events
+    Note over Q: waiting, then thinking
+    A-->>W: answer with cited sources
+    Note over W: question came from Speak and auto-read is on
+    W->>W: clean text, split into sentences of at most 300 characters
+    alt GET /status says speech.tts is ready
+        loop each sentence, next one fetched while one plays
+            W->>A: POST /speech/synthesis (text, language)
+            A->>A: cleanup: citations, markdown, formulas
+            A->>T: POST /v1/audio/speech
+            T-->>A: WAV 24 kHz
+            A-->>W: audio/wav
+            W->>W: decode and play with Web Audio, level to Qupi
+        end
+        Note over Q: speaking (mouth follows the playback level)
+    else tts not ready, or 503 from the server
+        W->>W: window.speechSynthesis, pieces of about 200 characters
+        Note over Q: speaking (gentle pulse, no level to measure)
+    end
+    Note over Q: idle
+```
+
+The text of an answer is cleaned before it is read: citations, Markdown syntax and code are dropped and each formula becomes the word "equation" (or "ecuación"). The web app cuts the text into sentences of at most about 300 characters and asks for one WAV per sentence, fetching the next while one plays; Stop cancels what is in flight. A `503` from the reading server hands the rest of the answer to the browser voice once. The language of the text is guessed (Spanish stop words or accents, else English) whatever the language of the screen, and the voice `default` is the reading server's default speaker. Qupi's state follows what the screen does: `listening`, `transcribing`, `waiting`, `thinking`, `speaking` and `idle`, with `error` and `unavailable` taking priority when they apply. Neither the audio nor the text is stored or logged by the API or the servers.
 
 ### What it does and what it needs
 
@@ -685,6 +766,22 @@ curl -s http://127.0.0.1:8004/health
 
 `start` waits until the server answers `/health` and prints `ready after N s`. Once the model is on disk it prints `ready after 10 s` (it checks every 5 s; the load itself takes about 5 s). The first start takes about 35 s, download included. It waits at most 10 minutes. `serving/serve.sh stt status` says whether it runs, and `serving/serve.sh stt stop` stops it.
 
+### Install the reading server (optional)
+
+The reading server needs one NVIDIA GPU, about 4.3 GB of it with the default model, next to whatever else that GPU holds, and Python 3.12 with `uv`. It has its own environment and its own key file; the full recipe (torch from the CUDA 12.4 index for a 535 driver, the pinned requirements, the other models) is in [Text to speech (tts)](../serving/README.md#text-to-speech-tts). In short:
+
+```bash
+uv venv --python 3.12 /path/to/tts-env
+# torch first, then the pinned requirements: see serving/README.md
+uv pip install --python /path/to/tts-env/bin/python -r serving/tts/requirements.txt
+umask 077 && python3 -c "import secrets; print(secrets.token_urlsafe(32))" > ~/.local/state/research-engine/tts.key
+printf 'TTS_PYTHON=/path/to/tts-env/bin/python\nTTS_GPU=0\n' >> serving/env.local
+serving/serve.sh tts start           # downloads the model on the first start
+curl -s http://127.0.0.1:8005/health
+```
+
+On a shared machine pick a GPU with room (`TTS_GPU`) and check `nvidia-smi` first ([Sharing a machine](#sharing-a-machine)). The server answers one sentence at a time, about 2 s for a Spanish sentence on the lab GPU (a real-time factor of about 0.3).
+
 ### Point the service at it
 
 Open `config.toml` in the data folder of the service (`/path/to/research-api/config.toml`) and add this table at the end of the file (a TOML table takes every line below it up to the next table). [`deploy/config.example.toml`](../deploy/config.example.toml) has it, commented:
@@ -695,7 +792,7 @@ stt_endpoint = "http://127.0.0.1:8004/v1"
 stt_api_key_file = "~/.local/state/research-engine/stt.key"
 ```
 
-`stt_endpoint` is the speech server's address up to `/v1`. `stt_api_key_file` is the path of the key file from the last step (a leading `~` is expanded). The other keys have defaults (a clip up to 2 MiB and 60 s, two open transcriptions per member); they are in the [research-api README](../packages/research-api/README.md#run-it).
+`stt_endpoint` is the speech server's address up to `/v1`. `stt_api_key_file` is the path of the key file from the last step (a leading `~` is expanded). To read answers with the reading server, add its pair to the same table: `tts_endpoint = "http://127.0.0.1:8005/v1"` and `tts_api_key_file = "~/.local/state/research-engine/tts.key"` (the voice, the length limit and the timeout have defaults, `tts_voice_es` and `tts_voice_en` are `default`). The two halves are independent: without the `tts_*` keys `/status` says reading is unavailable and the web app reads with the browser's voice. The other keys have defaults (a clip up to 2 MiB and 60 s, two open transcriptions per member); they are in the [research-api README](../packages/research-api/README.md#run-it).
 
 Settings are read at start, so restart the service:
 
@@ -704,7 +801,7 @@ deploy/research-api.sh stop
 deploy/research-api.sh start
 ```
 
-Without the `[speech]` table the Speak button is off and says voice input is not set up on this server.
+Without the `[speech]` table the Speak button is off and says voice input is not set up on this server. Without `tts_endpoint` the Read aloud button still works, with the voice of the browser (a network voice, common on Chrome for Linux and Windows, sends the text to the browser's vendor; the reading server keeps the text on your machines).
 
 ### Open the app in a secure context
 
@@ -734,7 +831,7 @@ The trade-off: while `public_origin` is `http://localhost:8090`, the team URL (`
 
 If another copy of the service already holds port 8090 on the shared server, run this one on another port (`port = 8091` in `config.toml`) and tunnel to it: `ssh -N -L 8090:<tailscale-address>:8091 <user>@<server>`. Keep `public_origin = "http://localhost:8090"`. It is what the browser types, not the port of the server. Check the free port first (`ss -ltn | grep 8091` prints nothing).
 
-**3. HTTPS.** Release 1 has no HTTPS, because inside a tailnet WireGuard already encrypts the traffic. If you later put something in front of the service that ends TLS, set `public_origin` to its `https://` address, and the Speak button works from any laptop with no tunnel.
+**3. HTTPS.** The team URL is plain HTTP, because inside a tailnet WireGuard already encrypts the traffic. The planned fix for the microphone is Tailscale Serve on the server: it ends TLS in front of the service and gives the tailnet an `https://` address (the tailnet needs HTTPS enabled for it). Then set `public_origin` to that address and restart: the Speak button works from any laptop with no tunnel, and the team has one URL. The same applies to anything else that ends TLS in front of the service. Until then, use case 2.
 
 ### Ask a question by voice
 
@@ -752,6 +849,12 @@ Other facts:
 - The microphone is released after each recording. The audio stays in memory for that request only; no audio and no text is stored by the app, the API or the speech server, and none is written to a log.
 - Silence gives an empty text, and the screen says no words were heard.
 
+### Hear the answer
+
+- Press **Read aloud** under a finished answer. Press it again (it says Stop reading) to stop. One answer reads at a time; asking another question, leaving the screen or hiding the tab stops it.
+- After a question that came from the Speak button, the answer is read by itself. The checkbox next to Speak turns this off (the choice is kept in the browser). A typed question is never read by itself, and neither is an answer already on the screen when you open the page.
+- Chromium plays after the first click on the page, and Speak is a click. A browser that blocks audio until a click (Safari may) ends the automatic reading with a message; the Read aloud button, being a click, works.
+
 ### Each session and stopping
 
 In order, on the server, then on the laptop:
@@ -759,6 +862,7 @@ In order, on the server, then on the laptop:
 ```bash
 # server
 serving/serve.sh stt start                    # about 10 s
+serving/serve.sh tts start                    # optional, to read answers with the server
 # tunnel case: public_origin must be http://localhost:8090 (see case 2)
 deploy/research-api.sh start                  # if it is not already running
 
@@ -769,9 +873,10 @@ ssh -N -L 8090:<tailscale-address>:8090 <user>@<server>
 # when you are done: stop the tunnel with Ctrl+C, then on the server
 deploy/research-api.sh stop                   # only if nobody else uses it
 serving/serve.sh stt stop
+serving/serve.sh tts stop
 ```
 
-`serve.sh stt stop` ends only the speech server recorded in your own state folder. If you changed `public_origin` for the tunnel, put the team value back before you restart the service for others.
+`serve.sh stt stop` (and `tts stop`) ends only the server recorded in your own state folder. If you changed `public_origin` for the tunnel, put the team value back before you restart the service for others.
 
 ### Check it without a browser
 
@@ -785,7 +890,15 @@ curl -s http://127.0.0.1:8004/v1/audio/transcriptions \
 # {"text": "...", "language": null, "duration": 3.2}
 ```
 
-`GET /health` needs no key. A call without the key gets a 401. The full list of answers is in [serving/README.md](../serving/README.md#speech-to-text-stt). The API route needs a signed-in session and the CSRF header, so test that one from the browser.
+The reading server is checked the same way, and the WAV it writes can be played with any player:
+
+```bash
+curl -s http://127.0.0.1:8005/v1/audio/speech \
+  -H "Authorization: Bearer $(cat ~/.local/state/research-engine/tts.key)" -H "Content-Type: application/json" \
+  -d '{"model": "local-tts", "input": "Las fuentes están en pantalla.", "voice": "default", "response_format": "wav", "language": "es"}' -o answer.wav
+```
+
+`GET /health` needs no key on either server. A call without the key gets a 401. The full lists of answers are in [serving/README.md](../serving/README.md#speech-to-text-stt) and [its tts section](../serving/README.md#text-to-speech-tts). The API route needs a signed-in session and the CSRF header, so test that one from the browser.
 
 ### Troubleshooting voice
 
@@ -805,12 +918,46 @@ curl -s http://127.0.0.1:8004/v1/audio/transcriptions \
 | "This browser cannot record from the microphone" | The browser has no `getUserMedia`, `AudioContext` or `AudioWorklet`. Use a current Chrome, Firefox or Safari. |
 | "No words were heard" | The text came back empty: silence, or the microphone is too quiet or too far. Move closer and try again, and check the input level in the system settings. |
 | Wrong or missing words | Speak closer to the microphone, in short sentences, with little noise around you. Check and edit the text before you press Ask. Spanish is more exact than English (word error rate about 4.6% against 14.4% in a test, where the English references spell numbers out). |
+| Read aloud speaks with a different, robotic voice | `/status` says reading is unavailable (no `tts_endpoint`, not restarted, or the reading server is down), so the browser's voice is used. Start the reading server, check `tts_endpoint` and `tts_api_key_file`, restart the service. |
+| "The speech server is busy" while reading (429 or 503) | You have two readings open (429), or the reading server is loading or down (503). On a 503 the rest of the answer is read with the browser voice. Check `serving/serve.sh tts status` and `curl -s http://127.0.0.1:8005/health`. |
+| The reading stops with "could not be read" and no sound | The browser keeps audio suspended until a click (Safari). Press Read aloud. |
+| `serve.sh tts start` says no API key file, or the server exits | Make `tts.key` as in [Install the reading server](#install-the-reading-server-optional) (mode 0600), or set `TTS_API_KEY_FILE`. If the log shows a CUDA error, the wheel does not match the driver or the GPU is full: see [serving/README.md](../serving/README.md#text-to-speech-tts) and `nvidia-smi`. |
 | `serve.sh stt start` says no API key file | Make the key file as in [Install the speech server once](#install-the-speech-server-once), or set `STT_API_KEY_FILE`. |
 | `serve.sh stt start` says the server exited | Read the last log lines it prints. Usual causes: `STT_PYTHON` is not set or does not point at the environment you made, the port 8004 is taken (on a shared server, another account's speech server can answer `/health` and make yours look ready while it dies; start yours on another port: `serving/serve.sh stt start 8005`, and change `stt_endpoint`), or the machine cannot download the model. |
 
 ## Export a paper's circuits as OpenQASM 3
 
 The circuits of an ingested paper are the fenced `latex` blocks of its `document.md`. docingest can write each one as an OpenQASM 3 program, the text format that quantum SDKs and hardware providers read. The command is a read path over the corpus: it changes nothing in the store, needs no model server and no GPU, and can be run as often as you like. Every document is first read by `quantum-sim`'s `circuit/1` reader, so the export contains only what the simulator accepts: a circuit it refuses is reported with the simulator's reason and no program is written for it.
+
+The diagram shows the three ways to the same programs: the command, the Circuits screen with a pasted circuit, and the Circuits screen with a stored paper. All of them go through `quantum-sim`'s reader, so a circuit the simulator refuses is refused here too.
+
+```mermaid
+flowchart LR
+    subgraph WEBAPP["Circuits screen (apps/web)"]
+        LT["LaTeX or circuit/1 JSON tab"]
+        PT["Paper tab"]
+        ASK["Ask screen: Open in Circuits"]
+    end
+    subgraph API["research-api"]
+        PARSE["POST /circuits/parse"]
+        RUNC["POST /circuits/run and /check"]
+        QASM["POST /circuits/qasm"]
+        LIST["GET /documents/id/circuits"]
+        PQASM["POST /documents/id/qasm"]
+    end
+    SIM["quantum-sim: circuit/1 reader, simulator, to_qasm"]
+    EXP["docingest QasmExportService"]
+    OUT["OpenQASM 3 programs: Copy and Download<br/>one per part, circuit-p01.qasm"]
+    CLI["docingest circuits export<br/>writes qasm/ files"]
+    ASK --> LT
+    LT --> PARSE --> SIM
+    LT --> RUNC --> SIM
+    LT --> QASM --> SIM --> OUT
+    PT --> LIST --> EXP
+    PT --> PQASM --> EXP --> SIM
+    EXP -->|"same bytes"| OUT
+    CLI --> EXP
+```
 
 From the package folder, with the configuration from step 4:
 
@@ -890,6 +1037,7 @@ Each row says what it was measured with. The first block is the servers, the sec
 | `ask`, one question per process | 19.0 to 24.9 s, mean 21.1 s | 9 math and circuit questions on 1,249 papers (119,564 chunks), `skip_summary = true`, `answer_max_sources = 10`, 10 chunks read; program start-up included; the first question after the servers started took 21.8 s, so there is no slow first question |
 | `index status` | 2.5 s | same corpus |
 | One spoken question | about 0.8 s (median) | Parakeet-TDT-0.6B-v3 on 8 CPU threads of the lab server, 50 FLEURS clips per language, one clip at a time, through the HTTP route; about 11 times faster than real time |
+| One sentence read aloud (`tts`) | about 2.2 s for a Spanish sentence, 1.8 s for an English one (median); a real-time factor of about 0.3 | Qwen3-TTS 0.6B CustomVoice `vivian`, faster-qwen3-tts backend, one 48 GB GPU of the lab server, one request at a time; the model holds about 3.3 GB once ready, load about 9 s |
 | One question inside the evaluation harness | 18.5 s and 21.2 s (medians) | another corpus (QASPER) and the 9,404-chunk corpus; no CLI start-up, so not comparable with the rows above |
 
 The times of the commands depend on the papers and, for `crawl`, on arXiv.

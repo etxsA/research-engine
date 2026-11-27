@@ -508,7 +508,7 @@ src/research_api/
                    Standard library only.
   ports/           Protocols (Clock, CircuitEngine; UserRepo, SessionRepo, LoginAttempts,
                    PasswordHasher; AskEngine; DocumentReader; SetCatalog, SetFiles, SetFormats; JobRepo,
-                   BenchFiles, RunFormats, Scorer, Arms; ModelServer; Transcriber) and the values that cross them
+                   BenchFiles, RunFormats, Scorer, Arms; ModelServer; Transcriber, Synthesizer) and the values that cross them
   application/     use cases (ReportStatus; SignIn, SignOut, Authenticate, ChangePassword,
                    ListSessions, EndSession, ManageUsers; AskDesk and the GpuLane; ListDocuments,
                    GetDocument, ReadPage; ParseCircuit, RunCircuit, CheckCircuit,

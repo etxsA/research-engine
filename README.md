@@ -9,11 +9,11 @@ A local research engine for scientific papers. It turns papers into clean Markdo
 | [`packages/docingest/`](packages/docingest/README.md) | Document normalization: PDF, scanned PDF, LaTeX source, Office files and images become Markdown plus a provenance manifest. Also crawls arXiv, answers questions with PaperQA2, and exports a paper's circuits as OpenQASM 3. Command: `docingest`. | Available (0.4.1) |
 | [`packages/docingest-index/`](packages/docingest-index/README.md) | Embedding and reranker clients (OpenAI-compatible `/v1/embeddings`, vLLM `/rerank`) and a persistent chunk index (dense vectors plus BM25), plugged into docingest as adapters. Command: `docingest index build`. | Available (0.1.0); `docingest ask` retrieves from it when configured |
 | [`packages/quantum-sim/`](packages/quantum-sim/README.md) | A small NumPy simulator of quantum circuits (statevector, unitary, equality up to global phase) with Nielsen and Chuang conventions, for checking the circuits a model writes or docingest reads. numpy only; never imports docingest. Command: `quantum-sim`. | 0.1.0: engine, label resolver and angle parser, `circuit/1` reader and writer, `to_qasm` OpenQASM 3 export, `run` and `check` commands |
-| [`packages/research-api/`](packages/research-api/README.md) | The HTTP API of the research engine: a hexagonal FastAPI service that will serve asks with cited sources, question sets, benchmarks and the circuit check to a web app. Command: `research-api`. | 0.1.0: skeleton (layers, import contracts, settings, fake mode, `/health` and `/status`, OpenAPI export); the circuit check endpoints (`/circuits/parse`, `run`, `check`, `conventions`); the OpenQASM 3 export of a pasted circuit (`POST /circuits/qasm`) and of a stored paper's circuits (`GET /documents/{doc_id}/circuits`, `POST /documents/{doc_id}/qasm`: the files `docingest circuits export --doc` writes, returned instead of written); sign-in (accounts in SQLite, Argon2id, cookie sessions with CSRF, rate limit, roles, the `users` command); asks (the GPU lane, `POST /asks` with server-sent events, cited papers read at a page, a fake engine for demos); question sets (catalog, drafts, items under `If-Match`, validation, import and export, reviews, freezing); benchmark jobs (runs of the arms `bare`, `harness` and `oracle` on a frozen set, one at a time in the lane the asks use, with progress, a log, cancel, resume and recovery, and scorings with the qa-bench scorer; the `oracle` arm hands docingest the gold passages and needs a `md_text` on each) |
+| [`packages/research-api/`](packages/research-api/README.md) | The HTTP API of the research engine: a hexagonal FastAPI service that will serve asks with cited sources, question sets, benchmarks and the circuit check to a web app. Command: `research-api`. | 0.1.0: skeleton (layers, import contracts, settings, fake mode, `/health` and `/status`, OpenAPI export); the circuit check endpoints (`/circuits/parse`, `run`, `check`, `conventions`); the OpenQASM 3 export of a pasted circuit (`POST /circuits/qasm`) and of a stored paper's circuits (`GET /documents/{doc_id}/circuits`, `POST /documents/{doc_id}/qasm`: the files `docingest circuits export --doc` writes, returned instead of written); sign-in (accounts in SQLite, Argon2id, cookie sessions with CSRF, rate limit, roles, the `users` command); speech (`POST /speech/transcriptions` turns a spoken clip into text; `POST /speech/synthesis` reads a piece of an answer aloud, with its own server, key and limits); asks (the GPU lane, `POST /asks` with server-sent events, cited papers read at a page, a fake engine for demos); question sets (catalog, drafts, items under `If-Match`, validation, import and export, reviews, freezing); benchmark jobs (runs of the arms `bare`, `harness` and `oracle` on a frozen set, one at a time in the lane the asks use, with progress, a log, cancel, resume and recovery, and scorings with the qa-bench scorer; the `oracle` arm hands docingest the gold passages and needs a `md_text` on each) |
 | [`packages/qa-bench/`](packages/qa-bench/README.md) | The shared formats of the question-answer benchmark (`qset/1` question sets, `qa-run/1` runs, `qa-score/1` scores, `reviews/1` decisions): schemas, strict readers and writers, applying reviews, converters of older question sets and ask captures, and the scorer (metrics per answer, groups, paired bootstrap comparisons). Depends on jsonschema only. Command: `qa-bench`. | 0.2.1: formats, reviews, converters, scorer, `validate`, `convert` and `score` |
-| [`apps/web/`](apps/web/README.md) | The web app: React, Vite and TypeScript with a client generated from the API's OpenAPI document. Spanish and English, light and dark. | Sign-in, forced password change, layout and navigation; the Circuits screen (read, simulate and check a circuit, and export it, or every circuit of a stored paper, as OpenQASM 3 with Copy and Download); the Ask screen (questions answered over server-sent events, citations that open the paper at their page, and a Speak button that turns a spoken question into text for the question box: [Ask by voice](docs/run-guide.md#ask-by-voice), and "Open in Circuits" on each circuit of an answer or a paper); the question sets screens (browse, edit, review, import, export, freeze); the Benchmarks screens (start runs, follow them, cancel and resume, results by group and question, a paired comparison of two runs) |
-| [`deploy/`](deploy/research-api.sh) | Start and stop script for the research API and the web app it serves on a shared server (no sudo), with backups, installing a web build and the settings example. How to use it: the [run guide](docs/run-guide.md#run-the-web-app-on-a-shared-server). | Available |
-| [`serving/`](serving/README.md) | Start and stop script for the local model servers (answering model, embedder, reranker, speech to text), pinned model list, reranker templates, the vLLM install recipe and GPU requirements. | Available |
+| [`apps/web/`](apps/web/README.md) | The web app: React, Vite and TypeScript with a client generated from the API's OpenAPI document. Spanish and English, light and dark. | Sign-in, forced password change, layout and navigation; the Circuits screen (read, simulate and check a circuit, and export it, or every circuit of a stored paper, as OpenQASM 3 with Copy and Download); the Ask screen (questions answered over server-sent events, citations that open the paper at their page, a Speak button that turns a spoken question into text for the question box, a Read aloud button and automatic reading after a spoken question, with the browser's voice as a fallback ([Ask by voice](docs/run-guide.md#ask-by-voice)), Qupi, the Pomeranian mascot beside the question box that listens, thinks and speaks with the answer, and "Open in Circuits" on each circuit of an answer or a paper); the question sets screens (browse, edit, review, import, export, freeze); the Benchmarks screens (start runs, follow them, cancel and resume, results by group and question, a paired comparison of two runs) |
+| [`deploy/`](deploy/research-api.sh) | Start and stop script for the research API and the web app it serves on a shared server (no sudo), with backups, installing a web build and the settings example. How to use it and how to keep it running for a team (a user crontab line, a nightly backup): the [run guide](docs/run-guide.md#run-the-web-app-on-a-shared-server) and [Leave it running for the team](docs/run-guide.md#leave-it-running-for-the-team). | Available |
+| [`serving/`](serving/README.md) | Start and stop script for the local model servers (answering model, embedder, reranker, speech to text on the CPU, text to speech on one GPU), pinned model list, reranker templates, the vLLM install recipe and GPU requirements. | Available |
 | `experiments/` | Benchmark runners, a timing harness and retrieval and question-answering evaluations. | Planned |
 
 ## How the pieces fit
@@ -29,6 +29,42 @@ flowchart LR
     ASK --> LLM["Local LLM server (OpenAI-compatible)"]
     LLM --> ANS["Answer with cited pages"]
 ```
+
+### The whole system
+
+The browser talks only to research-api, which serves the web app from the same address. research-api uses docingest and quantum-sim as libraries and reaches the model servers over loopback. The speech servers are called by the API only; the browser never talks to a model server.
+
+```mermaid
+flowchart TB
+    WEB["apps/web<br/>Ask, Circuits, question sets, benchmarks, Qupi"]
+    API["research-api<br/>sign-in, asks, speech, circuits, sets, benchmarks<br/>started and kept by deploy/research-api.sh"]
+    DI["docingest<br/>ingest, crawl, ask, circuits export"]
+    QS["quantum-sim<br/>simulate, check, OpenQASM 3"]
+    IDX["docingest-index<br/>chunk index, embedder and reranker clients"]
+    CORPUS[("Corpus and chunk index")]
+    subgraph SERVING["serving/serve.sh: model servers on 127.0.0.1"]
+        direction LR
+        LLM["llm (vLLM)"]
+        EMB["embed (vLLM)"]
+        RR["rerank (vLLM)"]
+        STT["stt, CPU"]
+        TTS["tts, one GPU"]
+    end
+    WEB -->|"HTTP API, SSE, WAV"| API
+    API --> DI
+    API --> QS
+    DI --> QS
+    DI --> IDX
+    DI --> CORPUS
+    IDX --> CORPUS
+    DI --> LLM
+    IDX --> EMB
+    IDX --> RR
+    API --> STT
+    API --> TTS
+```
+
+How the voice path, the circuits path and a server for a team work, step by step: [Ask by voice](docs/run-guide.md#ask-by-voice), [Export a paper's circuits as OpenQASM 3](docs/run-guide.md#export-a-papers-circuits-as-openqasm-3) and [the deployment diagram](docs/run-guide.md#run-the-web-app-on-a-shared-server).
 
 ## Quick start
 
@@ -72,8 +108,9 @@ uv run docingest ask "What limits T1 in transmons?" -c config/examples/lab-serve
 | Run or extend the HTTP API | [packages/research-api/README.md](packages/research-api/README.md) |
 | Check or convert a question set, a run, a score or a review file | [packages/qa-bench/README.md](packages/qa-bench/README.md) |
 | Run the web app and its API for a team on a shared server | [run guide](docs/run-guide.md#run-the-web-app-on-a-shared-server) and [deploy/research-api.sh](deploy/research-api.sh) |
-| Ask by voice: install the speech server, open the microphone, fix problems | [run guide](docs/run-guide.md#ask-by-voice) |
-| Run or extend the web app | [apps/web/README.md](apps/web/README.md) |
+| Ask by voice and hear the answer: install the speech and reading servers, open the microphone, fix problems | [run guide](docs/run-guide.md#ask-by-voice), [serving/README.md](serving/README.md#text-to-speech-tts) and [packages/research-api/README.md](packages/research-api/README.md#text-to-speech) |
+| Keep the service running for a team: crontab keepalive, nightly backup, accounts | [run guide](docs/run-guide.md#leave-it-running-for-the-team) |
+| Run or extend the web app, Qupi and the voice reader | [apps/web/README.md](apps/web/README.md) and [Qupi](apps/web/src/shared/pet/qupi/README.md) |
 | Score runs against a question set and compare two runs | [run guide](docs/run-guide.md#score-runs-with-qa-bench), [packages/qa-bench/README.md](packages/qa-bench/README.md#the-scorer) |
 | Export a paper's circuits as OpenQASM 3 | [run guide](docs/run-guide.md#export-a-papers-circuits-as-openqasm-3), [packages/docingest/README.md](packages/docingest/README.md#cli-overview), [ADR 0006](packages/docingest/docs/adr/0006-openqasm-3-export.md), and from the web app [apps/web/README.md](apps/web/README.md#circuit-check) |
 | Change the code and open a pull request | [packages/docingest/CONTRIBUTING.md](packages/docingest/CONTRIBUTING.md) |
@@ -85,7 +122,7 @@ uv run docingest ask "What limits T1 in transmons?" -c config/examples/lab-serve
 - **One uv workspace.** The root [`pyproject.toml`](pyproject.toml) lists the packages (`packages/*`) and the supported platforms. All packages share one [`uv.lock`](uv.lock) and one environment (`.venv` at the root).
 - **Quality gates.** `./scripts/check.sh` checks the lock file and the documentation links, checks that the shell scripts parse (and run shellcheck where it is installed; CI always runs it), then runs every package's own `scripts/check.sh` (ruff, ruff format, import-linter contracts, pyright, pytest with a coverage floor of 85%).
 - **Web app.** [`apps/web`](apps/web/README.md) is not a uv member: it has its own pnpm lock and its gates (`apps/web/scripts/check.sh`: ESLint, Prettier, types, Vitest, build, bundle budget, API contract drift check). `./scripts/check.sh` runs them when `pnpm` is on the PATH.
-- **CI.** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs the same gates for each package in two jobs: Linux with core and dev dependencies, macOS with every extra. A `shell` job runs a pinned shellcheck (0.11.0) on `deploy/research-api.sh`. Two more jobs cover the web app: `web` (its gates) and `contract` (the OpenAPI drift check and a Playwright smoke test against the API in fake mode).
+- **CI.** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs the same gates for each package in two jobs: Linux with core and dev dependencies, macOS with every extra. A `shell` job runs a pinned shellcheck (0.11.0) on `deploy/research-api.sh` and `serving/serve.sh`, and the jobs `stt` and `tts` run the tests of the two speech wrappers in `serving/` (no model, no GPU). Two more jobs cover the web app: `web` (its gates) and `contract` (the OpenAPI drift check and a Playwright smoke test against the API in fake mode).
 - **Contributing.** Conventions, the architecture rules and the pull-request checklist are in [packages/docingest/CONTRIBUTING.md](packages/docingest/CONTRIBUTING.md).
 
 ## License
