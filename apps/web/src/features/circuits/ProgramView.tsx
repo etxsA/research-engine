@@ -7,7 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/shared/ui/alert";
 import { Button } from "@/shared/ui/button";
 import { useCircuitStore } from "./store";
 import type { QasmProgram } from "./types";
-import { addMissingNames } from "./values";
+import { addNamesToValues } from "./ValuesPanel";
 
 /**
  * The pieces of an OpenQASM 3 export, for a pasted circuit and for a paper: each program with
@@ -112,8 +112,6 @@ export function ExportRefusal({ reasons, quiet = false }: { reasons: string[]; q
 /** The symbols that had no value, with a button that adds their lines to the values. */
 export function ExportUnbound({ names }: { names: string[] }) {
   const { t } = useTranslation();
-  const valuesText = useCircuitStore((state) => state.valuesText);
-  const setValuesText = useCircuitStore((state) => state.setValuesText);
   return (
     <Alert role="note" data-testid="export-unbound">
       <Info aria-hidden="true" />
@@ -121,12 +119,8 @@ export function ExportUnbound({ names }: { names: string[] }) {
       <AlertDescription className="grid gap-2">
         <p>{t("circuits.export.unboundBody", { names: names.join(", ") })}</p>
         <div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setValuesText(addMissingNames(valuesText, names))}
-          >
-            {t("circuits.export.addNames")}
+          <Button variant="outline" size="sm" onClick={() => addNamesToValues(names)}>
+            {t("circuits.result.addNames")}
           </Button>
         </div>
       </AlertDescription>

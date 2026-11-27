@@ -1078,7 +1078,6 @@
       "reasons": "Reasons",
       "unboundTitle": "Values are missing",
       "unboundBody": "The circuit has symbols with no value: {{names}}. Give each a value and export again.",
-      "addNames": "Add the names to the values",
       "unmatchedTitle": "Values not used",
       "unmatchedBody": "These names match no symbol of the circuit, so their values were not used: {{names}}.",
       "notes": "Notes",

@@ -266,6 +266,7 @@ describe("the circuit check screen", () => {
       );
       const values = screen.getByLabelText("Parameter values");
       expect(values).toHaveValue("theta = ");
+      expect(values).toHaveFocus();
       await user.type(values, "\\pi/2");
       await user.click(screen.getByRole("button", { name: "Simulate" }));
       const state = await screen.findByTestId("state-table");

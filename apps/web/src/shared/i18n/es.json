@@ -1078,7 +1078,6 @@
       "reasons": "Razones",
       "unboundTitle": "Faltan valores",
       "unboundBody": "El circuito tiene símbolos sin valor: {{names}}. Dale un valor a cada uno y exporta de nuevo.",
-      "addNames": "Agregar los nombres a los valores",
       "unmatchedTitle": "Valores sin usar",
       "unmatchedBody": "Estos nombres no corresponden a ningún símbolo del circuito, así que sus valores no se usaron: {{names}}.",
       "notes": "Notas",

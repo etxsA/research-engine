@@ -638,6 +638,7 @@ test.describe("C8: export a pasted circuit as OpenQASM 3", () => {
     await expect(unbound).toContainText("theta");
     await unbound.getByRole("button", { name: "Add the names to the values" }).click();
     await expect(page.getByLabel("Parameter values")).toHaveValue("theta = ");
+    await expect(page.getByLabel("Parameter values")).toBeFocused();
     await page.getByLabel("Parameter values").fill("theta = pi/4");
     await exportButton(page).click();
     await expect(page.getByTestId("export-refusal")).toHaveCount(0);

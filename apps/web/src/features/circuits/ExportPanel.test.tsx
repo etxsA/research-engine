@@ -167,6 +167,9 @@ describe("the export card", () => {
     await user.click(within(unbound).getByRole("button", { name: "Add the names to the values" }));
     const values = screen.getByLabelText("Parameter values");
     expect(values).toHaveValue("theta = ");
+    // the note with the button is gone; focus is in the box, after the text
+    expect(values).toHaveFocus();
+    expect((values as HTMLTextAreaElement).selectionStart).toBe("theta = ".length);
     // editing the values clears the refusal they answered
     expect(screen.queryByTestId("export-refusal")).not.toBeInTheDocument();
     await user.type(values, "pi/4");
