@@ -18,7 +18,11 @@ export function ExportPanel({ flows }: { flows: CircuitFlows }) {
   const busy = useCircuitStore((state) => state.busy);
   const canSend = useCanSend();
   return (
-    <Section title={t("circuits.export.title")} description={t("circuits.export.description")}>
+    <Section
+      title={t("circuits.export.title")}
+      description={t("circuits.export.description")}
+      className="lg:col-span-2"
+    >
       <div>
         <Button onClick={() => void flows.exportQasm()} disabled={!canSend}>
           {busy === "qasm" ? t("circuits.export.exporting") : t("circuits.export.submit")}
