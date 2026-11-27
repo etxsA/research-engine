@@ -292,8 +292,9 @@ Methods:
   so the last one run wins: a later `ingest` re-processes and replaces the MinerU result.
   A blank page (no text and no ink) does not make a PDF a scan. A conversion whose number of
   segments is not the page count of the source is treated as a `ConversionError`. Reading the
-  PDF, the fallback `ingest()` and saving run under one lock (pdfium, the OCR engine and the
-  catalog are not thread-safe); only the converter runs in parallel. A metadata change
+  PDF, every regular `ingest()` (LaTeX, text and office inputs, and the fallback) and saving run
+  under one lock (pdfium, the OCR engine and the catalog are not thread-safe); only the
+  converter runs in parallel. A metadata change
   refreshes the stored result without running the converter. Raises `NotConfiguredError`
   without a converter.
 - `config_hash(kind, *, ocr_all=False) -> str`: the 12-character cache key for a

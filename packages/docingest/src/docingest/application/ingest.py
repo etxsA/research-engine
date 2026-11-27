@@ -169,7 +169,7 @@ class IngestService:
         path = path.resolve()
         kind, mime = self.detector.detect(path)
         if kind not in (SourceKind.PDF, SourceKind.IMAGE):
-            return await asyncio.to_thread(self.ingest, path, None, metadata)
+            return await asyncio.to_thread(self._locked, self.ingest, path, None, metadata)
         doc_id = await asyncio.to_thread(sha256_file, path)
         config_hash = self.multimodal_hash(kind)
         metadata = metadata or read_sidecar(path)

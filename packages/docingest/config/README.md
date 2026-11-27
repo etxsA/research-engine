@@ -400,7 +400,7 @@ Settings of the `pandoc` LaTeX converter (arXiv sources, `.tex` files). The pipe
 
 ### `[mineru]`
 
-Settings of the optional MinerU 4 converter, read only with `[adapters] multimodal = "mineru"`. MinerU is an external command, not a dependency of docingest: it is installed in its own environment (nothing changes in `uv.lock`) and `command` points at its `mineru-kit` executable. `docingest ingest-async` hands it PDFs and images, one document at a time, and keeps one segment per page of the source, so the page numbers of a citation are the PDF's own. Everything else (LaTeX, text, office) and any document MinerU cannot read are ingested the regular way. The adapter is described in [../src/docingest/adapters/converters/README.md](../src/docingest/adapters/converters/README.md).
+Settings of the optional MinerU 4 converter, read only with `[adapters] multimodal = "mineru"`. MinerU is an external command, not a dependency of docingest: it is installed in its own environment (nothing changes in `uv.lock`) and `command` points at its `mineru-kit` executable. `docingest ingest-async` hands it PDFs and images (one MinerU run per document, up to `max_concurrency` at once) and keeps one segment per page of the source, so the page numbers of a citation are the PDF's own. Everything else (LaTeX, text, office) and any document MinerU cannot read are ingested the regular way. The adapter is described in [../src/docingest/adapters/converters/README.md](../src/docingest/adapters/converters/README.md).
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
@@ -411,7 +411,7 @@ Settings of the optional MinerU 4 converter, read only with `[adapters] multimod
 | `timeout_s` | float (seconds) | `900` | Wall-clock limit per document. A MinerU that takes longer is stopped, with every process it started, and the document is read the regular way. |
 | `output_dir` | path | `"data/mineru"` | Where MinerU works: a hidden folder per run, removed at the end. |
 | `keep_output` | bool | `false` | Keep MinerU's files (Markdown, middle JSON, `images/`) in `output_dir/<doc_id>`, the folder of the document's sha256. Off by default: the Markdown and the layout are not stored twice. |
-| `max_concurrency` | int | `1` | Documents converted at once by `ingest-async` (`1` to `16`). Each MinerU run uses the GPU. Reading the PDF, the regular fallback and saving the result run one document at a time whatever the value. |
+| `max_concurrency` | int | `1` | Documents converted at once by `ingest-async` (`1` to `16`). Each MinerU run uses the GPU. Reading the PDF, the regular ingest (LaTeX, text and office files, and the fallback after a `ConversionError`) and saving the result run under one lock, one document at a time, whatever the value. |
 
 **The model cannot be chosen from the command line.** MinerU 4's `mineru-kit parse` has `--tier`, but no option that names the VLM repository: the installed release downloads its own weights (`mineru-kit models download --tier standard`, source by `MINERU_MODEL_SOURCE` or its `config.yaml`; check them with `mineru-kit models verify`). `model` therefore records what the operator checked: it is in the cache key, and a value that is not an Apache-2.0 Pro release (the AGPL `MinerU2.5-2509-1.2B` included) stops the command with a message. A remote VLM endpoint (`model.vlm.server_url` in MinerU's own config) serves the weights of the operator's choice and is the way to pin a repository exactly.
 

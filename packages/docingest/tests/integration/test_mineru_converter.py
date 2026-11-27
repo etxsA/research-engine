@@ -6,11 +6,21 @@ import json
 import os
 import shutil
 import stat
+import threading
+import time
 from pathlib import Path
 
 import pytest
 from builders import text_pdf
-from fakes import FakeConverter, FakeImages, blank, digital, make_service, scanned
+from fakes import (
+    FakeConverter,
+    FakeImages,
+    InMemoryStore,
+    blank,
+    digital,
+    make_service,
+    scanned,
+)
 from typer.testing import CliRunner
 
 from docingest.adapters.converters import mineru as mineru_module
@@ -241,6 +251,57 @@ async def test_a_conversion_error_falls_back_to_the_regular_ingest(
     assert [p.method for p in doc.manifest.pages] == [PageMethod.TEXT_LAYER]
 
 
+class OverlapStore(InMemoryStore):
+    """Counts how many ``save`` calls are inside the store at the same time."""
+
+    def __init__(self):
+        super().__init__()
+        self.active = 0
+        self.peak = 0
+        self._guard = threading.Lock()
+
+    def save(self, manifest, markdown, *, degraded=False):
+        with self._guard:
+            self.active += 1
+            self.peak = max(self.peak, self.active)
+        try:
+            time.sleep(0.3)
+            return super().save(manifest, markdown, degraded=degraded)
+        finally:
+            with self._guard:
+                self.active -= 1
+
+
+class FailsFirstThenSucceeds:
+    """``a.pdf`` cannot be converted (a fallback follows); the other file converts a bit later."""
+
+    fingerprint = "fails-first"
+
+    async def convert_async(self, path, request):
+        if path.name == "a.pdf":
+            raise ConversionError("cannot read it")
+        await asyncio.sleep(0.1)
+        return Conversion(
+            [Segment("converted text")] * request.source_pages, PageMethod.MINERU, "x"
+        )
+
+
+@aio
+async def test_a_fallback_never_saves_while_another_document_is_saving(tmp_path, src):
+    store = OverlapStore()
+    svc = make_service(
+        {"a.pdf": [digital(TEXT)], "b.pdf": [digital(TEXT + "b")]},
+        images=FakeImages(1),
+        multimodal=FailsFirstThenSucceeds(),
+    )
+    svc.store = store
+    docs = await asyncio.gather(
+        svc.ingest_async(src("a.pdf", b"a")), svc.ingest_async(src("b.pdf", b"b"))
+    )
+    assert [d.manifest.pages[0].method for d in docs] == [PageMethod.TEXT_LAYER, PageMethod.MINERU]
+    assert store.peak == 1  # the fallback ran under the same lock as the other save
+
+
 @aio
 async def test_without_a_converter_ingest_async_says_so(src):
     svc = make_service({})
@@ -345,6 +406,21 @@ async def test_a_timeout_stops_the_processes_the_command_started(
         await asyncio.sleep(0.1)
     os.kill(pid, 9)
     pytest.fail("the child of the command is still running")
+
+
+@aio
+async def test_a_timeout_does_not_wait_for_the_children_of_the_command(
+    tmp_path, command, src, monkeypatch
+):
+    """Killing only the direct child would leave communicate() waiting for the grandchild that
+    holds the pipes (60 s here): the whole process group has to go."""
+    monkeypatch.setenv("FAKE_MINERU_MODE", "orphan")
+    monkeypatch.setenv("FAKE_MINERU_CHILD", str(tmp_path / "child.pid"))
+    conv = MineruConverter(config(tmp_path, command, timeout_s=1))
+    started = time.monotonic()
+    with pytest.raises(ConversionError, match="timeout_s"):
+        await conv.convert_async(src("a.pdf", b"text"), request())
+    assert time.monotonic() - started < 10
 
 
 @aio
@@ -513,6 +589,26 @@ def test_max_concurrency_one_runs_the_command_one_document_at_a_time(
 def test_documents_at_once_all_reach_the_catalog(tmp_path, command, monkeypatch):
     span, index = run_cli_on_pdfs(tmp_path, command, 4, 4, monkeypatch)
     assert span < 1.2 and len(index) == 4  # they overlapped, and no catalog entry was lost
+
+
+def test_a_mixed_folder_keeps_every_document_in_the_catalog(tmp_path, command, monkeypatch):
+    """PDFs go through the converter, the text files straight to ``ingest``: with several
+    documents at once, every save still has to land in index.json."""
+    monkeypatch.setenv("FAKE_MINERU_MODE", "slow")
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    for i in range(4):
+        text_pdf(raw / f"d{i}.pdf", f"Document number {i} with a text layer long enough. " * 3)
+    for i in range(60):
+        (raw / f"n{i}.md").write_text(f"# Note {i}\n" + f"words {i} " * 40)
+    cfg = write_config(tmp_path, command, extra="max_concurrency = 8\n")
+    result = CliRunner().invoke(app, ["ingest-async", str(raw), "--config", str(cfg)])
+    assert result.exit_code == 0, result.output
+    out = tmp_path / "out"
+    index = json.loads((out / "index.json").read_text())
+    stored = list(out.glob("*/manifest.json"))
+    assert len(stored) == 64
+    assert len(index) == len(stored)
 
 
 def test_a_plain_ingest_does_not_start_the_converter(tmp_path, command):
