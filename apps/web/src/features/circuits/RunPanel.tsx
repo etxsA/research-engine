@@ -4,7 +4,6 @@ import { TextField } from "@/shared/forms/TextField";
 import { Button } from "@/shared/ui/button";
 import { Label } from "@/shared/ui/label";
 import { Switch } from "@/shared/ui/switch";
-import { Textarea } from "@/shared/ui/textarea";
 import type { CircuitFlows } from "./flows";
 import { Section } from "./Section";
 import { useCircuitStore } from "./store";
@@ -22,15 +21,11 @@ export function useCanSend(): boolean {
 export function RunPanel({ flows }: { flows: CircuitFlows }) {
   const { t } = useTranslation();
   const inputState = useCircuitStore((state) => state.inputState);
-  const valuesText = useCircuitStore((state) => state.valuesText);
   const unitary = useCircuitStore((state) => state.unitary);
   const busy = useCircuitStore((state) => state.busy);
   const setInputState = useCircuitStore((state) => state.setInputState);
-  const setValuesText = useCircuitStore((state) => state.setValuesText);
   const setUnitary = useCircuitStore((state) => state.setUnitary);
   const canSend = useCanSend();
-  const valuesId = useId();
-  const valuesHint = useId();
   const unitaryId = useId();
   return (
     <Section title={t("circuits.run.title")} description={t("circuits.run.description")}>
@@ -44,21 +39,6 @@ export function RunPanel({ flows }: { flows: CircuitFlows }) {
         autoComplete="off"
         className="font-mono"
       />
-      <div className="grid gap-1.5">
-        <Label htmlFor={valuesId}>{t("circuits.run.values")}</Label>
-        <Textarea
-          id={valuesId}
-          aria-describedby={valuesHint}
-          className="min-h-16 font-mono text-sm"
-          spellCheck={false}
-          value={valuesText}
-          placeholder={"theta = \\pi/2"}
-          onChange={(event) => setValuesText(event.target.value)}
-        />
-        <p id={valuesHint} className="text-sm text-muted-foreground">
-          {t("circuits.run.valuesHint")}
-        </p>
-      </div>
       <div className="flex items-center gap-2">
         <Switch id={unitaryId} checked={unitary} onCheckedChange={setUnitary} />
         <Label htmlFor={unitaryId}>{t("circuits.run.unitary")}</Label>

@@ -52,5 +52,7 @@ function sentence(announcement: NumberedAnnouncement, t: TFunction) {
         programs: announcement.programs,
         refused: announcement.refused,
       });
+    case "copy":
+      return t(`circuits.export.copied.${announcement.outcome}`, { file: announcement.file });
   }
 }

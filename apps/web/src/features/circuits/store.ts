@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { ApiError } from "@/shared/api/errors";
+import type { CopyOutcome } from "@/shared/lib/clipboard";
 import type { PaperCircuits, PaperExport, QasmExport, Reading, SimulatorResult } from "./types";
 
 export type InputKind = "latex" | "json";
@@ -58,7 +59,8 @@ export type Announcement =
   | { kind: "run" | "check" | "equal" | "notEqual" }
   | { kind: "qasm"; programs: number }
   | { kind: "paperCircuits"; blocks: number }
-  | { kind: "paperQasm"; programs: number; refused: number };
+  | { kind: "paperQasm"; programs: number; refused: number }
+  | { kind: "copy"; outcome: CopyOutcome; file: string };
 
 /** An announcement with a number that grows with every one, so the same words twice are two events. */
 export type NumberedAnnouncement = Announcement & { serial: number };
@@ -147,6 +149,8 @@ interface CircuitActions {
   setTargetKind: (kind: TargetKind) => void;
   setTargetText: (text: string) => void;
   setPaper: (docId: string) => void;
+  /** Say what a Copy button did: copied, or only selected the text when the browser refused. */
+  announceCopy: (outcome: CopyOutcome, file: string) => void;
   clear: () => void;
 }
 
@@ -228,6 +232,7 @@ export const useCircuitStore = create<CircuitState & CircuitActions>()((set) => 
       problem: null,
       paperRevision: s.paperRevision + 1,
     })),
+  announceCopy: (outcome, file) => set({ announcement: announce({ kind: "copy", outcome, file }) }),
   clear: () =>
     set((s) => ({
       ...initialCircuitState,

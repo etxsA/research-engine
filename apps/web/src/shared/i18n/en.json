@@ -1002,13 +1002,17 @@
       "barrier": "barrier",
       "text": "text"
     },
+    "values": {
+      "title": "Values",
+      "description": "The values of the circuit's symbols. Simulate, Check and Export use them.",
+      "label": "Parameter values",
+      "hint": "One per line, name = value. A name is one symbol, such as theta, \\theta or \\theta_{1}. A value is a number or an angle such as \\pi/2 or pi/2."
+    },
     "run": {
       "title": "Simulate",
       "description": "The final state and the outcome probabilities, up to 12 wires.",
       "input": "Input state",
       "inputHint": "A basis label such as 010 (wire 1 first) or a list of amplitudes such as [0, 1]. Empty means all wires in 0.",
-      "values": "Parameter values",
-      "valuesHint": "One per line, name = value. A value is a number or an angle such as \\pi/2.",
       "unitary": "Also show the unitary (up to 8 wires)",
       "simulate": "Simulate",
       "running": "Simulating"
@@ -1044,6 +1048,35 @@
       "checking": "Checking"
     },
     "export": {
+      "title": "Export",
+      "description": "Writes the circuit as OpenQASM 3, one program per part of the drawing, as docingest circuits export does. Nothing is saved on the server.",
+      "submit": "Export",
+      "exporting": "Exporting",
+      "resultTitle": "OpenQASM 3 programs",
+      "resultDescription": "Each part of the drawing is one program. Copy it, or save it as a .qasm file.",
+      "ofCircuit": "Circuit {{n}} of the reading.",
+      "part": "Part {{part}}",
+      "partAfter": "Part {{part}}, after \"{{sign}}\"",
+      "size": "Qubits: {{qubits}}. Classical bits: {{clbits}}.",
+      "program": "OpenQASM 3 program {{file}}",
+      "copy": "Copy",
+      "copyFile": "Copy {{file}}",
+      "download": "Download",
+      "downloadFile": "Download {{file}}",
+      "copied": {
+        "copied": "{{file}} copied.",
+        "selected": "{{file}} is selected: the browser did not allow copying. Press Ctrl+C (Cmd+C on a Mac) to copy it.",
+        "failed": "{{file}} could not be copied. Select its text and copy it."
+      },
+      "refusedTitle": "Refused",
+      "refusedBody": "The export did not write this circuit as OpenQASM 3, so there is no program. These are its reasons.",
+      "reasons": "Reasons",
+      "unboundTitle": "Values are missing",
+      "unboundBody": "The circuit has symbols with no value: {{names}}. Give each a value and export again.",
+      "addNames": "Add the names to the values",
+      "unmatchedTitle": "Values not used",
+      "unmatchedBody": "These names match no symbol of the circuit, so their values were not used: {{names}}.",
+      "notes": "Notes",
       "live": "Export finished. Programs: {{programs}}."
     },
     "paper": {

@@ -4,6 +4,7 @@ import { PageHeader } from "@/shared/layout/PageHeader";
 import { useCircuitCalls } from "./api";
 import { CheckPanel } from "./CheckPanel";
 import { ConventionsCard } from "./ConventionsCard";
+import { ExportPanel, QasmView } from "./ExportPanel";
 import { createFlows } from "./flows";
 import { InputPanel } from "./InputPanel";
 import { LiveStatus } from "./LiveStatus";
@@ -11,6 +12,7 @@ import { OutcomeView } from "./OutcomeView";
 import { CurrentProblem } from "./ProblemView";
 import { ReadingView } from "./ReadingView";
 import { RunPanel } from "./RunPanel";
+import { ValuesPanel } from "./ValuesPanel";
 
 export function CircuitsPage() {
   const { t } = useTranslation();
@@ -29,11 +31,14 @@ export function CircuitsPage() {
         <InputPanel flows={flows} />
         <CurrentProblem />
         <ReadingView />
+        <ValuesPanel />
         <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[repeat(2,minmax(0,1fr))]">
           <RunPanel flows={flows} />
           <CheckPanel flows={flows} />
+          <ExportPanel flows={flows} />
         </div>
         <OutcomeView />
+        <QasmView />
         <ConventionsCard />
       </div>
     </>
