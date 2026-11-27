@@ -22,6 +22,7 @@ from ..domain.circuits import (
     PAPER_TOOL,
     PASTED_ORIGIN,
     PASTED_TOOL,
+    USE_THE_LIBRARY,
     CheckTarget,
     CircuitCaps,
     PaperBlock,
@@ -146,7 +147,9 @@ class ExportQasm:
         self, *, circuit_json: str, values: Mapping[str, Any] | None = None
     ) -> PastedQasm:
         document = read_json_strict(circuit_json, what=CIRCUIT)
-        ensure_within_caps([(_pointer(CIRCUIT), document)], self._caps, max_wires=None)
+        ensure_within_caps(
+            [(_pointer(CIRCUIT), document)], self._caps, max_wires=None, hint=USE_THE_LIBRARY
+        )
         await self._engine.check_values(values)
         export = await self._engine.qasm(
             document, values=values, origin=PASTED_ORIGIN, tool=PASTED_TOOL

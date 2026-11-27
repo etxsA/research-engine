@@ -386,7 +386,7 @@ export interface paths {
         put?: never;
         /**
          * Export every circuit of a paper as OpenQASM 3
-         * @description The files `docingest circuits export --doc` would write for the paper, byte for byte and under the same names, returned instead of written: nothing changes on the server. All the circuits of the paper share one operation cap. Each program is OpenQASM 3 with `stdgates.inc` only: wire `i` (1 at the top) is `q[i-1]` and a measurement writes `c[i-1]`. A drawn equality gives one program per side. A circuit the export cannot express is a 200 with `status: refused` and the reasons, word for word. No wire cap; the operation cap and the time limit apply.
+         * @description The files `docingest circuits export --doc` would write for the paper, byte for byte and under the same names, returned instead of written: nothing changes on the server. All the circuits of the paper share one operation cap and one time limit. Each program is OpenQASM 3 with `stdgates.inc` only: wire `i` (1 at the top) is `q[i-1]` and a measurement writes `c[i-1]`. A drawn equality gives one program per side. A circuit the export cannot express is a 200 with `status: refused` and the reasons, word for word. No wire cap; the operation cap and the time limit apply.
          */
         post: operations["exportDocumentQasm"];
         delete?: never;
@@ -3451,7 +3451,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description The body is over the cap. */
+            /** @description The body is over the cap; `detail` points to the Python function `quantum_sim.to_qasm`. */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -3460,7 +3460,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description The request is not valid, or the circuit is over the synchronous caps (wires, operations, time); `detail` points to the `quantum-sim` command. */
+            /** @description The request is not valid, a `values` key or value the export cannot use (`errors` points to `/values/<key>`, with quantum-sim's message), or the circuit is over the operation cap or the time limit; `detail` then points to the Python function `quantum_sim.to_qasm`. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3745,7 +3745,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description The body is over the cap. */
+            /** @description The body is over the cap; `detail` points to `docingest circuits export --doc`. */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -3754,7 +3754,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description The request is not valid, or the paper's circuits are over the operation cap or the time; `detail` points to `docingest circuits export --doc`. */
+            /** @description The id is not 16 to 64 lowercase hex characters, or reading the paper's circuit blocks took longer than the time limit; `detail` then points to `docingest circuits export --doc`. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3914,7 +3914,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description The body is over the cap. */
+            /** @description The body is over the cap; `detail` points to `docingest circuits export --doc`. */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -3923,7 +3923,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description The request is not valid, or the paper's circuits are over the operation cap or the time; `detail` points to `docingest circuits export --doc`. */
+            /** @description The request is not valid, a `values` key or value the export cannot use (`errors` points to `/values/<key>`, with quantum-sim's message), or the paper's circuits together are over the operation cap or the time limit; `detail` then points to `docingest circuits export --doc`. */
             422: {
                 headers: {
                     [name: string]: unknown;

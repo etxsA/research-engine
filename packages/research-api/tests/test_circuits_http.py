@@ -483,7 +483,10 @@ def test_a_body_over_the_cap_is_a_413_by_its_declared_size(client_for: ClientFor
     response = client.post("/api/v1/circuits/run", content=b"x" * 201, headers=JSON)
     assert response.status_code == 413
     assert response.headers["content-type"] == PROBLEM
-    assert "200 bytes" in response.json()["detail"]
+    assert response.json()["detail"] == (
+        "The request body is over 200 bytes. "
+        "Use `quantum-sim` on the command line for a circuit this size."
+    )
 
 
 def test_a_body_over_the_cap_is_a_413_when_it_arrives_in_chunks(client_for: ClientFor) -> None:
@@ -521,7 +524,11 @@ def test_a_slow_job_is_a_422_and_then_the_lane_says_busy(
     body = {"circuit_json": text(BELL)}
     try:
         first = client.post(url, json=body)
-        assert first.status_code == 422 and "longer than 0.2 s" in first.json()["detail"]
+        assert first.status_code == 422
+        assert first.json()["detail"] == (
+            "The work took longer than 0.2 s, so this request was released. "
+            "Use `quantum-sim` on the command line for a circuit this size."
+        )
         assert client.post(url, json=body).status_code == 422
         busy = client.post(url, json=body)
         assert busy.status_code == 503
@@ -756,7 +763,10 @@ def test_an_export_over_the_operation_cap_is_a_422(client_for: ClientFor) -> Non
     response = client.post(QASM, json={"circuit_json": text(wide(1, 4))})
     assert response.status_code == 422
     body = response.json()
-    assert "4 operations; this endpoint takes at most 3" in body["detail"]
+    assert body["detail"] == (
+        "The request asks for 4 operations; this endpoint takes at most 3. "
+        "Use the Python function `quantum_sim.to_qasm` for a circuit this size."
+    )
     assert body["errors"][0]["path"] == "/circuit_json"
 
 
@@ -764,6 +774,13 @@ def test_an_export_body_over_the_cap_is_a_413(client_for: ClientFor) -> None:
     client = client_with(client_for, max_body_bytes=200)
     response = client.post(QASM, json={"circuit_json": text(wide(1, 20))})
     assert response.status_code == 413
+    assert response.json()["detail"] == (
+        "The request body is over 200 bytes. "
+        "Use the Python function `quantum_sim.to_qasm` for a circuit this size."
+    )
+    # the other circuit routes keep pointing to quantum-sim's command
+    response = client.post("/api/v1/circuits/check", json={"circuit_json": text(wide(1, 20))})
+    assert response.status_code == 413 and "`quantum-sim` on the command line" in response.text
 
 
 def test_a_key_written_twice_in_an_export_is_a_400(client: TestClient) -> None:
@@ -792,7 +809,11 @@ def test_a_slow_export_is_a_422_and_then_the_lane_says_busy(
     body = {"circuit_json": text(BELL)}
     try:
         first = client.post(QASM, json=body)
-        assert first.status_code == 422 and "longer than 0.2 s" in first.json()["detail"]
+        assert first.status_code == 422
+        assert first.json()["detail"] == (
+            "The work took longer than 0.2 s, so this request was released. "
+            "Use the Python function `quantum_sim.to_qasm` for a circuit this size."
+        )
         assert client.post(QASM, json=body).status_code == 422
         busy = client.post(QASM, json=body)
         assert busy.status_code == 503 and busy.headers["retry-after"] == "5"
@@ -1008,6 +1029,29 @@ def test_a_paper_export_body_over_the_cap_is_a_413(client_for: ClientFor) -> Non
     client = client_over(client_for, CIRCUIT_PAPER, max_body_bytes=50)
     response = client.post(paper_url(CIRCUIT_PAPER, "qasm"), json={"values": {"t" * 60: 1}})
     assert response.status_code == 413
+    assert response.json()["detail"] == (
+        "The request body is over 50 bytes. "
+        "Use `docingest circuits export --doc` on the command line for a paper this size."
+    )
+
+
+def test_a_slow_reading_of_a_papers_blocks_points_to_the_docingest_command(
+    client_for: ClientFor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    release = threading.Event()
+    monkeypatch.setattr(
+        "research_api.adapters.circuits.circuit_code_blocks", lambda *a: release.wait(10) and ()
+    )
+    client = client_over(client_for, CIRCUIT_PAPER, timeout_s=0.2)
+    try:
+        response = client.get(paper_url(CIRCUIT_PAPER, "circuits"))
+        assert response.status_code == 422
+        assert response.json()["detail"] == (
+            "The work took longer than 0.2 s, so this request was released. "
+            "Use `docingest circuits export --doc` on the command line for a paper this size."
+        )
+    finally:
+        release.set()
 
 
 def test_a_paper_export_takes_exactly_one_lane_slot(
@@ -1097,4 +1141,17 @@ def test_the_contract_types_the_export_answers() -> None:
     paper = paths["/api/v1/documents/{doc_id}/qasm"]["post"]["responses"]
     for status in ("404", "409", "413", "422", "503"):
         assert PROBLEM in paper[status]["content"]
-    assert "docingest circuits export --doc" in paper["422"]["description"]
+    listed = paths["/api/v1/documents/{doc_id}/circuits"]["get"]["responses"]
+    for responses, hint in (
+        (exported, "`quantum_sim.to_qasm`"),
+        (paper, "`docingest circuits"),
+        (listed, "`docingest circuits"),
+    ):
+        for status in ("413", "422"):
+            assert hint in responses[status]["description"], status
+            assert "`quantum-sim` command" not in responses[status]["description"], status
+    assert "/values/<key>" in exported["422"]["description"]
+    assert "/values/<key>" in paper["422"]["description"]
+    assert "together" in paper["422"]["description"]
+    run = paths["/api/v1/circuits/run"]["post"]["responses"]
+    assert "`quantum-sim` command" in run["422"]["description"]

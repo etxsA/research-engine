@@ -8,19 +8,24 @@ The OpenQASM 3 export answers typed documents, and a refused circuit is a 200 to
 circuits are listed and exported under ``/documents/{doc_id}`` (a second router, with the same
 route class), read only: the programs come back to the caller and nothing is written on the
 server. Neither a circuit nor a value is logged; the access log has the route template only.
+
+A request over a cap is told where to do work this size instead. quantum-sim's command simulates
+and checks but has no export, so the export routes have their own route classes: the pasted
+export points to the library function ``quantum_sim.to_qasm`` and a paper's routes to
+``docingest circuits export --doc``.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, ClassVar
 
 from fastapi import APIRouter, Depends, Request, Response
 from fastapi.routing import APIRoute
 from starlette.concurrency import run_in_threadpool
 
 from ...bootstrap import Container
-from ...domain.circuits import USE_THE_CLI, read_json_strict
+from ...domain.circuits import USE_DOCINGEST, USE_THE_CLI, USE_THE_LIBRARY, read_json_strict
 from ...domain.errors import TooLargeError
 from .asks import DocId
 from .schemas import (
@@ -48,6 +53,7 @@ class BoundedRequest(Request):
     """A request whose body is read with a size cap, stopping as soon as it is over."""
 
     limit = 0
+    hint = USE_THE_CLI
 
     async def body(self) -> bytes:
         if not hasattr(self, "_body"):
@@ -65,7 +71,7 @@ class BoundedRequest(Request):
         return self._body
 
     def _too_large(self) -> TooLargeError:
-        return TooLargeError(f"The request body is over {self.limit} bytes. {USE_THE_CLI}")
+        return TooLargeError(f"The request body is over {self.limit} bytes. {self.hint}")
 
 
 def check_caller(request: Request) -> None:
@@ -82,7 +88,10 @@ class CircuitRoute(APIRoute):
 
     FastAPI would parse the body with ``json.loads``, which keeps the last value of a repeated
     key without a word. Reading the raw bytes first makes the refusal come before the model.
+    ``hint`` ends the 413 message: where to do work this size instead.
     """
+
+    hint: ClassVar[str] = USE_THE_CLI
 
     def get_route_handler(self) -> Callable[[Request], Any]:
         original = super().get_route_handler()
@@ -92,12 +101,21 @@ class CircuitRoute(APIRoute):
             await run_in_threadpool(check_caller, request)
             bounded = BoundedRequest(request.scope, request.receive)
             bounded.limit = container.settings.circuit_caps.max_body_bytes
+            bounded.hint = self.hint
             body = await bounded.body()
             if body:
                 read_json_strict(body, what="The request body")
             return await original(bounded)
 
         return handler
+
+
+class PastedQasmRoute(CircuitRoute):
+    hint: ClassVar[str] = USE_THE_LIBRARY
+
+
+class PaperRoute(CircuitRoute):
+    hint: ClassVar[str] = USE_DOCINGEST
 
 
 router = APIRouter(
@@ -107,11 +125,13 @@ router = APIRouter(
     dependencies=[Depends(member)],
     responses={"default": {"model": Problem, "description": "A problem."}},
 )
+# The pasted export: the same checks, its own hint; included in ``router`` below.
+qasm_router = APIRouter(route_class=PastedQasmRoute)
 # A paper's circuits: the same checks, under the paper's path.
 papers_router = APIRouter(
     prefix="/documents",
     tags=["circuits"],
-    route_class=CircuitRoute,
+    route_class=PaperRoute,
     dependencies=[Depends(member)],
     responses={"default": {"model": Problem, "description": "A problem."}},
 )
@@ -132,14 +152,54 @@ _SIZE_PROBLEMS: dict[int | str, dict[str, Any]] = {
 }
 
 
+_VALUES_PROBLEM = (
+    "a `values` key or value the export cannot use (`errors` points to `/values/<key>`, with "
+    "quantum-sim's message)"
+)
+
+_QASM_PROBLEMS: dict[int | str, dict[str, Any]] = {
+    **_SIZE_PROBLEMS,
+    413: {
+        "model": Problem,
+        "description": "The body is over the cap; `detail` points to the Python function "
+        "`quantum_sim.to_qasm`.",
+    },
+    422: {
+        "model": Problem,
+        "description": f"The request is not valid, {_VALUES_PROBLEM}, or the circuit is over the "
+        "operation cap or the time limit; `detail` then points to the Python function "
+        "`quantum_sim.to_qasm`.",
+    },
+}
+
 _PAPER_PROBLEMS: dict[int | str, dict[str, Any]] = {
     **_SIZE_PROBLEMS,
     404: {"model": Problem, "description": "No such document, or its text cannot be read."},
     409: {"model": Problem, "description": "The id prefix names more than one paper."},
+    413: {
+        "model": Problem,
+        "description": "The body is over the cap; `detail` points to `docingest circuits "
+        "export --doc`.",
+    },
+}
+
+_PAPER_LIST_PROBLEMS: dict[int | str, dict[str, Any]] = {
+    **_PAPER_PROBLEMS,
     422: {
         "model": Problem,
-        "description": "The request is not valid, or the paper's circuits are over the "
-        "operation cap or the time; `detail` points to `docingest circuits export --doc`.",
+        "description": "The id is not 16 to 64 lowercase hex characters, or reading the "
+        "paper's circuit blocks took longer than the time limit; `detail` then points to "
+        "`docingest circuits export --doc`.",
+    },
+}
+
+_PAPER_QASM_PROBLEMS: dict[int | str, dict[str, Any]] = {
+    **_PAPER_PROBLEMS,
+    422: {
+        "model": Problem,
+        "description": f"The request is not valid, {_VALUES_PROBLEM}, or the paper's circuits "
+        "together are over the operation cap or the time limit; `detail` then points to "
+        "`docingest circuits export --doc`.",
     },
 }
 
@@ -220,18 +280,22 @@ QASM_NOTE = (
 )
 
 
-@router.post(
+@qasm_router.post(
     "/qasm",
     operation_id="exportQasm",
     summary="Export a circuit as OpenQASM 3",
     description="The OpenQASM 3 program of each part of a `circuit/1` document, named "
     "`circuit-pNN.qasm`, with `research-api` in the generated-by line and no source line. "
     + QASM_NOTE,
-    responses=_SIZE_PROBLEMS,
+    responses=_QASM_PROBLEMS,
 )
 async def export_qasm(request: Request, body: QasmRequest) -> QasmResponse:
     done = await _container(request).export_qasm(circuit_json=body.circuit_json, values=body.values)
     return QasmResponse.from_domain(done)
+
+
+# After its route: including copies the routes it has, with their route class.
+router.include_router(qasm_router)
 
 
 @papers_router.get(
@@ -241,7 +305,7 @@ async def export_qasm(request: Request, body: QasmRequest) -> QasmResponse:
     description="Every fenced `latex` block of the paper, numbered from 1 over its whole text as "
     "`docingest circuits export` numbers them, with what docingest read in it and each circuit "
     "as a `circuit/1` document.",
-    responses=_PAPER_PROBLEMS,
+    responses=_PAPER_LIST_PROBLEMS,
 )
 async def list_document_circuits(doc_id: DocId, request: Request) -> PaperCircuitsResponse:
     return PaperCircuitsResponse.from_domain(await _container(request).list_paper_circuits(doc_id))
@@ -253,8 +317,8 @@ async def list_document_circuits(doc_id: DocId, request: Request) -> PaperCircui
     summary="Export every circuit of a paper as OpenQASM 3",
     description="The files `docingest circuits export --doc` would write for the paper, byte for "
     "byte and under the same names, returned instead of written: nothing changes on the server. "
-    "All the circuits of the paper share one operation cap. " + QASM_NOTE,
-    responses=_PAPER_PROBLEMS,
+    "All the circuits of the paper share one operation cap and one time limit. " + QASM_NOTE,
+    responses=_PAPER_QASM_PROBLEMS,
 )
 async def export_document_qasm(
     doc_id: DocId, request: Request, body: PaperQasmRequest

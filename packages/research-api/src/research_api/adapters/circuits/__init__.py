@@ -36,7 +36,13 @@ from quantum_sim.angles import symbol_name
 from quantum_sim.entrypoints import conventions
 from quantum_sim.qasm import to_qasm, validate_bindings
 
-from ...domain.circuits import USE_DOCINGEST, QasmExport, QasmProgram, values_pointer
+from ...domain.circuits import (
+    USE_DOCINGEST,
+    USE_THE_LIBRARY,
+    QasmExport,
+    QasmProgram,
+    values_pointer,
+)
 from ...domain.errors import FieldError, InvalidInputError
 from ...ports.circuits import CircuitQasm, GateListReading, LatexBlock
 from .lane import ComputeLane
@@ -85,7 +91,7 @@ class CircuitsAdapter:
         return conventions()
 
     async def blocks(self, markdown: str) -> tuple[LatexBlock, ...]:
-        return await self._lane.run(lambda: _blocks(markdown))
+        return await self._lane.run(lambda: _blocks(markdown), hint=USE_DOCINGEST)
 
     async def check_values(self, values: Mapping[str, Any] | None) -> None:
         await asyncio.to_thread(_check_values, values)  # no lane slot: see the module docstring
@@ -98,7 +104,9 @@ class CircuitsAdapter:
         origin: str = "",
         tool: str,
     ) -> QasmExport:
-        return await self._lane.run(lambda: _qasm(document, values, origin=origin, tool=tool))
+        return await self._lane.run(
+            lambda: _qasm(document, values, origin=origin, tool=tool), hint=USE_THE_LIBRARY
+        )
 
     async def qasm_blocks(
         self,

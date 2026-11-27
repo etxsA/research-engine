@@ -4,7 +4,9 @@ Standard library only. The simulator and the LaTeX reader sit behind a port; wha
 here is what the API refuses before any work starts.
 
 The OpenQASM 3 export follows the same caps with no wire limit (it builds no state): one
-operation budget for the whole request, so all the circuits of a paper count together. A
+operation budget for the whole request, so all the circuits of a paper count together. Its
+refusals point to what can export a circuit this size: the library function
+``quantum_sim.to_qasm`` for a pasted circuit, ``docingest circuits export --doc`` for a paper. A
 paper's programs are named and written as ``docingest circuits export --doc`` writes them
 (``<doc_id[:16]>-bNN-cNN-pNN.qasm``, blocks and circuits numbered from 1 over the whole
 ``document.md``, ``docingest`` in the generated-by line); a pasted circuit's are
@@ -31,7 +33,10 @@ DEFAULT_MAX_BODY_BYTES = 1024 * 1024
 DEFAULT_MAX_OPS = 2000
 DEFAULT_TIMEOUT_S = 30.0
 
+# Where to do work over the caps instead. quantum-sim's command simulates and checks but does
+# not export, so an export over a cap points to the library function or to docingest's command.
 USE_THE_CLI = "Use `quantum-sim` on the command line for a circuit this size."
+USE_THE_LIBRARY = "Use the Python function `quantum_sim.to_qasm` for a circuit this size."
 USE_DOCINGEST = "Use `docingest circuits export --doc` on the command line for a paper this size."
 
 # The generated-by name and the source line of the programs (see the module docstring).
@@ -127,28 +132,32 @@ def operation_count(document: object) -> int:
 
 
 def ensure_within_caps(
-    documents: Sequence[tuple[str, object]], caps: CircuitCaps, *, max_wires: int | None
+    documents: Sequence[tuple[str, object]],
+    caps: CircuitCaps,
+    *,
+    max_wires: int | None,
+    hint: str = USE_THE_CLI,
 ) -> None:
     """Refuse (422) a request whose circuits are over the synchronous caps.
 
     ``documents`` pairs the JSON pointer of each circuit field with its parsed document. The
     operation cap is for the whole request. ``max_wires`` is ``None`` for work that builds no
-    state (the OpenQASM export): then any number of wires passes.
+    state (the OpenQASM export): then any number of wires passes. ``hint`` ends the message:
+    where to do work this size instead.
     """
     for pointer, document in documents:
         wires = wire_count(document)
         if max_wires is not None and wires is not None and wires > max_wires:
             _refuse(
                 pointer,
-                f"The circuit has {wires} wires; this check takes at most {max_wires}. "
-                + USE_THE_CLI,
+                f"The circuit has {wires} wires; this check takes at most {max_wires}. " + hint,
             )
     ops = sum(operation_count(document) for _, document in documents)
     if ops > caps.max_ops:
         _refuse(
             documents[0][0],
             f"The request asks for {ops} operations; this endpoint takes at most {caps.max_ops}. "
-            + USE_THE_CLI,
+            + hint,
         )
 
 

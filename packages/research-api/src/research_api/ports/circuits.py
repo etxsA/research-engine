@@ -73,7 +73,8 @@ class CircuitEngine(Protocol):
 
     async def blocks(self, markdown: str) -> tuple[LatexBlock, ...]:
         """The fenced ``latex`` blocks of a Markdown text, in order, each read as ``parse``
-        reads LaTeX: the blocks docingest's export numbers from 1."""
+        reads LaTeX: the blocks docingest's export numbers from 1. Over the time limit, the
+        ``InvalidInputError`` points to ``docingest circuits export --doc``."""
         ...
 
     async def check_values(self, values: Mapping[str, Any] | None) -> None:
@@ -92,7 +93,9 @@ class CircuitEngine(Protocol):
     ) -> QasmExport:
         """The OpenQASM 3 export of a ``circuit/1`` document. ``origin`` is the source line of
         the header (none when empty) and ``tool`` the generated-by name. A circuit the emitter
-        refuses comes back with status ``refused`` and its reasons, never as an error."""
+        refuses comes back with status ``refused`` and its reasons, never as an error. Over the
+        time limit, the ``InvalidInputError`` points to the library function
+        ``quantum_sim.to_qasm``."""
         ...
 
     async def qasm_blocks(

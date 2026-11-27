@@ -358,8 +358,12 @@ def test_the_lane_bounds_the_export_calls_and_their_time(
     async def scenario() -> None:
         with pytest.raises(InvalidInputError, match=r"longer than 0\.2 s") as slow:
             await start(adapter)
-        hint = "docingest circuits export --doc" if call == "qasm_blocks" else "quantum-sim"
-        assert hint in slow.value.detail
+        hint = {
+            "qasm": "Use the Python function `quantum_sim.to_qasm` for a circuit this size.",
+            "blocks": "Use `docingest circuits export --doc` on the command line for a paper",
+            "qasm_blocks": "Use `docingest circuits export --doc` on the command line for a paper",
+        }[call]
+        assert hint in slow.value.detail and "`quantum-sim`" not in slow.value.detail
         with pytest.raises(UnavailableError):  # the slow thread still holds the only slot
             await adapter.parse("x")
 
