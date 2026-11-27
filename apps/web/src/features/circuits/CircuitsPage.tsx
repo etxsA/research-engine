@@ -23,6 +23,9 @@ function latexOf(state: unknown): string | null {
   return typeof latex === "string" && latex.trim() !== "" ? latex : null;
 }
 
+/** What another screen asked this one to open: a LaTeX to read, or a paper to list. */
+type Incoming = { latex: string } | { docId: string };
+
 export function CircuitsPage() {
   const { t } = useTranslation();
   const { parse, run, check, qasm, paperCircuits, paperQasm } = useCircuitCalls();
@@ -33,7 +36,9 @@ export function CircuitsPage() {
   const [params] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const opened = useRef(false);
+  const busy = useCircuitStore((state) => state.busy);
+  // undefined until the screen has looked at its entry; then what is still to open, or null
+  const incoming = useRef<Incoming | null | undefined>(undefined);
   // What another screen sends here is read once, when the screen opens:
   // - router state `{ latex }` ("Open in Circuits" under a latex block of an answer or a paper)
   //   goes to the LaTeX tab and is read. The LaTeX travels in the state, not in the address: it
@@ -42,24 +47,31 @@ export function CircuitsPage() {
   //   It does not survive a reload either way: the screen's store is in memory only.
   // - `?doc=<id>` ("Circuits of this paper") opens the Paper tab on that paper. It stays in the
   //   address, so a reload opens the same paper; choosing another paper is not undone.
-  // One request runs at a time, so when both come, the LaTeX wins.
+  // One request runs at a time, so when both come, the LaTeX wins. A request of an earlier visit
+  // may still be running (the store outlives the screen): then what was sent waits until the
+  // screen is idle, instead of being dropped by the one-request rule.
   useEffect(() => {
-    if (opened.current) return;
-    opened.current = true;
+    if (incoming.current === undefined) {
+      const latex = latexOf(location.state);
+      const docId = params.get("doc")?.trim();
+      incoming.current = latex !== null ? { latex } : docId ? { docId } : null;
+      if (latex !== null) {
+        void navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+      }
+    }
+    const next = incoming.current;
+    if (next === null || busy !== null) return;
+    incoming.current = null;
     const store = useCircuitStore.getState();
-    const latex = latexOf(location.state);
-    if (latex !== null) {
-      void navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
-      store.loadLatex(latex);
+    if ("latex" in next) {
+      store.loadLatex(next.latex);
       void flows.read();
       return;
     }
-    const docId = params.get("doc")?.trim();
-    if (!docId) return;
     store.setShowPaper(true);
-    store.setPaper(docId);
+    store.setPaper(next.docId);
     void flows.listPaperCircuits();
-  }, [params, location, navigate, flows]);
+  }, [busy, params, location, navigate, flows]);
   return (
     <>
       <PageHeader title={t("pages.circuits.title")}>
