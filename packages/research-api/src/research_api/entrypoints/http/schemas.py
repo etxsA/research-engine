@@ -470,9 +470,10 @@ class PaperQasmResponse(BaseModel):
         description="Every circuit of every block, in order, refused ones included."
     )
     warnings: list[str] = Field(
-        description="The notes `docingest circuits export` gives for the paper: each circuit's "
+        description="The same per-paper notes as `docingest circuits export --doc`: each circuit's "
         "notes after `<source_name>, block b, circuit c: `, `<source_name>: no circuits found`, "
-        "and each `values` key that matches no symbol of any exported circuit."
+        "and each `values` key that matches no symbol of any exported circuit. Notes about other "
+        "papers of the store are not included, and a text that cannot be read is a 404."
     )
 
     @classmethod

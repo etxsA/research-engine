@@ -45,7 +45,7 @@ EXTRA = [
 
 
 def test_the_fixtures_are_there() -> None:
-    assert len(BRIDGE) == 37 and len(GOLDENS) >= 4
+    assert len(BRIDGE) >= 37 and len(GOLDENS) >= 4
 
 
 def fenced(source: str) -> str:

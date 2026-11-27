@@ -3,9 +3,10 @@
 The OpenQASM export never writes or deletes a file: it returns the programs. A pasted circuit is
 exported alone (``circuit-pNN.qasm``). A paper is exported as ``docingest circuits export --doc``
 exports it: every circuit of every fenced ``latex`` block of its whole text, the same file names
-and the same bytes, and the notes docingest gives for one document (each circuit's notes, "no
-circuits found", a binding key that matches no symbol of any exported circuit); docingest's notes
-about stale files do not apply, as nothing is written. Bad binding keys and values are refused
+and the same bytes, and the per-paper notes docingest gives for one document (each circuit's
+notes, "no circuits found", a binding key that matches no symbol of any exported circuit);
+notes about other papers of the store and about stale files are left out, and a text that cannot
+be read is a 404. Bad binding keys and values are refused
 (422) before any circuit is exported, as the command refuses a bad ``--set`` (exit 2); a refused
 circuit is data, kept next to the exported ones.
 """
