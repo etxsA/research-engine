@@ -237,7 +237,8 @@ def ingest_async(
             raise NotConfiguredError(
                 '[adapters] multimodal is "none": select "mineru" (see config/README.md)'
             )
-        service = container.ingest  # builds the converter: a bad [mineru] table stops here
+        container.adapter("multimodal")  # a bad [mineru] table stops here, not per document
+        service = container.ingest
     except DocingestError as e:
         console.print(f"[red]error[/]: {escape(str(e))}")
         raise typer.Exit(1) from e

@@ -20,10 +20,12 @@ the operator checked: only the Apache-2.0 MinerU2.5-Pro weights are accepted (co
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import tempfile
 import zipfile
@@ -119,8 +121,13 @@ class MineruConverter:
             conversion = self._read(path, unpacked, request)
             if self.cfg.keep_output:
                 final = output_dir / request.doc_id
-                shutil.rmtree(final, ignore_errors=True)
-                os.replace(unpacked, final)
+                try:
+                    shutil.rmtree(final, ignore_errors=True)
+                    os.replace(unpacked, final)
+                except OSError as error:  # another run of the same document got there first
+                    raise ConversionError(
+                        f"cannot keep the output of {path.name}: {error}"
+                    ) from error
             return conversion
         finally:
             shutil.rmtree(work, ignore_errors=True)
@@ -143,27 +150,34 @@ class MineruConverter:
         if self.cfg.model_source:
             env["MINERU_MODEL_SOURCE"] = self.cfg.model_source
         try:
-            done = subprocess.run(
+            # its own session: on a timeout the whole group goes, not only the direct child
+            # (MinerU starts workers that hold the GPU)
+            with subprocess.Popen(
                 args,
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 text=True,
-                timeout=self.cfg.timeout_s,
-                check=False,
                 env=env,
-            )
-        except subprocess.TimeoutExpired as error:
-            raise ConversionError(
-                f"MinerU took more than [mineru] timeout_s = {self.cfg.timeout_s:g} s on "
-                f"{path.name}; it was stopped"
-            ) from error
+                start_new_session=True,
+            ) as proc:
+                try:
+                    stdout, stderr = proc.communicate(timeout=self.cfg.timeout_s)
+                except subprocess.TimeoutExpired as error:
+                    with contextlib.suppress(ProcessLookupError, PermissionError):
+                        os.killpg(proc.pid, signal.SIGKILL)
+                    proc.communicate()
+                    raise ConversionError(
+                        f"MinerU took more than [mineru] timeout_s = {self.cfg.timeout_s:g} s on "
+                        f"{path.name}; it was stopped"
+                    ) from error
         except OSError as error:
             raise ConversionError(
                 f"MinerU could not be started for {path.name}: {error}"
             ) from error
-        if done.returncode != 0:
-            detail = (done.stderr or done.stdout).strip()[-MAX_DETAIL:]
+        if proc.returncode != 0:
+            detail = (stderr or stdout).strip()[-MAX_DETAIL:]
             raise ConversionError(
-                f"MinerU failed on {path.name} with exit code {done.returncode}: {detail}"
+                f"MinerU failed on {path.name} with exit code {proc.returncode}: {detail}"
             )
         if not result.is_file():
             raise ConversionError(f"MinerU finished without writing its result for {path.name}")

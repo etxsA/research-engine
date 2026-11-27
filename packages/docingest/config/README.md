@@ -408,10 +408,10 @@ Settings of the optional MinerU 4 converter, read only with `[adapters] multimod
 | `tier` | string | `"standard"` | `--tier`: `standard` or `advanced`, the tiers that run the MinerU2.5-Pro model. `flash` and `basic` are refused. |
 | `model` | string | `null` | The weights the install uses: `MinerU2.5-Pro-2604-1.2B` or `MinerU2.5-Pro-2605-1.2B`, both Apache-2.0. Required. See below. |
 | `model_source` | string | `null` | Passed to the command as `MINERU_MODEL_SOURCE` (`huggingface`, `modelscope`, `local`, `auto`); `null` leaves MinerU's own setting. |
-| `timeout_s` | float (seconds) | `900` | Wall-clock limit per document. A MinerU that takes longer is stopped and the document is read the regular way. |
+| `timeout_s` | float (seconds) | `900` | Wall-clock limit per document. A MinerU that takes longer is stopped, with every process it started, and the document is read the regular way. |
 | `output_dir` | path | `"data/mineru"` | Where MinerU works: a hidden folder per run, removed at the end. |
 | `keep_output` | bool | `false` | Keep MinerU's files (Markdown, middle JSON, `images/`) in `output_dir/<doc_id>`, the folder of the document's sha256. Off by default: the Markdown and the layout are not stored twice. |
-| `max_concurrency` | int | `1` | Documents converted at once by `ingest-async` (`1` to `16`). Each MinerU run uses the GPU. |
+| `max_concurrency` | int | `1` | Documents converted at once by `ingest-async` (`1` to `16`). Each MinerU run uses the GPU. Reading the PDF, the regular fallback and saving the result run one document at a time whatever the value. |
 
 **The model cannot be chosen from the command line.** MinerU 4's `mineru-kit parse` has `--tier`, but no option that names the VLM repository: the installed release downloads its own weights (`mineru-kit models download --tier standard`, source by `MINERU_MODEL_SOURCE` or its `config.yaml`; check them with `mineru-kit models verify`). `model` therefore records what the operator checked: it is in the cache key, and a value that is not an Apache-2.0 Pro release (the AGPL `MinerU2.5-2509-1.2B` included) stops the command with a message. A remote VLM endpoint (`model.vlm.server_url` in MinerU's own config) serves the weights of the operator's choice and is the way to pin a repository exactly.
 
@@ -422,7 +422,11 @@ How a document is read:
 3. The text of each page is built from the `page_idx` of the blocks in the middle JSON. A page without text stays an empty page, and the number of pages is the source's own (pdfium for a PDF), so `<!-- page N -->` markers and citations match the PDF.
 4. A failure, a timeout, a result without text or with a page the document does not have is a `ConversionError`, and `ingest-async` ingests that document the regular way.
 
-Cache key: only `ingest-async` uses it, built from the converter fingerprint (`mineru <version from <command> --version> model=<model> tier=<tier>`) and, for PDFs, `[routing]` and the PDF reader's fingerprint. A new MinerU version, model or tier is a new key. `ingest` is not affected. A change in a `.meta.json` sidecar updates the manifest without running MinerU again.
+Cache key: only `ingest-async` uses it, built from the converter fingerprint (`mineru <version from <command> --version> model=<model> tier=<tier>`) and, for PDFs, `[routing]` and the PDF reader's fingerprint. A new MinerU version, model or tier is a new key. A change in a `.meta.json` sidecar updates the manifest without running MinerU again.
+
+`ingest` and `ingest-async` keep different keys but share the one canonical slot of a document (`<output_dir>/<doc_id[:16]>/`): **the last command wins**. After `ingest-async` a plain `ingest` of the same file does not see the MinerU result, re-processes the document (the OCR of a scanned one included) and replaces it; the next `ingest-async` then runs MinerU again. Run one of the two commands on a corpus, not both. A document that MinerU could not read (a failure, a timeout) is stored by the regular ingest under its own key, so `ingest-async` tries MinerU again on every run, a document that hangs costing `timeout_s` each time.
+
+The converter is built when `ingest-async` starts, not by `ingest`, `crawl`, `self-test` or the PaperQA hook: with `multimodal = "mineru"` a missing MinerU install does not stop them.
 
 #### Licenses
 

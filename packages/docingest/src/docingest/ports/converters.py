@@ -35,7 +35,7 @@ class Conversion:
     degraded: bool = False
     # What a converter found besides the text (images, tables), one dict per item. The ingest
     # service does not store them yet; paths in them are relative to the converter's own
-    # output folder.
+    # output folder. ``page`` is 0-based, like ``PageRecord.index``.
     artifacts: list[dict[str, object]] = field(default_factory=list)
 
 
@@ -61,7 +61,10 @@ class MultimodalRequest:
 class AsyncDocumentConverter(Protocol):
     """A converter that runs outside the event loop: PDFs and images, one segment per page."""
 
-    fingerprint: str  # everything that changes its output: tool version, model, settings
+    @property
+    def fingerprint(self) -> str:
+        """Everything that changes its output: tool version, model, settings."""
+        ...
 
     async def convert_async(self, path: Path, request: MultimodalRequest) -> Conversion:
         """Raise ``ConversionError`` when the document cannot be converted (the ingest service

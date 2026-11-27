@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import threading
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -54,6 +55,7 @@ from ..ports import (
     MultimodalRequest,
     OcrEngine,
     OcrPreflight,
+    PdfPage,
     PdfReader,
     StoredDocument,
     TypeDetector,
@@ -135,6 +137,8 @@ class IngestService:
         self.guards = guards or OcrGuards()
         self.multimodal = multimodal
         self._ocr_checked = False
+        # pdfium, the OCR engine and the store index are not safe to share between threads
+        self._blocking = threading.Lock()
 
     # ----------------------------------------------------------------- public
     def multimodal_hash(self, kind: SourceKind) -> str:
@@ -169,22 +173,25 @@ class IngestService:
         doc_id = await asyncio.to_thread(sha256_file, path)
         config_hash = self.multimodal_hash(kind)
         metadata = metadata or read_sidecar(path)
-        cached = self.store.lookup(doc_id, config_hash, max_pages=None, ocr_all=False)
-        if cached:
-            self.log(f"[cache] {path.name} -> {cached.location} (config {config_hash})")
-            if metadata is None or metadata == cached.manifest.metadata:
-                return cached
-            refreshed = self._refresh_metadata(cached, metadata)
-            if refreshed is not None:
-                return refreshed
-            self.log("  stored Markdown is not what this pipeline wrote: re-processing")
+        cached = await asyncio.to_thread(
+            self._locked, self._multimodal_cached, path, doc_id, config_hash, metadata
+        )
+        if cached is not None:
+            return cached
         t0 = time.perf_counter()
-        request, title = await asyncio.to_thread(self._multimodal_request, path, kind, doc_id)
+        request, title = await asyncio.to_thread(
+            self._locked, self._multimodal_request, path, kind, doc_id
+        )
         try:
             conversion = await converter.convert_async(path, request)
+            if len(conversion.segments) != request.source_pages:
+                raise ConversionError(
+                    f"the converter returned {len(conversion.segments)} segment(s) for "
+                    f"{request.source_pages} page(s)"
+                )
         except ConversionError as error:
             self.log(f"  {path.name}: {error}; reading it the regular way")
-            return await asyncio.to_thread(self.ingest, path, None, metadata)
+            return await asyncio.to_thread(self._locked, self.ingest, path, None, metadata)
         total = round(time.perf_counter() - t0, 2)
         records = [
             PageRecord(
@@ -215,24 +222,54 @@ class IngestService:
         )
         self.log(f"  {conversion.method.value}: {len(records)} page(s) via {conversion.engine}")
         texts = [segment.text for segment in conversion.segments]
-        return self.store.save(manifest, render_markdown(manifest, texts))
+        markdown = render_markdown(manifest, texts)
+        return await asyncio.to_thread(self._locked, self.store.save, manifest, markdown)
+
+    def _locked[**P, T](self, fn: Callable[P, T], *args: P.args, **kwargs: P.kwargs) -> T:
+        """Run one of the steps that cannot overlap with another document's (see ``_blocking``)."""
+        with self._blocking:
+            return fn(*args, **kwargs)
+
+    def _multimodal_cached(
+        self, path: Path, doc_id: str, config_hash: str, metadata: SourceMetadata | None
+    ) -> StoredDocument | None:
+        cached = self.store.lookup(doc_id, config_hash, max_pages=None, ocr_all=False)
+        if not cached:
+            return None
+        self.log(f"[cache] {path.name} -> {cached.location} (config {config_hash})")
+        if metadata is None or metadata == cached.manifest.metadata:
+            return cached
+        refreshed = self._refresh_metadata(cached, metadata)
+        if refreshed is None:
+            self.log("  stored Markdown is not what this pipeline wrote: re-processing")
+        return refreshed
 
     def _multimodal_request(
         self, path: Path, kind: SourceKind, doc_id: str
     ) -> tuple[MultimodalRequest, str | None]:
         """Pages of the source and whether it is read as a scan. A PDF is a scan as soon as one
-        page needs OCR by the routing policy (the per-page signals ``ingest`` uses): a mixed
-        document read as text would lose its scanned pages."""
+        page needs OCR by the routing policy (the per-page signals ``ingest`` uses) and is not
+        a blank one: a mixed document read as text would lose its scanned pages."""
         if kind == SourceKind.IMAGE:
             return MultimodalRequest(doc_id, len(self.images.frames(path)), ocr=True), None
         doc = self.pdf.open(path)
         try:
-            ocr = any(
-                decide(doc.page(i).signals()[0], self.policy).needs_ocr for i in range(len(doc))
-            )
+            ocr = any(self._page_needs_scan(doc.page(i)) for i in range(len(doc)))
             return MultimodalRequest(doc_id, len(doc), ocr), doc.title
         finally:
             doc.close()
+
+    def _page_needs_scan(self, page: PdfPage) -> bool:
+        probe = decide(page.signals()[0], self.policy)
+        if not probe.needs_ocr:
+            return False
+        if not could_be_blank(probe, self.policy):
+            return True
+        # a blank page, or one with a few characters and no other ink, is what ingest() keeps
+        # as it is: it does not make the whole document a scan
+        image = page.render(self.ocr.dpi)
+        ink = ink_ratio(image, self.policy.blank_ink_contrast, self.policy.blank_dark_page)
+        return not is_blank(probe, ink, self.policy)
 
     def config_hash(self, kind: SourceKind, *, ocr_all: bool = False) -> str:
         """Cache key: everything that can change this kind's output, nothing else."""

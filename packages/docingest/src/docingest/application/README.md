@@ -287,9 +287,15 @@ Methods:
   document from the per-page `signals()` and `decide()`: one page that needs OCR makes the
   document a scan. LaTeX, text and office inputs, and any `ConversionError` of the converter,
   go through `ingest()`. The cache key is `multimodal_hash(kind)` (converter fingerprint plus,
-  for PDFs, `[routing]` and the reader's fingerprint), so `config_hash` and the cache of
-  `ingest` do not change when the converter is turned on. A metadata change refreshes the
-  stored result without running the converter. Raises `NotConfiguredError` without a converter.
+  for PDFs, `[routing]` and the reader's fingerprint), so `config_hash` does not change when
+  the converter is turned on. Both commands save to the one canonical slot of the document,
+  so the last one run wins: a later `ingest` re-processes and replaces the MinerU result.
+  A blank page (no text and no ink) does not make a PDF a scan. A conversion whose number of
+  segments is not the page count of the source is treated as a `ConversionError`. Reading the
+  PDF, the fallback `ingest()` and saving run under one lock (pdfium, the OCR engine and the
+  catalog are not thread-safe); only the converter runs in parallel. A metadata change
+  refreshes the stored result without running the converter. Raises `NotConfiguredError`
+  without a converter.
 - `config_hash(kind, *, ocr_all=False) -> str`: the 12-character cache key for a
   `SourceKind` with the current adapters. See [Caching](#caching).
 

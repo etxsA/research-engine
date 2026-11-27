@@ -25,6 +25,7 @@ from .application.qasm import QasmExportService
 from .config import AppConfig, index_config
 from .domain.errors import InvalidConfigError, NotConfiguredError
 from .domain.models import AnswerModel, ModelRef, SourceKind
+from .ports import Conversion, MultimodalRequest
 
 Factory = Callable[[AppConfig], Any]
 
@@ -220,7 +221,7 @@ class Container:
             store=self.adapter("store"),
             policy=self.cfg.routing,
             log=self.log,
-            multimodal=self.adapter("multimodal") if self.configured("multimodal") else None,
+            multimodal=_LazyMultimodal(self) if self.configured("multimodal") else None,
         )
 
     def configured(self, port: str) -> bool:
@@ -326,6 +327,21 @@ class Container:
             raw_dir=Path(self.cfg.raw_dir) / "arxiv",
             log=self.log,
         )
+
+
+class _LazyMultimodal:
+    """The multimodal converter, built on first use: an ``ingest``, ``crawl`` or PaperQA run
+    never starts the tool or reads its configuration, even when ``multimodal`` is selected."""
+
+    def __init__(self, container: Container):
+        self._c = container
+
+    @property
+    def fingerprint(self) -> str:
+        return self._c.adapter("multimodal").fingerprint
+
+    async def convert_async(self, path: Path, request: MultimodalRequest) -> Conversion:
+        return await self._c.adapter("multimodal").convert_async(path, request)
 
 
 class _LazyConverters(dict):
