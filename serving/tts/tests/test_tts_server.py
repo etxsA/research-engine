@@ -24,6 +24,7 @@ RATE = 24_000
 class StubEngine:
     sample_rate = RATE
     voices = ("Ryan", "Vivian")
+    default_voice = "Vivian"
 
     def __init__(self, seconds=0.5):
         self.seconds, self.calls = seconds, []
@@ -58,7 +59,13 @@ def test_models_lists_the_served_model_and_voices(client):
     r = client.get("/v1/models", headers=AUTH)
     assert r.status_code == 200
     assert r.json()["data"] == [
-        {"id": "local-tts", "object": "model", "voices": ["Ryan", "Vivian"]}
+        {
+            "id": "local-tts",
+            "object": "model",
+            "voices": ["Ryan", "Vivian"],
+            "default_voice": "Vivian",
+            "aliases": {"default": "Vivian"},
+        }
     ]
     assert client.get("/v1/models").status_code == 401
 
@@ -239,3 +246,50 @@ def test_token_cap_follows_the_text_and_stays_bounded():
     assert tts_server.token_cap("Hola.") == 39
     assert tts_server.token_cap("x" * 120) == 384
     assert tts_server.token_cap("x" * tts_server.MAX_CHARS) == tts_server.MAX_NEW_TOKENS
+
+
+def test_default_voice_maps_to_the_engine_default(client, engine):
+    assert speak(client, voice="default").status_code == 200
+    assert speak(client, voice="Default").status_code == 200
+    assert [c[1] for c in engine.calls] == ["Vivian", "Vivian"]
+
+
+def test_a_real_speaker_called_default_wins_over_the_alias():
+    class Odd(StubEngine):
+        voices = ("Ryan", "default")
+        default_voice = "Ryan"
+
+    odd = Odd()
+    c = TestClient(tts_server.create_app(odd, KEY))
+    assert speak(c, voice="default").status_code == 200
+    assert odd.calls[0][1] == "default"
+
+
+def test_unknown_voice_is_still_refused_next_to_default(client, engine):
+    assert speak(client, voice="defaults").status_code == 400
+    assert speak(client, voice="nobody").status_code == 400
+    assert engine.calls == []
+
+
+def test_pick_default_voice_uses_the_fallback_then_the_env_value():
+    voices = ("ryan", "vivian", "aiden")
+    assert tts_server.pick_default_voice(voices, None, "vivian") == "vivian"
+    assert tts_server.pick_default_voice(voices, "", "vivian") == "vivian"
+    assert tts_server.pick_default_voice(voices, "AIDEN", "vivian") == "aiden"
+
+
+def test_pick_default_voice_refuses_an_unknown_name_with_the_choices():
+    with pytest.raises(SystemExit) as err:
+        tts_server.pick_default_voice(("ryan", "vivian"), "nobody", "vivian")
+    message = str(err.value)
+    assert "TTS_DEFAULT_VOICE" in message and "nobody" in message and "ryan, vivian" in message
+    with pytest.raises(SystemExit, match="built-in default voice"):
+        tts_server.pick_default_voice(("ryan",), None, "vivian")
+
+
+def test_qwen_engine_default_voice_is_the_first_unless_given():
+    def generate(text, voice, language):
+        return [np.zeros(8, dtype=np.float32)], 24_000
+
+    assert tts_server.QwenEngine(("ryan", "vivian"), generate).default_voice == "ryan"
+    assert tts_server.QwenEngine(("ryan", "vivian"), generate, "vivian").default_voice == "vivian"

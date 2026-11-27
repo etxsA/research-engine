@@ -73,6 +73,7 @@ build_tts_cmd() {  # fills CMD for the tts server: model name $1, port $2. The G
   CMD=(env "TTS_MODEL_REPO=$repo" "TTS_MODEL_REVISION=$rev" "TTS_API_KEY_FILE=$key")
   [ -n "${TTS_MODEL_PATH:-}" ] && CMD+=("TTS_MODEL_PATH=$TTS_MODEL_PATH")
   [ -n "${TTS_VOICES_DIR:-}" ] && CMD+=("TTS_VOICES_DIR=$TTS_VOICES_DIR")
+  [ -n "${TTS_DEFAULT_VOICE:-}" ] && CMD+=("TTS_DEFAULT_VOICE=$TTS_DEFAULT_VOICE")
   CMD+=("$TTS_PY" -m uvicorn --app-dir "$HERE/tts" --factory tts_server:create_app_from_env
         --host 127.0.0.1 --port "$2" --log-level warning)
 }
