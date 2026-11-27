@@ -20,6 +20,14 @@ class GateListReading:
     circuits: tuple[Mapping[str, Any], ...]
 
 
+@dataclass(frozen=True)
+class LatexBlock:
+    """One fenced ``latex`` block of a Markdown text: its body and what docingest read in it."""
+
+    source: str
+    reading: GateListReading
+
+
 class CircuitEngine(Protocol):
     """The work is CPU-bound and bounded by the adapter: it takes plain Python data, as
     ``json.load`` gives it, and never keeps the key-order or duplicate-key question open."""

@@ -139,3 +139,41 @@ def ensure_within_caps(
 
 def _refuse(pointer: str, message: str) -> NoReturn:
     raise InvalidInputError(message, (FieldError(pointer, message),))
+
+
+# --- OpenQASM 3 export -------------------------------------------------------------------------
+
+
+def values_pointer(key: str) -> str:
+    """The JSON pointer of one key of ``values`` (``~`` and ``/`` escaped, RFC 6901)."""
+    return "/values/" + key.replace("~", "~0").replace("/", "~1")
+
+
+@dataclass(frozen=True)
+class QasmProgram:
+    """One OpenQASM 3 program: a part of a drawn circuit (from 1), its drawn sign (``None`` for
+    the first part), the text, and its qubit and classical bit counts."""
+
+    part: int
+    sign: str | None
+    text: str
+    n_qubits: int
+    n_clbits: int
+
+
+@dataclass(frozen=True)
+class QasmExport:
+    """What the emitter made of one circuit. ``status`` is ``ok`` or ``refused``; a refused
+    circuit has no programs (all or nothing) and ``reasons`` says why, in the emitter's words.
+    ``notes`` are the reader's notes, ``symbols`` the free parameters the circuit mentions,
+    ``unmatched`` the caller's binding keys that name none of them. ``unbound`` lists, as binding
+    keys, the symbols of a refused circuit that have no value, only when values for them alone
+    would export it (as docingest's exporter reports them)."""
+
+    status: str
+    programs: tuple[QasmProgram, ...]
+    reasons: tuple[str, ...]
+    notes: tuple[str, ...] = ()
+    symbols: tuple[str, ...] = ()
+    unmatched: tuple[str, ...] = ()
+    unbound: tuple[str, ...] = ()
