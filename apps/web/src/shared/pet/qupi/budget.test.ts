@@ -1,9 +1,10 @@
 import { readdirSync, statSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { QUPI_LAYERS } from "./rig";
 
-const here = path.dirname(new URL(import.meta.url).pathname);
+const here = path.dirname(fileURLToPath(import.meta.url));
 const BUDGET_BYTES = 150 * 1024;
 
 describe("the Qupi art", () => {

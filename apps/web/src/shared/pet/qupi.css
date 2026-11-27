@@ -77,6 +77,7 @@
   border-radius: 50%;
   background: radial-gradient(circle, rgb(251 191 36 / 0.4) 0%, rgb(251 191 36 / 0) 70%);
   opacity: 0.4;
+  mix-blend-mode: screen; /* lightens the fur and keeps the mark yellow */
   pointer-events: none;
 }
 .qupi[data-state="listening"] .qupi-head-group::after {

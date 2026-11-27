@@ -30,14 +30,17 @@ export function squash(node: Element | null | undefined, state: PetState) {
   );
 }
 
-/** The ears flick once when Qupi starts to listen. `side` is -1 for the left ear, 1 for the right. */
+/**
+ * The ears flick once when Qupi starts to listen. `side` is -1 for the left ear, 1 for the right.
+ * The peak adds to the 4 degree listening pose, so it stays at 4 to keep the total within the art's 8.
+ */
 export function twitchEar(node: Element | null | undefined, side: -1 | 1) {
   play(
     node,
     [
       { transform: "rotate(0deg)" },
-      { transform: `rotate(${side * 8}deg)`, offset: 0.3 },
-      { transform: `rotate(${side * -3}deg)`, offset: 0.65 },
+      { transform: `rotate(${side * 4}deg)`, offset: 0.3 },
+      { transform: `rotate(${side * -2}deg)`, offset: 0.65 },
       { transform: "rotate(0deg)" },
     ],
     { duration: 380 },

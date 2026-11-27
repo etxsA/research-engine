@@ -128,6 +128,13 @@ describe("QupiPet", () => {
       run();
       expect(wrap.style.getPropertyValue("--qupi-mouth")).toBe("0.100");
       expect(wrap.dataset.mouth).toBe("closed");
+      // Just past the closed/half edge the mouth holds its shape, so it does not flicker.
+      playbackLevel.current = 0.16;
+      run();
+      expect(wrap.dataset.mouth).toBe("closed");
+      playbackLevel.current = 0.19;
+      run();
+      expect(wrap.dataset.mouth).toBe("half");
       act(() => usePlayback.getState().setState("idle"));
       expect(frames.size).toBe(0);
       expect(wrap.dataset.mouth).toBeUndefined();
