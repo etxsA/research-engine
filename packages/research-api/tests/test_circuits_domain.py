@@ -4,10 +4,12 @@ import json
 
 import pytest
 from docingest.application.qasm import _filename as docingest_filename
+from quantum_sim.angles import MAX_CHARS as ANGLE_MAX_CHARS
 
 from research_api.domain.circuits import (
     MAX_STATE_WIRES,
     MAX_UNITARY_WIRES,
+    MAX_VALUE_CHARS,
     CircuitCaps,
     ensure_paper_within_caps,
     ensure_within_caps,
@@ -220,3 +222,9 @@ def test_the_source_line_of_a_paper_names_the_file_block_and_circuit() -> None:
 )
 def test_a_values_key_is_pointed_at_with_json_pointer_escapes(key: str, pointer: str) -> None:
     assert values_pointer(key) == pointer
+
+
+def test_a_value_is_cut_at_the_length_the_angle_reader_accepts() -> None:
+    # The API refuses a key or a value longer than this before reading it; the reader refuses a
+    # longer text anyway, so the two limits must not drift apart.
+    assert MAX_VALUE_CHARS == ANGLE_MAX_CHARS
