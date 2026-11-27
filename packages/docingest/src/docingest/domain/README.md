@@ -27,7 +27,7 @@ Related reading: [package map](../README.md), [ports](../ports/README.md), [appl
 | Module | Contains | Used by |
 |---|---|---|
 | `models.py` | `SourceKind`, `PageMethod`, `PageSignals`, `PageProbe`, `ModelRef`, `AnswerModel`, `SourceMetadata`, `PageRecord`, `ArtifactKind`, `LayoutArtifact`, `DocumentManifest` (pydantic models and `StrEnum`s) | every layer |
-| `artifacts.py` | `extract_artifacts`, `build_artifact`, `checked_confidence`, `display_latex` (the display equations and tables of a Markdown text, with their page, found page by page with `text.split_pages`) | `IngestService` |
+| `artifacts.py` | `extract_artifacts`, `build_artifact`, `checked_confidence`, `display_latex`, `figure_artifacts` (the display equations and tables of a Markdown text, with their page, found page by page with `text.split_pages`) | `IngestService` |
 | `routing.py` | `RoutingPolicy` (thresholds, the `[routing]` config section), `decide()`, and the blank-page rule (`could_be_blank`, `is_blank`, `blank_probe`) | `IngestService` for every PDF page, `config.AppConfig.routing` |
 | `ocr_guards.py` | `OcrGuards` (thresholds), `OutputProblem`, `find_problem`, `is_looping`, `retry_max_tokens`, `duplicate_pages` | the OCR adapters' retry ladder, `IngestService` |
 | `text.py` | `HYPHEN_MARK`, `garbage_ratio`, `alpha_ratio`, `equals_count`, `math_density`, `is_math_char`, `text_vocabulary`, `clean_text_layer`, `collapse_dot_leaders`, `render_markdown`, `split_pages`, `PAGE_MARKER` | PDF adapter (signals), `IngestService` (clean-up, rendering), synthetic benchmark suite (clean reference text), PaperQA2 adapter and hook, `eval-ocr` command (splitting), `artifacts.py` (`PAGE_MARKER`, `split_pages`) |
@@ -275,9 +275,9 @@ A piece of a page that carries more than running text. Immutable.
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `kind` | `ArtifactKind` | required | `equation`, `table`, `figure` or `region`. The Markdown reader writes the first two. |
+| `kind` | `ArtifactKind` | required | `equation`, `table`, `figure` or `region`. The Markdown reader writes the first two; `ingest_async` adds `figure`. |
 | `page` | `int` | required | 0-based, like `PageRecord.index`: the marker `page N` of `document.md` is page `N - 1`. At least 0. |
-| `text` | `str \| None` | `None` | A table as Markdown, or the text of a figure or region. |
+| `text` | `str \| None` | `None` | A table as Markdown, a figure's path relative to the converter's output folder, or the text of a region. |
 | `latex` | `str \| None` | `None` | An equation as LaTeX, without `$$` or `\[ \]` (a raw `\begin{equation}` environment is kept whole). |
 | `confidence` | `float \| None` | `None` | A probability from a layout reader, 0 to 1. The model refuses a value outside the range; `build_artifact` turns it into `None` with a warning, so one bad value never fails an ingest. |
 | `bbox` | `tuple[float, float, float, float] \| None` | `None` | `x0, y0, x1, y1`. Not filled by the Markdown reader. |

@@ -84,3 +84,30 @@ def extract_artifacts(markdown: str) -> tuple[list[LayoutArtifact], list[str]]:
             artifacts.append(artifact)
             warnings.extend(notes)
     return artifacts, warnings
+
+
+def figure_artifacts(
+    entries: list[dict[str, object]], n_pages: int
+) -> tuple[list[LayoutArtifact], list[str]]:
+    """The figures among what a converter found besides the text, with warnings.
+
+    Only ``{"kind": "image", "page": <0-based>, "path": <relative>}`` entries are figures; the
+    path (relative to the converter's output folder) is kept in ``text``. An entry that is
+    malformed or names a page the document does not have is dropped with a warning, so one bad
+    entry never fails an ingest. The same path on the same page is listed once.
+    """
+    figures: list[LayoutArtifact] = []
+    warnings: list[str] = []
+    seen: set[tuple[int, str]] = set()
+    for entry in entries:
+        if entry.get("kind") != "image":
+            continue
+        page, path = entry.get("page"), entry.get("path")
+        if not (isinstance(page, int) and isinstance(path, str) and path):
+            warnings.append(f"image entry {entry!r} has no page or path: not kept")
+        elif not 0 <= page < n_pages:
+            warnings.append(f"image {path!r} is on page {page}, outside the {n_pages} pages")
+        elif (page, path) not in seen:
+            seen.add((page, path))
+            figures.append(LayoutArtifact(kind=ArtifactKind.FIGURE, page=page, text=path))
+    return figures, warnings

@@ -28,7 +28,7 @@ from docingest.adapters.converters.mineru import MineruConverter
 from docingest.application.ingest import IngestOptions
 from docingest.config import MineruConfig
 from docingest.domain.errors import ConversionError, InvalidConfigError, NotConfiguredError
-from docingest.domain.models import PageMethod, SourceKind, SourceMetadata
+from docingest.domain.models import ArtifactKind, PageMethod, SourceKind, SourceMetadata
 from docingest.domain.text import split_pages
 from docingest.entrypoints.cli import app
 from docingest.ports import Conversion, MultimodalRequest, Segment
@@ -620,3 +620,56 @@ def test_a_plain_ingest_does_not_start_the_converter(tmp_path, command):
     result = CliRunner().invoke(app, ["ingest", str(raw), "--config", str(cfg)])
     assert result.exit_code == 0, result.output
     assert calls(tmp_path) == []
+
+
+# ------------------------------------------------------------ layout artifacts
+@aio
+async def test_the_figures_mineru_finds_are_stored_as_layout_artifacts(tmp_path, command, src):
+    svc = service(tmp_path, command, {"paper.pdf": [digital("x")] * 4})
+    doc = await svc.ingest_async(src("paper.pdf", PAGES.encode()))
+    figures = [a for a in doc.manifest.artifacts if a.kind == ArtifactKind.FIGURE]
+    assert [(a.page, a.text) for a in figures] == [
+        (0, "images/fig.png"),
+        (1, "images/fig.png"),
+        (3, "images/fig.png"),
+    ]
+    assert all(a.latex is None for a in figures)
+
+
+class FindsArtifacts:
+    """A converter whose Markdown has a display equation and a table, and a list of images."""
+
+    fingerprint = "finds-artifacts"
+
+    async def convert_async(self, path, request):
+        return Conversion(
+            [Segment("intro"), Segment("$$\nE = mc^2\n$$\n\n| a | b |\n|---|---|\n| 1 | 2 |")],
+            PageMethod.MINERU,
+            "x",
+            artifacts=[
+                {"kind": "image", "page": 1, "path": "images/b.png"},
+                {"kind": "image", "page": 0, "path": "images/a.png"},
+                {"kind": "image", "page": 0, "path": "images/a.png"},  # twice: listed once
+                {"kind": "image", "page": 7, "path": "images/gone.png"},  # no such page
+                {"kind": "image", "page": 0},  # no path
+                {"kind": "table", "page": 0, "path": "images/t.png"},  # not a figure
+            ],
+        )
+
+
+@aio
+async def test_equations_tables_and_figures_share_the_manifest_in_page_order(tmp_path, src):
+    logs = []
+    svc = make_service(
+        {"a.pdf": [digital(TEXT)] * 2}, images=FakeImages(2), multimodal=FindsArtifacts()
+    )
+    svc.log = logs.append
+    doc = await svc.ingest_async(src("a.pdf", b"a"))
+    found = [(a.kind, a.page, a.latex, a.text) for a in doc.manifest.artifacts]
+    assert found[0] == (ArtifactKind.FIGURE, 0, None, "images/a.png")
+    assert (ArtifactKind.EQUATION, 1, "E = mc^2", None) in found
+    assert any(k == ArtifactKind.TABLE and p == 1 for k, p, _, _ in found)
+    assert (ArtifactKind.FIGURE, 1, None, "images/b.png") in found
+    assert len(found) == 4
+    assert sum("layout artifact" in line for line in logs) == 2  # the two dropped entries
+    assert doc.manifest.pipeline_version == "0.4.1"

@@ -13,7 +13,7 @@ from pathlib import Path
 
 from PIL.Image import Image
 
-from ..domain.artifacts import extract_artifacts
+from ..domain.artifacts import extract_artifacts, figure_artifacts
 from ..domain.errors import ConversionError, NotConfiguredError, UnsupportedInputError
 from ..domain.layout import PageLayout
 from ..domain.models import (
@@ -223,6 +223,13 @@ class IngestService:
         self.log(f"  {conversion.method.value}: {len(records)} page(s) via {conversion.engine}")
         texts = [segment.text for segment in conversion.segments]
         markdown = render_markdown(manifest, texts)
+        artifacts, notes = extract_artifacts(markdown)
+        figures, figure_notes = figure_artifacts(conversion.artifacts, len(records))
+        for note in [*notes, *figure_notes]:
+            self.log(f"  warning: layout artifact: {note}")
+        manifest = manifest.model_copy(
+            update={"artifacts": sorted([*artifacts, *figures], key=lambda a: a.page)}
+        )
         return await asyncio.to_thread(self._locked, self.store.save, manifest, markdown)
 
     def _locked[**P, T](self, fn: Callable[P, T], *args: P.args, **kwargs: P.kwargs) -> T:

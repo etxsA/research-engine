@@ -320,7 +320,10 @@ Methods:
 9. `render_markdown(manifest, texts)` from `domain.text` produces the Markdown.
    `extract_artifacts` from `domain.artifacts` then lists the display equations and tables
    of that Markdown (page from the page markers, inline math skipped) and the list is put
-   on the manifest as `artifacts`; a warning from it goes to the log.
+   on the manifest as `artifacts`; a warning from it goes to the log. `ingest_async` does the
+   same on the MinerU Markdown and adds the images in `Conversion.artifacts` through
+   `figure_artifacts` (kind `figure`, path in `text`; a bad entry is dropped with a warning),
+   sorted by page.
 10. `store.save(manifest, markdown, degraded=...)` persists both and returns the
     `StoredDocument`.
 
@@ -579,7 +582,7 @@ The `DocumentManifest` fields that `IngestService` fills:
 | `config_hash` | the cache key |
 | `ocr_model` | the OCR engine's `ModelRef` if at least one page used OCR, else `None` |
 | `title`, `metadata` | see [Metadata and title precedence](#metadata-and-title-precedence) |
-| `artifacts` | `LayoutArtifact` list read from the Markdown: display equations and tables with their 0-based page; empty when there are none. Not in `config_hash` |
+| `artifacts` | `LayoutArtifact` list read from the Markdown: display equations and tables with their 0-based page; `ingest_async` adds the figures the converter found (`kind` `figure`, path in `text`), all in page order; empty when there are none. Not in `config_hash` |
 | `total_seconds` | processing time from after the cache check to the manifest (the save is not included) |
 | `created_at` | set by the domain model (UTC, ISO 8601) |
 
