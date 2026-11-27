@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { ANA } from "@/test/auth-mock";
@@ -854,5 +854,64 @@ describe("the circuit check screen", () => {
     expect(
       await screen.findByText("Estado final (cables: 2). El cable 1 es el bit más significativo."),
     ).toBeInTheDocument();
+  });
+});
+
+describe("a circuit sent by another screen", () => {
+  const BELL = exampleById("bell")!.text;
+
+  /** Opens the app at `/ask`, then at the Circuits screen as a link with `state` leaves it. */
+  async function arrive(search: string, state: unknown) {
+    const app = renderApp(["/ask", { pathname: "/circuits", search, state }]);
+    await screen.findByRole("heading", { level: 1, name: "Circuits" });
+    return { app, user: userEvent.setup() };
+  }
+
+  it("is put in the LaTeX tab and read", async () => {
+    const { app } = await arrive("", { latex: BELL });
+    expect(screen.getByRole("tab", { name: "LaTeX", selected: true })).toBeInTheDocument();
+    expect(screen.getByLabelText("LaTeX code of one circuit")).toHaveValue(BELL);
+    expect(await screen.findByText("Read in full")).toBeInTheDocument();
+    expect(app.router.state.location.state).toBeNull();
+  });
+
+  it("is read once: coming back to the entry does not read it again", async () => {
+    const parsed: string[] = [];
+    server.events.on("request:start", ({ request }) => {
+      if (request.url.endsWith("/circuits/parse")) parsed.push(request.url);
+    });
+    try {
+      const { app, user } = await arrive("", { latex: BELL });
+      await screen.findByText("Read in full");
+      await user.click(screen.getByRole("button", { name: "Clear" }));
+      await act(() => app.router.navigate(-1));
+      await screen.findByRole("heading", { level: 1, name: "Ask" });
+      await act(() => app.router.navigate(1));
+      await screen.findByRole("heading", { level: 1, name: "Circuits" });
+      expect(screen.getByLabelText("LaTeX code of one circuit")).toHaveValue("");
+      expect(parsed).toHaveLength(1);
+    } finally {
+      server.events.removeAllListeners();
+    }
+  });
+
+  it("ignores a state that holds no LaTeX", async () => {
+    await arrive("", { latex: 3 });
+    expect(screen.getByLabelText("LaTeX code of one circuit")).toHaveValue("");
+    expect(screen.queryByText("Read in full")).not.toBeInTheDocument();
+  });
+
+  it("opens a paper named by ?doc= when no LaTeX comes with it", async () => {
+    await arrive("?doc=c7f460355b1958c3e6cf45b6d3234766cd8c9d49a5a9265864030a0606907a44", null);
+    expect(screen.getByRole("tab", { name: "Paper", selected: true })).toBeInTheDocument();
+    expect(await screen.findAllByTestId("paper-block")).toHaveLength(2);
+  });
+
+  it("reads the LaTeX rather than the paper when both come", async () => {
+    const { app } = await arrive("?doc=ffffffffffffffff", { latex: BELL });
+    expect(await screen.findByText("Read in full")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "LaTeX", selected: true })).toBeInTheDocument();
+    expect(screen.queryByTestId("problem")).not.toBeInTheDocument();
+    expect(app.router.state.location.search).toBe("?doc=ffffffffffffffff");
   });
 });

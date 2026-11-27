@@ -236,6 +236,10 @@
       "ambiguous": "Ese id corto corresponde a más de un artículo.",
       "error": "No se pudo cargar la página.",
       "retry": "Intentar de nuevo"
+    },
+    "circuits": {
+      "open": "Abrir en Circuitos",
+      "paper": "Circuitos de este artículo"
     }
   },
   "benchmarks": {

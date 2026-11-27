@@ -236,6 +236,10 @@
       "ambiguous": "That short id names more than one paper.",
       "error": "The page could not be loaded.",
       "retry": "Try again"
+    },
+    "circuits": {
+      "open": "Open in Circuits",
+      "paper": "Circuits of this paper"
     }
   },
   "benchmarks": {
